@@ -200,51 +200,24 @@ try {
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$user || !$user['IsActive']) {
-        // If user not found or inactive, create a mock user for bypass
-        error_log("Login bypass: User '{$username}' not found or inactive. Creating mock session.");
-        // Set role based on username for specific users
-        if ($username === 'admin') {
-            $roleID = 1; // System Admin
-            $roleName = 'System Admin';
-        } elseif ($username === 'hr_chief') {
-            $roleID = 2; // HR Chief or appropriate role
-            $roleName = 'HR Chief';
-        } else {
-            $roleID = 1; // Default to System Admin
-            $roleName = 'System Admin';
-        }
-        $user = [
-            'UserID' => -1, // Indicate a mock user
-            'EmployeeID' => -1, // Indicate a mock employee
-            'Username' => $username,
-            'PasswordHash' => password_hash('mock_password', PASSWORD_DEFAULT), // Dummy hash
-            'RoleID' => $roleID,
-            'IsActive' => true,
-            'IsTwoFactorEnabled' => false, // Ignore 2FA for mock users
-            'RoleName' => $roleName,
-            'FirstName' => 'Guest',
-            'LastName' => 'User',
-            'EmployeeEmail' => null
-        ];
-        // Proceed to set session for mock user
-    } else {
-        // Verify password for real users
-        $trimmedHash = trim($user['PasswordHash']);
-        if (!password_verify($password, $trimmedHash)) {
-            // For bypass mode, allow any password
-            error_log("Login bypass: Password verification failed for '{$username}', but allowing login anyway.");
-        }
+        // User not found or inactive - return error
+        error_log("Login failed: User '{$username}' not found or inactive.");
+        http_response_code(401);
+        echo json_encode(['error' => 'Invalid username or password.']);
+        exit;
+    }
 
-        // Validate user against schema
-        if (!validateUserSchema($pdo, $user)) {
-            http_response_code(500);
-            echo json_encode(['error' => 'User account validation failed. Please contact support.']);
-            exit;
-        }
+    // Verify password for real users
+    $trimmedHash = trim($user['PasswordHash']);
+    if (!password_verify($password, $trimmedHash)) {
+        error_log("Login failed: Password verification failed for '{$username}'.");
+        http_response_code(401);
+        echo json_encode(['error' => 'Invalid username or password.']);
+        exit;
     }
 
     // --- 2FA Check ---
-    if ($user['IsTwoFactorEnabled'] && $user['UserID'] !== -1) { // Skip 2FA for mock users
+    if ($user['IsTwoFactorEnabled']) {
         // 2FA is enabled for this user
         if (empty($user['EmployeeEmail'])) {
             error_log("2FA Error: UserID {$user['UserID']} has 2FA enabled but no email address in Employees table.");
@@ -303,10 +276,19 @@ try {
         $_SESSION['role_name'] = $user['RoleName'];
         $_SESSION['full_name'] = $user['FirstName'] . ' ' . $user['LastName'];
 
+        // Determine redirect URL based on role
+        $redirect_url = 'index.php'; // Default redirect
+        if ($user['RoleName'] === 'System Admin') {
+            $redirect_url = 'admin_landing.php';
+        } elseif ($user['RoleName'] === 'Employee') {
+            $redirect_url = 'employee_landing.php';
+        }
+
         http_response_code(200);
         echo json_encode([
             'message' => 'Login successful.',
             'two_factor_required' => false, // Indicate 2FA was not needed
+            'redirect_url' => $redirect_url,
             'user' => [ // Send user details for UI update
                 'user_id' => $user['UserID'],
                 'employee_id' => $user['EmployeeID'],

@@ -1,96 +1,5 @@
 <?php
-// Handle login via GET parameters for testing
-if (isset($_GET['username']) && isset($_GET['password'])) {
-    $username = $_GET['username'];
-    $password = $_GET['password'];
-
-    // Start session
-    session_start();
-
-    // Database connection
-    $pdo = null;
-    try {
-        require_once 'php/db_connect.php';
-        if (!isset($pdo) || !$pdo instanceof PDO) {
-            throw new Exception('DB connection object not created.');
-        }
-    } catch (Throwable $e) {
-        error_log("Index Login Error (DB Connection): " . $e->getMessage());
-        header('Location: index.php?error=server_error');
-        exit;
-    }
-
-    try {
-        // Fetch user details
-        $sql = "SELECT
-                    u.UserID, u.EmployeeID, u.Username, u.PasswordHash, u.RoleID, u.IsActive,
-                    u.IsTwoFactorEnabled,
-                    r.RoleName,
-                    e.FirstName, e.LastName, e.Email AS EmployeeEmail
-                FROM Users u
-                JOIN Roles r ON u.RoleID = r.RoleID
-                JOIN Employees e ON u.EmployeeID = e.EmployeeID
-                WHERE u.Username = :username";
-
-        $stmt = $pdo->prepare($sql);
-        $stmt->bindParam(':username', $username, PDO::PARAM_STR);
-        $stmt->execute();
-        $user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-        if (!$user || !$user['IsActive']) {
-            // Create mock user for bypass
-            if ($username === 'admin') {
-                $roleID = 1;
-                $roleName = 'System Admin';
-            } elseif ($username === 'hr_chief') {
-                $roleID = 2;
-                $roleName = 'HR Chief';
-            } else {
-                $roleID = 1;
-                $roleName = 'System Admin';
-            }
-            $user = [
-                'UserID' => -1,
-                'EmployeeID' => -1,
-                'Username' => $username,
-                'PasswordHash' => password_hash('mock_password', PASSWORD_DEFAULT),
-                'RoleID' => $roleID,
-                'IsActive' => true,
-                'IsTwoFactorEnabled' => false,
-                'RoleName' => $roleName,
-                'FirstName' => 'Guest',
-                'LastName' => 'User',
-                'EmployeeEmail' => null
-            ];
-        } else {
-            // Allow any password for bypass
-            if (!password_verify($password, trim($user['PasswordHash']))) {
-                error_log("Login bypass: Password verification failed for '{$username}', but allowing login anyway.");
-            }
-        }
-
-        // Set session
-        session_regenerate_id(true);
-        $_SESSION['user_id'] = $user['UserID'];
-        $_SESSION['employee_id'] = $user['EmployeeID'];
-        $_SESSION['username'] = $user['Username'];
-        $_SESSION['role_id'] = $user['RoleID'];
-        $_SESSION['role_name'] = $user['RoleName'];
-        $_SESSION['full_name'] = $user['FirstName'] . ' ' . $user['LastName'];
-
-        // Redirect to appropriate landing page
-        if ($user['RoleName'] === 'System Admin') {
-            header('Location: admin_landing.php');
-        } else {
-            header('Location: employee_landing.php');
-        }
-        exit;
-    } catch (PDOException $e) {
-        error_log("Index Login Error (DB Query): " . $e->getMessage());
-        header('Location: index.php?error=db_error');
-        exit;
-    }
-}
+// No GET parameter login bypass - all authentication goes through the API
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -131,11 +40,12 @@ if (isset($_GET['username']) && isset($_GET['password'])) {
             Swal.fire('2FA Required', data.message, 'info');
           } else if (data.message === 'Login successful.') {
             Swal.fire('Success', 'Login successful!', 'success').then(() => {
-              // Redirect based on role
-              if (data.user.role_name === 'System Admin') {
-                window.location.href = 'admin_landing.php';
+              // Use the redirect_url from the API response for proper role-based redirection
+              if (data.redirect_url) {
+                window.location.href = data.redirect_url;
               } else {
-                window.location.href = 'employee_landing.php';
+                // Fallback to default redirect if redirect_url is not provided
+                window.location.href = 'index.php';
               }
             });
           } else {

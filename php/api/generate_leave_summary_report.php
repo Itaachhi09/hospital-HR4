@@ -86,11 +86,11 @@ try {
                 lr.RequestDate,
                 CONCAT(app_e.FirstName, ' ', app_e.LastName) AS ApproverName,
                 lr.ApprovalDate
-            FROM LeaveRequests lr
-            JOIN Employees e ON lr.EmployeeID = e.EmployeeID
-            JOIN LeaveTypes lt ON lr.LeaveTypeID = lt.LeaveTypeID
-            LEFT JOIN OrganizationalStructure os ON e.DepartmentID = os.DepartmentID
-            LEFT JOIN Employees app_e ON lr.ApproverID = app_e.EmployeeID";
+            FROM leaverequests lr
+            JOIN employees e ON lr.EmployeeID = e.EmployeeID
+            JOIN leavetypes lt ON lr.LeaveTypeID = lt.LeaveTypeID
+            LEFT JOIN organizationalstructure os ON e.DepartmentID = os.DepartmentID
+            LEFT JOIN employees app_e ON lr.ApproverID = app_e.EmployeeID";
 
     $conditions = [];
     $params = [];

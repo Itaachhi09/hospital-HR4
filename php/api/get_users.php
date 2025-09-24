@@ -64,8 +64,6 @@ try {
                 u.Username,
                 u.RoleID,
                 u.IsActive,
-                u.CreatedAt,
-                u.UpdatedAt,
                 r.RoleName,
                 CONCAT(e.FirstName, ' ', e.LastName) AS EmployeeName,
                 e.JobTitle AS EmployeeJobTitle,
@@ -93,17 +91,6 @@ try {
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
     $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    // Format dates (optional)
-    foreach ($users as &$user) {
-        if (!empty($user['CreatedAt'])) {
-            $user['CreatedAtFormatted'] = date('M d, Y H:i', strtotime($user['CreatedAt']));
-        }
-        if (!empty($user['UpdatedAt'])) {
-            $user['UpdatedAtFormatted'] = date('M d, Y H:i', strtotime($user['UpdatedAt']));
-        }
-    }
-    unset($user);
 
     // --- Final JSON Output ---
     if (headers_sent()) { exit; }

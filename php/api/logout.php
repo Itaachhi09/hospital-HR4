@@ -51,9 +51,15 @@ try {
     // 3. Destroy the session
     session_destroy();
 
-    // Success response
+    // Success response with redirect
     http_response_code(200);
-    echo json_encode(['message' => 'Logout successful.']);
+    echo json_encode([
+        'message' => 'Logout successful.',
+        'redirect_url' => '../index.php'
+    ]);
+
+    // Also set a direct redirect header as fallback
+    header('Location: ../index.php');
     exit;
 
 } catch (Throwable $e) {

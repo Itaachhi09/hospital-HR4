@@ -18,7 +18,7 @@
                     d.DocumentType,
                     d.DocumentName,
                     d.FilePath,
-                    d.UploadDate
+                    d.UploadedAt
                 FROM
                     EmployeeDocuments d
                 JOIN
@@ -29,7 +29,7 @@
             $sql .= " WHERE d.EmployeeID = :employee_id";
         }
 
-        $sql .= " ORDER BY e.LastName, e.FirstName, d.UploadDate DESC"; // Order results
+        $sql .= " ORDER BY e.LastName, e.FirstName, d.UploadedAt DESC"; // Order results
 
         // Prepare and execute the statement
         $stmt = $pdo->prepare($sql);

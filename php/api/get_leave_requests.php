@@ -43,11 +43,11 @@
                     lr.ApprovalDate,
                     lr.ApproverComments
                 FROM
-                    LeaveRequests lr -- Ensure table name matches schema
+                    leaverequests lr -- Ensure table name matches schema
                 JOIN
                     Employees e ON lr.EmployeeID = e.EmployeeID
                 JOIN
-                    LeaveTypes lt ON lr.LeaveTypeID = lt.LeaveTypeID
+                    leavetypes lt ON lr.LeaveTypeID = lt.LeaveTypeID
                 LEFT JOIN -- Left join for approver in case it's NULL
                     Employees a ON lr.ApproverID = a.EmployeeID";
 

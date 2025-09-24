@@ -106,10 +106,10 @@ CREATE TABLE `claimtypes` (
 --
 
 INSERT INTO `claimtypes` (`ClaimTypeID`, `TypeName`, `Description`, `RequiresReceipt`) VALUES
-(1, 'Travel Expenses', 'Business travel related expenses', 1),
-(2, 'Meal Allowance', 'Business meal expenses', 1),
-(3, 'Office Supplies', 'Office equipment and supplies', 1),
-(4, 'Training Costs', 'Professional development and training', 1),
+(1, 'Medical Supplies', 'Medical supplies and equipment', 1),
+(2, 'Training Costs', 'Professional development and training', 1),
+(3, 'Equipment Maintenance', 'Maintenance of medical equipment', 1),
+(4, 'Travel Expenses', 'Business travel related expenses', 1),
 (5, 'Medical Reimbursement', 'Medical expenses not covered by insurance', 1);
 
 -- --------------------------------------------------------
@@ -167,11 +167,11 @@ CREATE TABLE `departments` (
 
 INSERT INTO `departments` (`DepartmentID`, `DepartmentName`) VALUES
 (1, 'Administration'),
-(2, 'Human Resources'),
-(3, 'Information Technology'),
-(4, 'Finance'),
-(5, 'Operations'),
-(6, 'Marketing');
+(2, 'Emergency Department'),
+(3, 'Surgery'),
+(4, 'Nursing'),
+(5, 'Radiology'),
+(6, 'Pharmacy');
 
 -- --------------------------------------------------------
 
@@ -262,8 +262,8 @@ CREATE TABLE `employees` (
 --
 
 INSERT INTO `employees` (`EmployeeID`, `FirstName`, `MiddleName`, `LastName`, `Suffix`, `Email`, `PersonalEmail`, `PhoneNumber`, `DateOfBirth`, `Gender`, `MaritalStatus`, `Nationality`, `AddressLine1`, `AddressLine2`, `City`, `StateProvince`, `PostalCode`, `Country`, `EmergencyContactName`, `EmergencyContactRelationship`, `EmergencyContactPhone`, `HireDate`, `JobTitle`, `DepartmentID`, `ManagerID`, `IsActive`, `TerminationDate`, `TerminationReason`, `EmployeePhotoPath`) VALUES
-(1, 'System', NULL, 'Admin', NULL, 'admin@hr4.com', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-09-09', 'System Administrator', 1, NULL, 1, NULL, NULL, NULL),
-(2, 'John', NULL, 'Doe', NULL, 'john.doe@hr4.com', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-09-09', 'Software Developer', 7, NULL, 1, NULL, NULL, NULL);
+(1, 'System', NULL, 'Admin', NULL, 'admin@hospitalhr.com', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-09-09', 'System Administrator', 1, NULL, 1, NULL, NULL, NULL),
+(2, 'Dr. John', NULL, 'Smith', NULL, 'john.smith@hospitalhr.com', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-09-09', 'Emergency Physician', 2, NULL, 1, NULL, NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -325,10 +325,10 @@ CREATE TABLE `job_roles` (
 --
 
 INSERT INTO `job_roles` (`JobRoleID`, `JobRoleName`) VALUES
-(1, 'Manager'),
-(2, 'Staff'),
-(3, 'Senior Staff'),
-(4, 'Director'),
+(1, 'Doctor'),
+(2, 'Nurse'),
+(3, 'Technician'),
+(4, 'Administrator'),
 (5, 'Coordinator');
 
 -- --------------------------------------------------------
@@ -425,26 +425,26 @@ CREATE TABLE `organizationalstructure` (
 --
 
 INSERT INTO `organizationalstructure` (`DepartmentID`, `DepartmentName`, `ParentDepartmentID`) VALUES
-(1, 'Human Resources', NULL),
-(2, 'Information Technology', NULL),
-(3, 'Finance', NULL),
-(4, 'Operations', NULL),
-(5, 'Recruitment', 1),
-(6, 'Payroll', 1),
-(7, 'Software Development', 2),
-(8, 'IT Support', 2),
-(9, 'Accounting', 3),
-(10, 'Audit', 3),
-(11, 'Human Resources', NULL),
-(12, 'Information Technology', NULL),
-(13, 'Finance', NULL),
-(14, 'Operations', NULL),
-(15, 'Recruitment', 1),
-(16, 'Payroll', 1),
-(17, 'Software Development', 2),
-(18, 'IT Support', 2),
-(19, 'Accounting', 3),
-(20, 'Audit', 3);
+(1, 'Administration', NULL),
+(2, 'Emergency Department', NULL),
+(3, 'Surgery', NULL),
+(4, 'Nursing', NULL),
+(5, 'Radiology', NULL),
+(6, 'Pharmacy', NULL),
+(7, 'Human Resources', 1),
+(8, 'Finance', 1),
+(9, 'IT Support', 1),
+(10, 'Emergency Services', 2),
+(11, 'Administration', NULL),
+(12, 'Emergency Department', NULL),
+(13, 'Surgery', NULL),
+(14, 'Nursing', NULL),
+(15, 'Radiology', NULL),
+(16, 'Pharmacy', NULL),
+(17, 'Human Resources', 11),
+(18, 'Finance', 11),
+(19, 'IT Support', 11),
+(20, 'Emergency Services', 12);
 
 -- --------------------------------------------------------
 
@@ -660,7 +660,7 @@ CREATE TABLE `users` (
 
 INSERT INTO `users` (`UserID`, `EmployeeID`, `Username`, `PasswordHash`, `RoleID`, `IsActive`, `IsTwoFactorEnabled`, `TwoFactorEmailCode`, `TwoFactorCodeExpiry`) VALUES
 (1, 1, 'admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 1, 1, 0, NULL, NULL),
-(2, 2, 'hr_chief', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 4, 1, 0, NULL, NULL);
+(2, 2, 'doctor', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 4, 1, 0, NULL, NULL);
 
 --
 -- Indexes for dumped tables

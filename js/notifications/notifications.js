@@ -114,7 +114,7 @@ function renderNotificationList(notifications) {
         return;
     }
 
-    notificationListElement.innerHTML = notifications.map(notif => `
+    let html = notifications.map(notif => `
         <a href="${notif.Link || '#'}"
            class="block px-4 py-3 hover:bg-gray-100 notification-item ${!notif.IsRead ? 'bg-blue-50' : ''}"
            data-notification-id="${notif.NotificationID}"
@@ -137,6 +137,11 @@ function renderNotificationList(notifications) {
             </div>
         </a>
     `).join('');
+
+    // Add "View All Notifications" link
+    html += `<a href="#notifications" class="block px-4 py-3 text-center text-blue-600 hover:bg-gray-100 view-all-notifications">View All Notifications</a>`;
+
+    notificationListElement.innerHTML = html;
 }
 
 /**
@@ -216,9 +221,24 @@ function updateNotificationDot(unreadCount) {
  */
 async function handleNotificationItemClick(event) {
     const notificationItem = event.target.closest('.notification-item');
-    if (!notificationItem) return;
+    const viewAllLink = event.target.closest('.view-all-notifications');
+    if (!notificationItem && !viewAllLink) return;
 
     event.preventDefault();
+
+    if (viewAllLink) {
+        // Handle "View All Notifications" click
+        if (typeof window.navigateToSectionById === 'function') {
+            window.navigateToSectionById('notifications');
+        } else {
+            console.warn('[Notifications] Global function "window.navigateToSectionById" not found. Cannot navigate to notifications section.');
+        }
+        if (notificationDropdownElement) {
+            notificationDropdownElement.classList.add('hidden');
+            onNotificationDropdownClose();
+        }
+        return;
+    }
 
     const notificationId = notificationItem.dataset.notificationId;
     const link = notificationItem.dataset.link;

@@ -120,6 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
         analyticsMetrics: document.getElementById('analytics-metrics-link')?.closest('li'),
         admin: document.querySelector('[onclick*="admin-dropdown"]')?.closest('.menu-option'),
         userManagement: document.getElementById('user-management-link')?.closest('li'),
+        notifications: document.getElementById('notifications-link')?.closest('li'),
     };
 
     // --- Error Handling for Missing Core Elements ---
@@ -199,18 +200,57 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Logout Handler ---
     async function handleLogout(event) {
         event.preventDefault();
-        console.log("Logout initiated (BYPASS MODE)...");
-        window.currentUser = null;
-        // stopNotificationFetching(); // Not strictly needed if notifications aren't fully working
-        
-        // Redirect to a neutral page or clear the UI
-        // Since login is bypassed, "logging out" means resetting the UI to a non-user state.
-        // A simple way is to redirect to the base path, which might be one of the landing pages.
-        // Or, display a "logged out" message.
-        if(appContainer) appContainer.style.display = 'none'; // Hide the main app
-        document.body.innerHTML = '<div class="flex items-center justify-center min-h-screen"><p class="text-xl">You have been logged out. Please navigate to a landing page to re-enter (e.g., admin_landing.php or employee_landing.php).</p></div>';
-        // Alternatively, if you have a generic index.php that redirects or shows a choice:
-        // window.location.href = 'index.php'; 
+        console.log("Logout initiated...");
+
+        try {
+            console.log("Making logout request to:", `${API_BASE_URL}logout.php`);
+            const response = await fetch(`${API_BASE_URL}logout.php`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                credentials: 'include' // Include cookies for session handling
+            });
+
+            console.log("Logout response status:", response.status);
+            console.log("Logout response headers:", response.headers);
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            console.log("Logout response data:", data);
+
+            if (data.message === 'Logout successful.') {
+                console.log("Logout successful, redirecting to:", data.redirect_url);
+                // Clear local user data
+                window.currentUser = null;
+                stopNotificationFetching();
+
+                // Hide the main app
+                if(appContainer) appContainer.style.display = 'none';
+
+                // Redirect to login page
+                if (data.redirect_url) {
+                    window.location.href = data.redirect_url;
+                } else {
+                    // Fallback to index.php if no redirect_url provided
+                    window.location.href = 'index.php';
+                }
+            } else {
+                console.error('Logout failed:', data.error);
+                alert('Logout failed: ' + (data.error || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error('Error during logout:', error);
+            console.error('Error details:', {
+                message: error.message,
+                stack: error.stack,
+                name: error.name
+            });
+            alert('An error occurred during logout. Please try again. Error: ' + error.message);
+        }
     }
 
     if (logoutLinkNav) {
@@ -529,6 +569,53 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log("Sidebar access update complete.");
     }
 
+    // --- Display Notifications Section ---
+    function displayNotificationsSection() {
+        const mainContentArea = document.getElementById('main-content-area');
+        const pageTitleElement = document.getElementById('page-title');
+
+        if (!mainContentArea || !pageTitleElement) {
+            console.error("Main content area or page title element not found");
+            return;
+        }
+
+        pageTitleElement.textContent = 'Notifications';
+
+        // Create a full-page notifications view
+        mainContentArea.innerHTML = `
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-gray-800">All Notifications</h2>
+                    <button id="refresh-notifications-btn" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                        <i class="fas fa-sync-alt mr-2"></i>Refresh
+                    </button>
+                </div>
+
+                <div id="notifications-full-list" class="bg-white rounded-lg shadow">
+                    <div class="p-8 text-center text-gray-500">
+                        <i class="fas fa-bell text-4xl mb-4"></i>
+                        <p>Loading notifications...</p>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Import and use the notification functions
+        if (typeof window.fetchAndRenderNotifications === 'function') {
+            window.fetchAndRenderNotifications();
+        }
+
+        // Add refresh button functionality
+        const refreshBtn = document.getElementById('refresh-notifications-btn');
+        if (refreshBtn) {
+            refreshBtn.addEventListener('click', () => {
+                if (typeof window.fetchAndRenderNotifications === 'function') {
+                    window.fetchAndRenderNotifications();
+                }
+            });
+        }
+    }
+
     // --- Navigation Logic for Notifications & Direct Section Access ---
     const sectionDisplayFunctions = {
         'dashboard': displayDashboardSection,
@@ -558,7 +645,8 @@ document.addEventListener('DOMContentLoaded', () => {
         'analytics-reports': displayAnalyticsReportsSection,
         'analytics-metrics': displayAnalyticsMetricsSection,
         'user-management': displayUserManagementSection,
-        'profile': displayUserProfileSection
+        'profile': displayUserProfileSection,
+        'notifications': displayNotificationsSection
     };
 
     window.navigateToSectionById = function(sectionId) {

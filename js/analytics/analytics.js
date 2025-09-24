@@ -42,7 +42,7 @@ export async function displayAnalyticsDashboardsSection() {
                 <div class="bg-gradient-to-br from-red-400 to-red-600 p-6 rounded-xl shadow-lg text-white"><div class="flex items-center justify-between"><div><p class="text-sm font-medium uppercase tracking-wider">Total Leave Types</p><p class="text-3xl font-bold" id="kpi-total-leave-types">Loading...</p></div><div class="bg-white/20 p-3 rounded-full"><i class="fas fa-briefcase fa-lg text-white"></i></div></div></div>
             </div>
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div class="bg-white p-6 rounded-lg shadow-md border border-[#F7E6CA]"><h3 class="text-lg font-semibold text-[#4E3B2A] mb-4 font-header">Headcount by Department</h3><div class="h-72 md:h-80"><canvas id="headcountByDepartmentChart"></canvas></div></div>
+                <div class="bg-white p-6 rounded-lg shadow-md border border-[#F7E6CA]"><h3 class="text-lg font-semibold text-[#4E3B2A] mb-4 font-header">Staff Distribution by Role</h3><div class="h-72 md:h-80"><canvas id="headcountByDepartmentChart"></canvas></div></div>
                 <div class="bg-white p-6 rounded-lg shadow-md border border-[#F7E6CA]"><h3 class="text-lg font-semibold text-[#4E3B2A] mb-4 font-header">Approved Leave Days by Type (Current Year)</h3><div class="h-72 md:h-80"><canvas id="leaveDaysByTypeChart"></canvas></div></div>
             </div>
         </div>`;
@@ -66,7 +66,7 @@ async function loadAnalyticsData() {
         return;
     }
     try {
-        const response = await fetch(`${API_BASE_URL}get_hr_analytics_summary.php`);
+        const response = await fetch(`${API_BASE_URL}get_hr_analytics_summary.php`, { credentials: 'include' });
         if (!response.ok) throw new Error(`HTTP error ${response.status}`);
         const data = await response.json();
         if (data.error) throw new Error(data.error);
@@ -81,7 +81,7 @@ async function loadAnalyticsData() {
         if (data.headcountByDepartment?.length > 0) {
             renderHeadcountChart(data.headcountByDepartment.map(d => d.DepartmentName), data.headcountByDepartment.map(d => d.Headcount));
         } else {
-            if(elements.headcountChartContainer?.getContext('2d')) elements.headcountChartContainer.parentElement.innerHTML = '<p class="text-center text-gray-500 py-4">No department headcount data.</p>';
+            if(elements.headcountChartContainer?.getContext('2d')) elements.headcountChartContainer.parentElement.innerHTML = '<p class="text-center text-gray-500 py-4">No staff distribution data available.</p>';
         }
         if (data.leaveDaysByTypeThisYear?.length > 0) {
             renderLeaveDaysByTypeChart(data.leaveDaysByTypeThisYear.map(l => l.TypeName), data.leaveDaysByTypeThisYear.map(l => l.TotalDays));
@@ -123,21 +123,63 @@ function renderLeaveDaysByTypeChart(labels, data) {
 export async function displayAnalyticsReportsSection() {
     if (!initializeAnalyticsElements()) return;
     pageTitleElement.textContent = 'Analytics Reports';
+
+    // Generate automatic date ranges
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth();
+
+    // Current month range
+    const currentMonthStart = new Date(currentYear, currentMonth, 1);
+    const currentMonthEnd = new Date(currentYear, currentMonth + 1, 0);
+
+    // Previous month range
+    const prevMonthStart = new Date(currentYear, currentMonth - 1, 1);
+    const prevMonthEnd = new Date(currentYear, currentMonth, 0);
+
+    // Current quarter range
+    const currentQuarter = Math.floor(currentMonth / 3);
+    const quarterStartMonth = currentQuarter * 3;
+    const quarterEndMonth = quarterStartMonth + 3;
+    const currentQuarterStart = new Date(currentYear, quarterStartMonth, 1);
+    const currentQuarterEnd = new Date(currentYear, quarterEndMonth, 0);
+
+    // Current year range
+    const currentYearStart = new Date(currentYear, 0, 1);
+    const currentYearEnd = new Date(currentYear, 11, 31);
+
+    const formatDate = (date) => date.toISOString().split('T')[0];
+
     mainContentArea.innerHTML = `
         <div class="bg-white p-6 rounded-lg shadow-md border border-[#F7E6CA] space-y-6">
             <h3 class="text-lg font-semibold text-[#4E3B2A] mb-4 font-header">Generate & View Reports</h3>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 pb-4 border-b border-gray-200 items-end">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6 pb-4 border-b border-gray-200 items-end">
                 <div><label for="report-type-filter" class="block text-sm font-medium text-gray-700 mb-1">Report Type:</label><select id="report-type-filter" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#4E3B2A] focus:border-[#4E3B2A]"><option value="">-- Select Report --</option></select></div>
-                <div><label for="report-date-range-filter" class="block text-sm font-medium text-gray-700 mb-1">Date Range (YYYY-MM-DD_YYYY-MM-DD):</label><input type="text" id="report-date-range-filter" placeholder="e.g., 2025-01-01_2025-03-31" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#4E3B2A] focus:border-[#4E3B2A]"></div>
+                <div><label for="report-date-range-filter" class="block text-sm font-medium text-gray-700 mb-1">Date Range:</label><select id="report-date-range-filter" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#4E3B2A] focus:border-[#4E3B2A]"><option value="${formatDate(currentMonthStart)}_${formatDate(currentMonthEnd)}">Current Month (${formatDate(currentMonthStart)} - ${formatDate(currentMonthEnd)})</option><option value="${formatDate(prevMonthStart)}_${formatDate(prevMonthEnd)}">Previous Month (${formatDate(prevMonthStart)} - ${formatDate(prevMonthEnd)})</option><option value="${formatDate(currentQuarterStart)}_${formatDate(currentQuarterEnd)}">Current Quarter (${formatDate(currentQuarterStart)} - ${formatDate(currentQuarterEnd)})</option><option value="${formatDate(currentYearStart)}_${formatDate(currentYearEnd)}">Current Year (${currentYear})</option><option value="custom">Custom Range...</option></select></div>
+                <div><label for="custom-date-range" class="block text-sm font-medium text-gray-700 mb-1">Custom Range:</label><input type="text" id="custom-date-range" placeholder="YYYY-MM-DD_YYYY-MM-DD" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#4E3B2A] focus:border-[#4E3B2A]" style="display: none;"></div>
                 <div><button id="generate-report-btn" class="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Generate Report</button></div>
             </div>
             <div id="reports-output-container" class="overflow-x-auto min-h-[200px] bg-gray-50 p-4 rounded-lg border"><p class="text-center py-4 text-gray-500">Select a report type and click "Generate Report".</p></div>
         </div>`;
-    await loadAvailableReportsDropdown(); 
+    await loadAvailableReportsDropdown();
     const btn = document.getElementById('generate-report-btn');
     if (btn && !btn.hasAttribute('data-listener-attached')) {
         btn.addEventListener('click', handleGenerateReport);
         btn.setAttribute('data-listener-attached', 'true');
+    }
+
+    // Add event listener for date range dropdown
+    const dateRangeSelect = document.getElementById('report-date-range-filter');
+    const customDateInput = document.getElementById('custom-date-range');
+    if (dateRangeSelect && customDateInput) {
+        dateRangeSelect.addEventListener('change', function() {
+            if (this.value === 'custom') {
+                customDateInput.style.display = 'block';
+                customDateInput.focus();
+            } else {
+                customDateInput.style.display = 'none';
+            }
+        });
     }
 }
 
@@ -145,7 +187,7 @@ async function loadAvailableReportsDropdown() {
     const filter = document.getElementById('report-type-filter');
     if (!filter) return;
     try {
-        const response = await fetch(`${API_BASE_URL}get_hr_reports_list.php`);
+        const response = await fetch(`${API_BASE_URL}get_hr_reports_list.php`, { credentials: 'include' });
         if (!response.ok) throw new Error('Failed to fetch report list');
         const reports = await response.json();
         if (reports.error) throw new Error(reports.error);
@@ -164,14 +206,21 @@ async function handleGenerateReport() {
     const typeSelect = document.getElementById('report-type-filter');
     const type = typeSelect?.value;
     const name = typeSelect?.options[typeSelect.selectedIndex]?.textContent || type;
-    const range = document.getElementById('report-date-range-filter')?.value;
+    const dateRangeSelect = document.getElementById('report-date-range-filter');
+    const customDateInput = document.getElementById('custom-date-range');
     const output = document.getElementById('reports-output-container');
 
     if (!output || !type) {
         if(output) output.innerHTML = '<p class="text-red-500">Please select a report type.</p>';
         return;
     }
-    
+
+    // Get the actual date range value
+    let range = dateRangeSelect?.value;
+    if (range === 'custom' && customDateInput?.value) {
+        range = customDateInput.value;
+    }
+
     let endpoint = '';
     if (type === 'employee_master_list') endpoint = `${API_BASE_URL}generate_employee_master_report.php`;
     else if (type === 'leave_summary_report') endpoint = `${API_BASE_URL}generate_leave_summary_report.php`;
@@ -183,8 +232,8 @@ async function handleGenerateReport() {
         const params = new URLSearchParams();
         if (range && /^\d{4}-\d{2}-\d{2}_\d{4}-\d{2}-\d{2}$/.test(range)) params.append('date_range', range);
         else if (range) console.warn("Invalid date range format:", range);
-        
-        const response = await fetch(`${endpoint}?${params.toString()}`);
+
+        const response = await fetch(`${endpoint}?${params.toString()}`, { credentials: 'include' });
         if (!response.ok) throw new Error(`HTTP error ${response.status}`);
         const reportData = await response.json();
         if (reportData.error) throw new Error(reportData.error);
@@ -251,13 +300,28 @@ window.exportReportToCSV = function(filenamePrefix) {
 export async function displayAnalyticsMetricsSection() {
     if (!initializeAnalyticsElements()) return;
     pageTitleElement.textContent = 'Key HR Metrics Tracking';
+
+    // Auto-select appropriate time periods based on current date
+    const currentDate = new Date();
+    const currentMonth = currentDate.getMonth();
+    const currentQuarter = Math.floor(currentMonth / 3);
+
+    // Determine best default period based on current date
+    let defaultPeriod = 'current';
+    if (currentMonth === 0) { // January - show annual trend
+        defaultPeriod = 'annual';
+    } else if (currentMonth === 2 || currentMonth === 5 || currentMonth === 8 || currentMonth === 11) { // End of quarter months
+        defaultPeriod = 'quarterly';
+    }
+
     mainContentArea.innerHTML = `
         <div class="bg-white p-6 rounded-lg shadow-md border border-[#F7E6CA] space-y-6">
             <h3 class="text-lg font-semibold text-[#4E3B2A] mb-4 font-header">Track Key Performance Indicators</h3>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 pb-4 border-b border-gray-200 items-end">
-                <div><label for="metric-name-filter" class="block text-sm font-medium text-gray-700 mb-1">Metric:</label><select id="metric-name-filter" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#4E3B2A] focus:border-[#4E3B2A]"><option value="">-- Select Metric --</option><option value="headcount_by_department">Headcount by Department</option><option value="turnover_rate">Employee Turnover Rate</option><option value="avg_time_to_hire">Average Time to Hire</option><option value="training_completion_rate">Training Completion Rate</option></select></div>
-                <div><label for="metric-period-filter" class="block text-sm font-medium text-gray-700 mb-1">Time Period:</label><select id="metric-period-filter" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#4E3B2A] focus:border-[#4E3B2A]"><option value="current">Current Snapshot</option><option value="monthly">Monthly Trend</option><option value="quarterly">Quarterly Trend</option><option value="annual">Annual Trend</option></select></div>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6 pb-4 border-b border-gray-200 items-end">
+                <div><label for="metric-name-filter" class="block text-sm font-medium text-gray-700 mb-1">Metric:</label><select id="metric-name-filter" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#4E3B2A] focus:border-[#4E3B2A]"><option value="">-- Select Metric --</option><option value="headcount_by_department">Staff Distribution by Role</option><option value="turnover_rate">Staff Turnover Rate</option><option value="avg_time_to_hire">Average Time to Hire</option><option value="training_completion_rate">Training Completion Rate</option></select></div>
+                <div><label for="metric-period-filter" class="block text-sm font-medium text-gray-700 mb-1">Time Period:</label><select id="metric-period-filter" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#4E3B2A] focus:border-[#4E3B2A]"><option value="current" ${defaultPeriod === 'current' ? 'selected' : ''}>Current Snapshot</option><option value="monthly" ${defaultPeriod === 'monthly' ? 'selected' : ''}>Monthly Trend</option><option value="quarterly" ${defaultPeriod === 'quarterly' ? 'selected' : ''}>Quarterly Trend</option><option value="annual" ${defaultPeriod === 'annual' ? 'selected' : ''}>Annual Trend</option></select></div>
                 <div><button id="view-metric-btn" class="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">View Metric</button></div>
+                <div><button id="auto-refresh-btn" class="w-full px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700" title="Auto-refresh with current data"><i class="fas fa-sync-alt"></i> Auto Refresh</button></div>
             </div>
             <div id="metric-display-area" class="min-h-[300px] bg-gray-50 p-4 rounded-lg border"><p class="text-center py-4 text-gray-500">Select a metric and period to view data.</p></div>
         </div>`;
@@ -266,6 +330,22 @@ export async function displayAnalyticsMetricsSection() {
         btn.addEventListener('click', handleViewMetric);
         btn.setAttribute('data-listener-attached', 'true');
     }
+
+    // Add auto-refresh functionality
+    const autoRefreshBtn = document.getElementById('auto-refresh-btn');
+    if (autoRefreshBtn && !autoRefreshBtn.hasAttribute('data-listener-attached')) {
+        autoRefreshBtn.addEventListener('click', handleAutoRefreshMetrics);
+        autoRefreshBtn.setAttribute('data-listener-attached', 'true');
+    }
+
+    // Auto-load first metric if available
+    setTimeout(() => {
+        const metricSelect = document.getElementById('metric-name-filter');
+        if (metricSelect && metricSelect.value === '') {
+            metricSelect.value = 'headcount_by_department';
+            metricSelect.dispatchEvent(new Event('change'));
+        }
+    }, 500);
 }
 
 async function handleViewMetric() {
@@ -281,7 +361,7 @@ async function handleViewMetric() {
     displayArea.innerHTML = `<p class="text-blue-600">Loading data for <strong>${displayName}</strong> (${period})...</p>`;
     
     try {
-        const response = await fetch(`${API_BASE_URL}get_key_metrics.php?metric_name=${encodeURIComponent(name)}&metric_period=${encodeURIComponent(period)}`);
+        const response = await fetch(`${API_BASE_URL}get_key_metrics.php?metric_name=${encodeURIComponent(name)}&metric_period=${encodeURIComponent(period)}`, { credentials: 'include' });
         if (!response.ok) throw new Error(`HTTP error ${response.status}`);
         const data = await response.json();
         if (data.error) throw new Error(data.error);
@@ -312,5 +392,46 @@ function renderMetricDetailChart(labels, dataPoints, metricTitle, unit) {
         data: { labels, datasets: [{ label: `${metricTitle}${unit ? ` (${unit})` : ''}`, data: dataPoints, backgroundColor: bgColors, borderColor: borderColors, borderWidth: 1 }] },
         options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { stepSize: (Math.max(...dataPoints, 1) < 10) ? 1 : undefined } } }, plugins: { legend: { display: dataPoints.length > 1 }, title: { display: true, text: metricTitle } } }
     });
+}
+
+async function handleAutoRefreshMetrics() {
+    const displayArea = document.getElementById('metric-display-area');
+    const metricSelect = document.getElementById('metric-name-filter');
+    const periodSelect = document.getElementById('metric-period-filter');
+
+    if (!displayArea) return;
+
+    // Get current selections or use defaults
+    const name = metricSelect?.value || 'headcount_by_department';
+    const period = periodSelect?.value || 'current';
+
+    if (!name) {
+        displayArea.innerHTML = '<p class="text-red-500">Please select a metric to refresh.</p>';
+        return;
+    }
+
+    const displayName = name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    displayArea.innerHTML = `<p class="text-blue-600">Auto-refreshing <strong>${displayName}</strong> with latest data...</p>`;
+
+    try {
+        const response = await fetch(`${API_BASE_URL}get_key_metrics.php?metric_name=${encodeURIComponent(name)}&metric_period=${encodeURIComponent(period)}&auto_refresh=true`, { credentials: 'include' });
+        if (!response.ok) throw new Error(`HTTP error ${response.status}`);
+        const data = await response.json();
+        if (data.error) throw new Error(data.error);
+
+        if (metricChartInstance) metricChartInstance.destroy();
+
+        if (data.dataPoints?.length > 0 && data.labels?.length > 0) {
+            displayArea.innerHTML = `<canvas id="metricDetailChart" class="max-h-[400px]"></canvas><p class="text-xs text-gray-500 mt-2">✓ Refreshed at ${new Date().toLocaleTimeString()}</p>`;
+            renderMetricDetailChart(data.labels, data.dataPoints, data.metricNameDisplay || displayName, data.unit);
+        } else if (data.value !== null) {
+            displayArea.innerHTML = `<div class="p-4 text-center"><h4 class="text-xl font-semibold">${data.metricNameDisplay || displayName}</h4><p class="text-4xl text-blue-600 font-bold my-3">${data.value} ${data.unit || ''}</p><p class="text-sm text-gray-500">Period: ${data.metricPeriod.charAt(0).toUpperCase() + data.metricPeriod.slice(1)}</p>${data.notes ? `<p class="text-xs text-gray-400 mt-2"><em>Note: ${data.notes}</em></p>` : ''}<p class="text-xs text-green-600 mt-2">✓ Refreshed at ${new Date().toLocaleTimeString()}</p></div>`;
+        } else {
+            displayArea.innerHTML = `<p class="text-gray-500">No data for ${displayName} for this period.</p><p class="text-xs text-gray-400 mt-2">Last refresh: ${new Date().toLocaleTimeString()}</p>`;
+        }
+    } catch (e) {
+        console.error("Error auto-refreshing metric:", e);
+        displayArea.innerHTML = `<p class="text-red-500">Could not refresh metric: ${e.message}</p>`;
+    }
 }
 

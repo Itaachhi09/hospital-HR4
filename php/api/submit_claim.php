@@ -49,7 +49,8 @@ $max_file_size = 2 * 1024 * 1024; // 2 MB
 $db_path_prefix = "uploads/receipts/"; // Relative to web root for DB storage
 
 // --- Directory Checks ---
-if ($target_dir_absolute === false || !is_dir($target_dir_absolute)) {
+$target_dir_absolute = __DIR__ . '/' . $target_dir_relative;
+if (!is_dir($target_dir_absolute)) {
     if (!mkdir($target_dir_absolute, 0775, true)) { // Attempt to create if not exists
         error_log("Upload directory check failed and could not be created: '{$target_dir_absolute}'.");
         http_response_code(500);
@@ -57,6 +58,13 @@ if ($target_dir_absolute === false || !is_dir($target_dir_absolute)) {
         exit;
     }
      error_log("Created upload directory: " . $target_dir_absolute);
+}
+$target_dir_absolute = realpath($target_dir_absolute);
+if ($target_dir_absolute === false) {
+    error_log("Failed to resolve real path for upload directory: " . __DIR__ . '/' . $target_dir_relative);
+    http_response_code(500);
+    echo json_encode(['error' => 'Server configuration error: Upload directory path resolution failed.']);
+    exit;
 }
 if (!is_writable($target_dir_absolute)) {
     error_log("Upload directory is not writable: " . $target_dir_absolute);

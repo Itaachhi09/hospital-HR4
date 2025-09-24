@@ -23,40 +23,22 @@ if (!isset($pdo)) {
 
 try {
     // Fetch all departments/modules, including their parent ID to reconstruct hierarchy on frontend
-    // Also fetching manager name if ManagerID is set
     $sql = "SELECT 
                 os.DepartmentID, 
                 os.DepartmentName, 
                 os.ParentDepartmentID,
-                os.Description,
-                os.Icon,
-                os.SortOrder,
-                e.FirstName AS ManagerFirstName,
-                e.LastName AS ManagerLastName,
-                (SELECT COUNT(*) FROM Employees emp WHERE emp.DepartmentID = os.DepartmentID) AS EmployeeCount,
                 parent_os.DepartmentName AS ParentDepartmentName
             FROM 
                 OrganizationalStructure os
-            LEFT JOIN 
-                Employees e ON os.ManagerID = e.EmployeeID
             LEFT JOIN
                 OrganizationalStructure parent_os ON os.ParentDepartmentID = parent_os.DepartmentID
             ORDER BY 
-                os.ParentDepartmentID ASC, os.SortOrder ASC, os.DepartmentName ASC";
+                os.ParentDepartmentID ASC, os.DepartmentName ASC";
     
     $stmt = $pdo->query($sql);
     $departments = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    $formatted_departments = [];
-    foreach($departments as $dept) {
-        $dept['ManagerName'] = null;
-        if (!empty($dept['ManagerFirstName']) || !empty($dept['ManagerLastName'])) {
-            $dept['ManagerName'] = trim(($dept['ManagerFirstName'] ?? '') . ' ' . ($dept['ManagerLastName'] ?? ''));
-        }
-        // Unset individual name parts if you only want ManagerName
-        unset($dept['ManagerFirstName'], $dept['ManagerLastName']);
-        $formatted_departments[] = $dept;
-    }
+    $formatted_departments = $departments;
 
     if (headers_sent()) { exit; } // Avoid "headers already sent"
     http_response_code(200);

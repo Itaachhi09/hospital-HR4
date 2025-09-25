@@ -1,4 +1,11 @@
 
+<?php
+session_start();
+if (!isset($_SESSION['user_id'])) {
+    header('Location: index.php');
+    exit();
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -94,12 +101,12 @@
             transition: transform 0.25s ease;
         }
     </style>
-    <script>
-        window.DESIGNATED_ROLE = 'System Admin';
-        window.DESIGNATED_DEFAULT_SECTION = 'userManagement'; // Or 'dashboard'
-    </script>
     <script src="js/main.js" type="module" defer></script> <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> 
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        window.DESIGNATED_ROLE = '<?php echo htmlspecialchars($_SESSION['role_name'] ?? 'System Admin'); ?>';
+        window.DESIGNATED_DEFAULT_SECTION = 'userManagement';
+    </script>
 </head>
 
 

@@ -716,89 +716,39 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- ROLE-BASED LANDING LOGIC ---
-    // This section now reads window.DESIGNATED_ROLE set by the PHP landing page
-    if (typeof window.DESIGNATED_ROLE !== 'undefined') {
-        console.log(`Designated role found: ${window.DESIGNATED_ROLE}. Setting up mock user.`);
-        let mockUser = {};
-        let defaultSection = 'dashboard'; // A safe fallback
-
-        // Define mock user details based on the role
-        // IMPORTANT: Replace these with actual UserIDs and EmployeeIDs from your database
-        // that correspond to these roles if you intend to test backend API calls
-        // that require specific user/employee data.
-        if (window.DESIGNATED_ROLE === 'System Admin') {
-            mockUser = {
-                user_id: 1, // Example: UserID for a System Admin
-                employee_id: 1, // Example: EmployeeID for that Admin
-                username: 'sysadmin_landed',
-                full_name: 'System Admin (Landed)',
-                role_id: 1, // RoleID for System Admin from your DB
-                role_name: 'System Admin'
+    // --- SESSION CHECK AND APP INITIALIZATION ---
+    // Check if user has an active session
+    fetch(`${API_BASE_URL}check_session.php`, {
+        method: 'GET',
+        credentials: 'include' // Include cookies for session handling
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.logged_in) {
+            console.log("User is logged in:", data.user);
+            window.currentUser = {
+                user_id: data.user.user_id,
+                employee_id: data.user.employee_id,
+                username: data.user.username,
+                full_name: data.user.full_name,
+                role_id: data.user.role_id,
+                role_name: data.user.role_name
             };
-            defaultSection = window.DESIGNATED_DEFAULT_SECTION || 'userManagement';
-        } else if (window.DESIGNATED_ROLE === 'HR Admin') { // Added HR Admin as a distinct case
-             mockUser = {
-                user_id: 2, // Example: UserID for an HR Admin
-                employee_id: 2, // Example: EmployeeID for that HR Admin
-                username: 'hradmin_landed',
-                full_name: 'HR Admin (Landed)',
-                role_id: 2, // RoleID for HR Admin from your DB
-                role_name: 'HR Admin'
-            };
-            defaultSection = window.DESIGNATED_DEFAULT_SECTION || 'dashboard';
-        } else if (window.DESIGNATED_ROLE === 'Manager') { // Added Manager
-             mockUser = {
-                user_id: 4, // Example: UserID for a Manager
-                employee_id: 4, // Example: EmployeeID for that Manager
-                username: 'manager_landed',
-                full_name: 'Manager (Landed)',
-                role_id: 4, // RoleID for Manager from your DB
-                role_name: 'Manager'
-            };
-            defaultSection = window.DESIGNATED_DEFAULT_SECTION || 'dashboard'; // Or 'claimsApproval'
-        } else if (window.DESIGNATED_ROLE === 'Employee') {
-            mockUser = {
-                user_id: 3, // Example: UserID for an Employee
-                employee_id: 3, // Example: EmployeeID for that Employee
-                username: 'employee_landed',
-                full_name: 'Employee (Landed)',
-                role_id: 3, // RoleID for Employee from your DB
-                role_name: 'Employee'
-            };
-            defaultSection = window.DESIGNATED_DEFAULT_SECTION || 'dashboard';
+            showAppUI();
+            updateUserDisplay(window.currentUser);
+            updateSidebarAccess(window.currentUser.role_name);
+            attachSidebarListeners();
+            navigateToSectionById('dashboard'); // Default to dashboard
+            initializeNotificationSystem(); // Initialize notifications for real users
         } else {
-            console.warn(`Unknown DESIGNATED_ROLE: ${window.DESIGNATED_ROLE}. Defaulting to basic view.`);
-            mockUser = { role_name: 'Guest', full_name: 'Guest User' }; 
-            defaultSection = 'dashboard'; 
+            console.log("User not logged in, redirecting to login.");
+            window.location.href = 'index.php';
         }
-        
-        window.currentUser = mockUser;
-        showAppUI(); // Ensure app container is visible
-        updateUserDisplay(window.currentUser);
-        updateSidebarAccess(window.currentUser.role_name); // This will show/hide sidebar items
-        attachSidebarListeners(); // Attach listeners to the now visible items
-        
-        // Navigate to the default section for the role
-        if (typeof sectionDisplayFunctions[defaultSection] === 'function') {
-            navigateToSectionById(defaultSection);
-        } else {
-            console.error(`Default section function for '${defaultSection}' not found. Loading dashboard.`);
-            navigateToSectionById('dashboard');
-        }
-        // initializeNotificationSystem(); // Optional: if you want notifications for mock users
-
-    } else {
-        // This case should ideally not be reached if users always go via a landing page.
-        // If index.php (or a similar generic entry point without DESIGNATED_ROLE) is accessed.
-        console.warn("No DESIGNATED_ROLE found. Application may not load correctly. Consider redirecting from index.php or providing a default role setup for it.");
-        window.currentUser = { role_name: 'Guest', full_name: 'Guest User (Default)' };
-        showAppUI();
-        updateUserDisplay(window.currentUser);
-        updateSidebarAccess('Guest'); 
-        attachSidebarListeners();
-        navigateToSectionById('dashboard');
-    }
+    })
+    .catch(error => {
+        console.error("Error checking session:", error);
+        window.location.href = 'index.php';
+    });
 
     console.log("HR System JS Initialized (Role-Based Landing).");
 

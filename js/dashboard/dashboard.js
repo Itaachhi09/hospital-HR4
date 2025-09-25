@@ -41,12 +41,16 @@ export async function displayDashboardSection() {
     console.log("[Display] Displaying Dashboard Section...");
     if (!initializeDashboardElements()) return;
 
-    const user = window.currentUser;
+    let user = window.currentUser;
     if (!user || !user.role_name) {
-        pageTitleElement.textContent = 'Dashboard';
-        mainContentArea.innerHTML = '<p class="text-red-500 p-4">Error: User role not found. Cannot display dashboard.</p>';
-        console.error("Dashboard Error: window.currentUser or window.currentUser.role_name is not defined.");
-        return;
+        if (window.DESIGNATED_ROLE) {
+            user = { role_name: window.DESIGNATED_ROLE };
+        } else {
+            pageTitleElement.textContent = 'Dashboard';
+            mainContentArea.innerHTML = '<p class="text-red-500 p-4">Error: User role not found. Cannot display dashboard.</p>';
+            console.error("Dashboard Error: window.currentUser or window.currentUser.role_name is not defined.");
+            return;
+        }
     }
     console.log("[Dashboard] Current user:", user);
 

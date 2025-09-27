@@ -97,12 +97,12 @@ function send_2fa_email_code_phpmailer(string $recipientEmail, string $code, str
         $mail->Port       = 465;                   // TCP port to connect to; use 587 if you have set `SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS`
 
         // Recipients
-        $mail->setFrom($gmailUser, 'Avalon HR System'); // Sender Email and Name
-        $mail->addAddress($recipientEmail);           // Add a recipient
+        $mail->setFrom($gmailUser, 'hospital HR System'); // Sender Email and Name
+        $mail->addAddress($recipientEmail, 'johnpaulaustria@gmailc.com');          // Add a recipient
 
         // Content
         $mail->isHTML(false); // Set email format to plain text
-        $mail->Subject = 'Your Avalon HR System Login Code';
+        $mail->Subject = 'Your hospital HR System Login Code';
         $mail->Body    = "Hello " . htmlspecialchars($username) . ",\n\n" .
                          "Your two-factor authentication code is: " . $code . "\n\n" .
                          "This code will expire in 10 minutes.\n\n" .
@@ -275,6 +275,48 @@ try {
         $_SESSION['role_id'] = $user['RoleID'];
         $_SESSION['role_name'] = $user['RoleName'];
         $_SESSION['full_name'] = $user['FirstName'] . ' ' . $user['LastName'];
+
+        // --- Fetch and store HMO enrollment data in session ---
+        try {
+            $hmoSql = "SELECT
+                        eh.EnrollmentID,
+                        eh.PlanID,
+                        eh.Status as EnrollmentStatus,
+                        eh.MonthlyDeduction,
+                        eh.EnrollmentDate,
+                        eh.EffectiveDate,
+                        hp.PlanName,
+                        hpr.ProviderName
+                       FROM EmployeeHMOEnrollments eh
+                       LEFT JOIN HMOPlans hp ON eh.PlanID = hp.PlanID
+                       LEFT JOIN HMOProviders hpr ON hp.ProviderID = hpr.ProviderID
+                       WHERE eh.EmployeeID = :employee_id AND eh.Status = 'Active'
+                       ORDER BY eh.EffectiveDate DESC LIMIT 1";
+
+            $hmoStmt = $pdo->prepare($hmoSql);
+            $hmoStmt->bindParam(':employee_id', $user['EmployeeID'], PDO::PARAM_INT);
+            $hmoStmt->execute();
+            $hmoEnrollment = $hmoStmt->fetch(PDO::FETCH_ASSOC);
+
+            if ($hmoEnrollment) {
+                $_SESSION['hmo_enrollment'] = [
+                    'enrollment_id' => $hmoEnrollment['EnrollmentID'],
+                    'plan_id' => $hmoEnrollment['PlanID'],
+                    'plan_name' => $hmoEnrollment['PlanName'],
+                    'provider_name' => $hmoEnrollment['ProviderName'],
+                    'status' => $hmoEnrollment['EnrollmentStatus'],
+                    'monthly_deduction' => $hmoEnrollment['MonthlyDeduction'],
+                    'enrollment_date' => $hmoEnrollment['EnrollmentDate'],
+                    'effective_date' => $hmoEnrollment['EffectiveDate']
+                ];
+            } else {
+                $_SESSION['hmo_enrollment'] = null; // No active HMO enrollment
+            }
+        } catch (PDOException $e) {
+            error_log("HMO Session Data Error: " . $e->getMessage());
+            $_SESSION['hmo_enrollment'] = null; // Set to null on error
+        }
+        // --- End HMO session data ---
 
         // Determine redirect URL based on role
         $redirect_url = 'index.php'; // Default redirect

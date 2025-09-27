@@ -36,11 +36,12 @@ try {
             'logged_in' => true,
             'user' => [
                 'user_id'     => $_SESSION['user_id'],
-                'employee_id' => $_SESSION['employee_id'] ?? null, // Use null coalescing for safety
+                'employee_id' => $_SESSION['employee_id'] ?? null,
                 'username'    => $_SESSION['username'] ?? null,
                 'full_name'   => $_SESSION['full_name'] ?? null,
                 'role_id'     => $_SESSION['role_id'] ?? null,
-                'role_name'   => $_SESSION['role_name'] ?? null
+                'role_name'   => $_SESSION['role_name'] ?? null,
+                'hmo_enrollment' => $_SESSION['hmo_enrollment'] ?? null
             ]
         ]);
     } else {

@@ -6,6 +6,14 @@ ini_set('log_errors', 1);
 // ini_set('error_log', '/path/to/your/php-error.log');
 // --- End Error Reporting ---
 
+// Start session and check authentication
+session_start();
+if (!isset($_SESSION['user_id']) || $_SESSION['user_id'] <= 0) {
+    http_response_code(401);
+    echo json_encode(['error' => 'Authentication required. Please log in.']);
+    exit();
+}
+
 // --- Set Headers EARLY ---
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *'); // Adjust for production

@@ -224,15 +224,18 @@ export function displayEmployeeHMOClaimsSection() {
                             <thead>
                                 <tr class="bg-gray-50">
                                     <th class="px-4 py-2 text-left">Claim Type</th>
+                                    <th class="px-4 py-2 text-left">Provider</th>
+                                    <th class="px-4 py-2 text-left">Plan</th>
+                                    <th class="px-4 py-2 text-left">Description</th>
                                     <th class="px-4 py-2 text-left">Amount</th>
                                     <th class="px-4 py-2 text-left">Date Submitted</th>
                                     <th class="px-4 py-2 text-left">Status</th>
-                                    <th class="px-4 py-2 text-left">Details</th>
+                                    <th class="px-4 py-2 text-left">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="employee-claims-tbody">
                                 <tr>
-                                    <td colspan="5" class="px-4 py-8 text-center text-gray-500">
+                                    <td colspan="8" class="px-4 py-8 text-center text-gray-500">
                                         Loading your claims...
                                     </td>
                                 </tr>
@@ -269,9 +272,9 @@ export function displaySubmitHMOClaimSection() {
             <div class="bg-white rounded-lg shadow p-6">
                 <form id="submit-hmo-claim-form" class="space-y-4">
                     <div>
-                        <label for="claim-type" class="block text-sm font-medium text-gray-700 mb-1">Claim Type</label>
-                        <select id="claim-type" name="claim_type" required class="w-full p-2 border border-gray-300 rounded-md">
-                            <option value="">Select claim type...</option>
+                        <label for="service-type" class="block text-sm font-medium text-gray-700 mb-1">Service Type</label>
+                        <select id="service-type" name="serviceType" required class="w-full p-2 border border-gray-300 rounded-md">
+                            <option value="">Select service type...</option>
                             <option value="consultation">Medical Consultation</option>
                             <option value="medication">Medication</option>
                             <option value="laboratory">Laboratory Tests</option>
@@ -283,22 +286,41 @@ export function displaySubmitHMOClaimSection() {
                     </div>
 
                     <div>
-                        <label for="claim-amount" class="block text-sm font-medium text-gray-700 mb-1">Amount (₱)</label>
-                        <input type="number" id="claim-amount" name="amount" step="0.01" min="0" required
+                        <label for="provider-name" class="block text-sm font-medium text-gray-700 mb-1">Healthcare Provider Name</label>
+                        <input type="text" id="provider-name" name="providerName" required
+                               class="w-full p-2 border border-gray-300 rounded-md" placeholder="Hospital/Clinic/Doctor name">
+                    </div>
+
+                    <div>
+                        <label for="amount-claimed" class="block text-sm font-medium text-gray-700 mb-1">Amount Claimed (₱)</label>
+                        <input type="number" id="amount-claimed" name="amountClaimed" step="0.01" min="0" required
                                class="w-full p-2 border border-gray-300 rounded-md" placeholder="0.00">
                     </div>
 
                     <div>
-                        <label for="claim-date" class="block text-sm font-medium text-gray-700 mb-1">Service Date</label>
-                        <input type="date" id="claim-date" name="service_date" required
+                        <label for="service-date" class="block text-sm font-medium text-gray-700 mb-1">Service Date</label>
+                        <input type="date" id="service-date" name="serviceDate" required
                                class="w-full p-2 border border-gray-300 rounded-md">
                     </div>
 
                     <div>
-                        <label for="claim-description" class="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                        <textarea id="claim-description" name="description" rows="4" required
+                        <label for="diagnosis" class="block text-sm font-medium text-gray-700 mb-1">Diagnosis (Optional)</label>
+                        <input type="text" id="diagnosis" name="diagnosis"
+                               class="w-full p-2 border border-gray-300 rounded-md" placeholder="Medical diagnosis if known">
+                    </div>
+
+                    <div>
+                        <label for="treatment-description" class="block text-sm font-medium text-gray-700 mb-1">Treatment/Service Description</label>
+                        <textarea id="treatment-description" name="treatmentDescription" rows="4" required
                                   class="w-full p-2 border border-gray-300 rounded-md"
-                                  placeholder="Describe the medical service or expense..."></textarea>
+                                  placeholder="Describe the medical service, treatment, or expense..."></textarea>
+                    </div>
+
+                    <div>
+                        <label for="notes" class="block text-sm font-medium text-gray-700 mb-1">Additional Notes (Optional)</label>
+                        <textarea id="notes" name="notes" rows="2"
+                                  class="w-full p-2 border border-gray-300 rounded-md"
+                                  placeholder="Any additional information..."></textarea>
                     </div>
 
                     <div>
@@ -497,19 +519,20 @@ async function loadEmployeeHMOBenefits() {
         const data = await response.json();
 
         const content = document.getElementById('hmo-benefits-content');
-        if (data.success && data.benefits) {
-            const benefits = data.benefits;
+        if (data.success && data.benefits && data.benefits.length > 0) {
+            // Get the first (most recent) active enrollment
+            const benefits = data.benefits[0];
             content.innerHTML = `
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div class="bg-white rounded-lg shadow p-6">
                         <h3 class="text-lg font-semibold mb-4">Your HMO Plan</h3>
                         <div class="space-y-2">
-                            <p><strong>Plan:</strong> ${benefits.plan_name}</p>
-                            <p><strong>Provider:</strong> ${benefits.provider_name}</p>
-                            <p><strong>Enrollment Date:</strong> ${new Date(benefits.enrollment_date).toLocaleDateString()}</p>
+                            <p><strong>Plan:</strong> ${benefits.PlanName}</p>
+                            <p><strong>Provider:</strong> ${benefits.ProviderName}</p>
+                            <p><strong>Enrollment Date:</strong> ${new Date(benefits.EnrollmentDate).toLocaleDateString()}</p>
                             <p><strong>Status:</strong>
-                                <span class="px-2 py-1 rounded text-xs ${benefits.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">
-                                    ${benefits.status}
+                                <span class="px-2 py-1 rounded text-xs ${benefits.Status === 'Active' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}">
+                                    ${benefits.Status}
                                 </span>
                             </p>
                         </div>
@@ -518,9 +541,9 @@ async function loadEmployeeHMOBenefits() {
                     <div class="bg-white rounded-lg shadow p-6">
                         <h3 class="text-lg font-semibold mb-4">Coverage Summary</h3>
                         <div class="space-y-2">
-                            <p><strong>Premium Amount:</strong> ₱${benefits.premium_amount}/month</p>
-                            <p><strong>Coverage Type:</strong> ${benefits.coverage_type || 'Comprehensive'}</p>
-                            <p><strong>Effective Date:</strong> ${new Date(benefits.effective_date).toLocaleDateString()}</p>
+                            <p><strong>Monthly Premium:</strong> ₱${parseFloat(benefits.MonthlyPremium).toFixed(2)}</p>
+                            <p><strong>Coverage Type:</strong> ${benefits.CoverageType || 'Comprehensive'}</p>
+                            <p><strong>Effective Date:</strong> ${new Date(benefits.EffectiveDate).toLocaleDateString()}</p>
                         </div>
                     </div>
                 </div>
@@ -571,21 +594,24 @@ async function loadEmployeeHMOClaims() {
         if (data.success && data.claims) {
             tbody.innerHTML = data.claims.map(claim => `
                 <tr class="border-t">
-                    <td class="px-4 py-2">${claim.claim_type}</td>
-                    <td class="px-4 py-2">₱${parseFloat(claim.amount).toFixed(2)}</td>
-                    <td class="px-4 py-2">${new Date(claim.submission_date).toLocaleDateString()}</td>
+                    <td class="px-4 py-2">${claim.ClaimType || 'N/A'}</td>
+                    <td class="px-4 py-2">${claim.ProviderName || 'N/A'}</td>
+                    <td class="px-4 py-2">${claim.PlanName || 'N/A'}</td>
+                    <td class="px-4 py-2 max-w-xs truncate" title="${claim.Description || 'No description'}">${claim.Description ? (claim.Description.length > 50 ? claim.Description.substring(0, 50) + '...' : claim.Description) : 'N/A'}</td>
+                    <td class="px-4 py-2">₱${parseFloat(claim.Amount || 0).toFixed(2)}</td>
+                    <td class="px-4 py-2">${new Date(claim.SubmittedDate).toLocaleDateString()}</td>
                     <td class="px-4 py-2">
                         <span class="px-2 py-1 rounded text-xs ${
-                            claim.status === 'approved' ? 'bg-green-100 text-green-800' :
-                            claim.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                            claim.Status === 'Approved' ? 'bg-green-100 text-green-800' :
+                            claim.Status === 'Rejected' ? 'bg-red-100 text-red-800' :
                             'bg-yellow-100 text-yellow-800'
                         }">
-                            ${claim.status}
+                            ${claim.Status || 'Pending'}
                         </span>
                     </td>
                     <td class="px-4 py-2">
-                        <button class="text-blue-600 hover:text-blue-800" onclick="viewEmployeeClaimDetails(${claim.id})">
-                            <i class="fas fa-eye"></i> View
+                        <button class="text-blue-600 hover:text-blue-800" onclick="viewEmployeeClaimDetails(${claim.ClaimID})">
+                            <i class="fas fa-eye"></i> View Details
                         </button>
                     </td>
                 </tr>
@@ -593,7 +619,7 @@ async function loadEmployeeHMOClaims() {
         } else {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="5" class="px-4 py-8 text-center text-gray-500">
+                    <td colspan="8" class="px-4 py-8 text-center text-gray-500">
                         No claims found.
                     </td>
                 </tr>
@@ -603,7 +629,7 @@ async function loadEmployeeHMOClaims() {
         console.error('Error loading employee HMO claims:', error);
         document.getElementById('employee-claims-tbody').innerHTML = `
             <tr>
-                <td colspan="5" class="px-4 py-8 text-center text-red-500">
+                <td colspan="8" class="px-4 py-8 text-center text-red-500">
                     Error loading claims.
                 </td>
             </tr>
@@ -793,12 +819,38 @@ async function handleSubmitHMOClaim(event) {
 
     const form = event.target;
     const formData = new FormData(form);
-    const statusDiv = document.getElementById('submit-claim-status');
 
-    statusDiv.textContent = 'Submitting claim...';
-    statusDiv.className = 'text-sm text-blue-600';
+    Swal.fire({
+        title: 'Submitting Claim...',
+        text: 'Please wait while we process your HMO claim.',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+        didOpen: () => {
+            Swal.showLoading();
+        }
+    });
 
     try {
+        // First, get the employee's HMO enrollment ID
+        const enrollmentResponse = await fetch(`${API_BASE_URL}get_employee_hmo_benefits.php`, {
+            credentials: 'include'
+        });
+        const enrollmentData = await enrollmentResponse.json();
+
+        if (!enrollmentData.success || !enrollmentData.benefits || enrollmentData.benefits.length === 0) {
+            throw new Error('You are not enrolled in an active HMO plan. Please contact HR for enrollment.');
+        }
+
+        const activeEnrollment = enrollmentData.benefits.find(benefit => benefit.Status === 'Active');
+        if (!activeEnrollment) {
+            throw new Error('You do not have an active HMO enrollment. Please contact HR.');
+        }
+
+        // Add enrollment ID to form data
+        formData.append('enrollmentId', activeEnrollment.EnrollmentID);
+
+        // Submit the claim
         const response = await fetch(`${API_BASE_URL}submit_hmo_claim.php`, {
             method: 'POST',
             body: formData,
@@ -808,16 +860,28 @@ async function handleSubmitHMOClaim(event) {
         const data = await response.json();
 
         if (data.success) {
-            statusDiv.textContent = 'Claim submitted successfully!';
-            statusDiv.className = 'text-sm text-green-600';
+            Swal.fire({
+                title: 'Success!',
+                text: `Claim submitted successfully! Claim Number: ${data.claimNumber}`,
+                icon: 'success',
+                confirmButtonText: 'OK'
+            });
             form.reset();
+            // Optionally reload the claims list if on the claims page
+            if (typeof loadEmployeeHMOClaims === 'function') {
+                loadEmployeeHMOClaims();
+            }
         } else {
             throw new Error(data.message || 'Failed to submit claim');
         }
     } catch (error) {
         console.error('Error submitting HMO claim:', error);
-        statusDiv.textContent = `Error: ${error.message}`;
-        statusDiv.className = 'text-sm text-red-600';
+        Swal.fire({
+            title: 'Error!',
+            text: error.message,
+            icon: 'error',
+            confirmButtonText: 'OK'
+        });
     }
 }
 
@@ -867,7 +931,47 @@ window.viewClaimDetails = (id) => {
     console.log('View claim details:', id);
 };
 
-window.viewEmployeeClaimDetails = (id) => {
-    // Implementation for viewing employee claim details
-    console.log('View employee claim details:', id);
+window.viewEmployeeClaimDetails = async (claimId) => {
+    try {
+        const response = await fetch(`${API_BASE_URL}get_employee_hmo_claims.php?claim_id=${claimId}`, {
+            credentials: 'include'
+        });
+        const data = await response.json();
+
+        if (data.success && data.claims && data.claims.length > 0) {
+            const claim = data.claims[0];
+            Swal.fire({
+                title: 'Claim Details',
+                html: `
+                    <div class="space-y-4 text-left">
+                        <div><strong>Claim Type:</strong> ${claim.ClaimType || 'N/A'}</div>
+                        <div><strong>Provider:</strong> ${claim.ProviderName || 'N/A'}</div>
+                        <div><strong>Plan:</strong> ${claim.PlanName || 'N/A'}</div>
+                        <div><strong>Description:</strong> ${claim.Description || 'No description'}</div>
+                        <div><strong>Amount:</strong> ₱${parseFloat(claim.Amount || 0).toFixed(2)}</div>
+                        <div><strong>Claim Date:</strong> ${new Date(claim.ClaimDate).toLocaleDateString()}</div>
+                        <div><strong>Submitted Date:</strong> ${new Date(claim.SubmittedDate).toLocaleDateString()}</div>
+                        ${claim.ApprovedDate ? `<div><strong>Approved Date:</strong> ${new Date(claim.ApprovedDate).toLocaleDateString()}</div>` : ''}
+                        <div><strong>Status:</strong> 
+                            <span class="px-2 py-1 rounded text-xs ${
+                                claim.Status === 'Approved' ? 'bg-green-100 text-green-800' :
+                                claim.Status === 'Rejected' ? 'bg-red-100 text-red-800' :
+                                'bg-yellow-100 text-yellow-800'
+                            }">
+                                ${claim.Status || 'Pending'}
+                            </span>
+                        </div>
+                        ${claim.Comments ? `<div><strong>Comments:</strong> ${claim.Comments}</div>` : ''}
+                    </div>
+                `,
+                icon: 'info',
+                confirmButtonText: 'Close'
+            });
+        } else {
+            Swal.fire('Error', 'Claim details not found.', 'error');
+        }
+    } catch (error) {
+        console.error('Error loading claim details:', error);
+        Swal.fire('Error', 'Failed to load claim details.', 'error');
+    }
 };

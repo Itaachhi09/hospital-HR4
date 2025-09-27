@@ -207,9 +207,11 @@ function updateNotificationDot(unreadCount) {
     if (unreadCount > 0) {
         // console.log('[Notifications Debug] Showing notification dot.'); // Can be noisy
         notificationDotElement.classList.remove('hidden');
+        notificationDotElement.innerHTML = unreadCount > 99 ? '99+' : unreadCount.toString();
     } else {
         // console.log('[Notifications Debug] Hiding notification dot (unreadCount is 0 or less).'); // Can be noisy
         notificationDotElement.classList.add('hidden');
+        notificationDotElement.innerHTML = '';
     }
     const isHidden = notificationDotElement.classList.contains('hidden');
     const displayStyle = window.getComputedStyle(notificationDotElement).display;

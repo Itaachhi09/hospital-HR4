@@ -7,6 +7,13 @@ ini_set('log_errors', 1);
 
 session_start(); // Required to get SenderUserID if logged in
 
+// Check if user is authenticated
+if (!isset($_SESSION['user_id']) || $_SESSION['user_id'] <= 0) {
+    http_response_code(401);
+    echo json_encode(['error' => 'Authentication required. Please log in.']);
+    exit();
+}
+
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *'); // Adjust for production
 header('Access-Control-Allow-Methods: POST, OPTIONS');

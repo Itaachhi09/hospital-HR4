@@ -1,43 +1,10 @@
-# Hospital HR System Transformation TODO
+# TODO for Restoring Notification Icon Functionality
 
-## Plan Summary
-Transform the existing HR system into a hospital HR system by updating labels, terms, and data to hospital-specific context without breaking logic.
+## Overview
+This TODO tracks the steps to make the notification bell icon fully functional: dynamic badge with unread count, toggle dropdown on click, fetch and render notifications, mark as read on individual clicks, and navigate via links. No new files will be added; edits are limited to existing ones.
 
-## Steps to Complete
-
-1. **Update Database Schema (hr_integrated_db.sql)**
-   - Change table names if needed (e.g., employees to staff)
-   - Update field names and data (departments: Administration, Emergency, Surgery, Nursing; job roles: Doctor, Nurse, Technician; claim types: Medical Supplies, Equipment)
-   - Update sample data to hospital context
-
-2. **Update Main Pages**
-   - Update index.php: Ensure all text reflects hospital context
-   - Update admin_landing.php: Change title, footer, menu labels
-   - Update employee_landing.php: Change labels to hospital terms
-
-3. **Update Benefits Pages**
-   - Update hmo_benefits.php: Adapt to hospital benefits
-   - Update hmo_management.php: Update labels and terms
-
-4. **Update JavaScript Files**
-   - Update js/main.js: Change labels and text
-   - Update js/dashboard/dashboard.js: Update dashboard labels
-   - Update other relevant JS files
-
-5. **Update PHP API Files**
-   - Update php/api/get_employees.php: Change response labels
-   - Update php/api/get_dashboard_summary.php: Update summary labels
-   - Update other relevant API files
-
-6. **Testing and Verification**
-   - Test system functionality
-   - Verify database connections
-   - Check API responses
-
-## Progress
-- [x] Step 1: Update Database Schema
-- [ ] Step 2: Update Main Pages
-- [ ] Step 3: Update Benefits Pages
-- [ ] Step 4: Update JavaScript Files
-- [ ] Step 5: Update PHP API Files
-- [ ] Step 6: Testing and Verification
+## Steps
+- [x] Update `js/notifications/notifications.js`: Enhance `updateNotificationDot` to dynamically set the badge text (show exact count if ≤99, "99+" otherwise; empty/hide if 0). Confirm `renderNotificationList` and `handleNotificationItemClick` logic for styling, marking read, and refetching. Also, modify `fetchAndRenderNotifications` and `renderNotificationList` to support rendering to a custom target element (for full-page notifications view), export `handleNotificationItemClick` for reuse.
+- [x] Edit `admin_landing.php`: Remove the inline `onclick="onNotificationDropdownOpen()"` from the bell button to prevent conflicts with main.js listener. Initialize `#notification-dot` with empty innerHTML and add `hidden` class for dynamic control.
+- [x] Edit `js/main.js`: Update `displayNotificationsSection` to render notifications to `#notifications-full-list` using the new target parameter, add click listener for marking read on full page, and enable refresh button with target.
+- [x] Test the implementation: Verified via user screenshots and code review that core functionality works (dynamic badge hides for 0 unread, dropdown toggles/renders, "View All" navigates to full page with proper rendering/refresh/click handling). Further DB-based testing skipped per user request.

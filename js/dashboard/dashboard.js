@@ -43,14 +43,10 @@ export async function displayDashboardSection() {
 
     let user = window.currentUser;
     if (!user || !user.role_name) {
-        if (window.DESIGNATED_ROLE) {
-            user = { role_name: window.DESIGNATED_ROLE };
-        } else {
-            pageTitleElement.textContent = 'Dashboard';
-            mainContentArea.innerHTML = '<p class="text-red-500 p-4">Error: User role not found. Cannot display dashboard.</p>';
-            console.error("Dashboard Error: window.currentUser or window.currentUser.role_name is not defined.");
-            return;
-        }
+        pageTitleElement.textContent = 'Dashboard';
+        mainContentArea.innerHTML = '<p class="text-red-500 p-4">Error: User role not found. Please login again.</p>';
+        console.error("Dashboard Error: window.currentUser or window.currentUser.role_name is not defined.");
+        return;
     }
     console.log("[Dashboard] Current user:", user);
 
@@ -100,7 +96,7 @@ export async function displayDashboardSection() {
                 icon: 'error',
                 title: 'Dashboard Error',
                 text: `Failed to load dashboard data: ${error.message}`,
-                confirmButtonColor: '#4E3B2A'
+                confirmButtonColor: '#4727ffff'
             });
         }
     }

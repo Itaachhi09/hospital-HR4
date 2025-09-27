@@ -65,7 +65,7 @@ export function stopNotificationFetching() {
 /**
  * Fetches notifications from the API and triggers rendering.
  */
-export async function fetchAndRenderNotifications() {
+export async function fetchAndRenderNotifications(targetContainerElement = null) {
     if (!window.currentUser || !window.currentUser.user_id) {
         console.log("[Notifications] No user logged in. Skipping fetch.");
         updateNotificationDot(0);
@@ -90,7 +90,7 @@ export async function fetchAndRenderNotifications() {
             throw new Error(data.error);
         }
 
-        renderNotificationList(data.notifications || []);
+        renderNotificationList(data.notifications || [], targetContainerElement);
         // console.log('[Notifications] Calling updateNotificationDot with unread_count from server:', data.unread_count); // Can be noisy
         updateNotificationDot(data.unread_count || 0);
 
@@ -103,14 +103,15 @@ export async function fetchAndRenderNotifications() {
  * Renders the list of notifications into the dropdown panel.
  * @param {Array} notifications - Array of notification objects from the API.
  */
-function renderNotificationList(notifications) {
-    if (!notificationListElement) {
+function renderNotificationList(notifications, targetContainerElement = null) {
+    const container = targetContainerElement || notificationListElement;
+    if (!container) {
         // console.error("[Notifications] notificationListElement is null, cannot render."); // Less frequent logging
         return;
     }
 
     if (!notifications || notifications.length === 0) {
-        notificationListElement.innerHTML = '<p class="p-4 text-sm text-gray-500 text-center">No new notifications.</p>';
+        container.innerHTML = '<p class="p-4 text-sm text-gray-500 text-center">No notifications.</p>';
         return;
     }
 
@@ -141,7 +142,7 @@ function renderNotificationList(notifications) {
     // Add "View All Notifications" link
     html += `<a href="#notifications" class="block px-4 py-3 text-center text-blue-600 hover:bg-gray-100 view-all-notifications">View All Notifications</a>`;
 
-    notificationListElement.innerHTML = html;
+    container.innerHTML = html;
 }
 
 /**
@@ -221,7 +222,7 @@ function updateNotificationDot(unreadCount) {
 /**
  * Handles clicks on individual notification items in the dropdown.
  */
-async function handleNotificationItemClick(event) {
+export async function handleNotificationItemClick(event) {
     const notificationItem = event.target.closest('.notification-item');
     const viewAllLink = event.target.closest('.view-all-notifications');
     if (!notificationItem && !viewAllLink) return;

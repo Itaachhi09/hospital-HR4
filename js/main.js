@@ -62,7 +62,7 @@ import { displayUserManagementSection } from './admin/user_management.js';
 // User Profile
 import { displayUserProfileSection } from './profile/profile.js';
 // --- Import Notification Functions ---
-import { initializeNotificationSystem, stopNotificationFetching, onNotificationDropdownOpen, onNotificationDropdownClose } from './notifications/notifications.js';
+import { initializeNotificationSystem, stopNotificationFetching, onNotificationDropdownOpen, onNotificationDropdownClose, fetchAndRenderNotifications, handleNotificationItemClick } from './notifications/notifications.js';
 
 
 // --- Global Variables ---
@@ -669,12 +669,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const fullListElement = document.getElementById('notifications-full-list');
 
         // Fetch and render notifications to the full page list
-        if (typeof fetchAndRenderNotifications === 'function') {
-            fetchAndRenderNotifications(fullListElement);
-        }
+        fetchAndRenderNotifications(fullListElement);
 
         // Add click listener for notification items in full page
-        if (fullListElement && typeof handleNotificationItemClick === 'function') {
+        if (fullListElement) {
             fullListElement.addEventListener('click', handleNotificationItemClick);
         }
 
@@ -682,9 +680,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const refreshBtn = document.getElementById('refresh-notifications-btn');
         if (refreshBtn) {
             refreshBtn.addEventListener('click', () => {
-                if (typeof fetchAndRenderNotifications === 'function') {
-                    fetchAndRenderNotifications(fullListElement);
-                }
+                fetchAndRenderNotifications(fullListElement);
             });
         }
     }

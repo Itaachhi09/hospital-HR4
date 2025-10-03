@@ -3,8 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Sep 24, 2025 at 07:24 AM
--- Generation Time: Sep 30, 2025 at 06:10 PM
+-- Generation Time: Oct 03, 2025 at 10:31 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -19,7 +18,7 @@ SET time_zone = "+00:00";
 /*!40101 SET NAMES utf8mb4 */;
 
 --
--- Database: `hr_integrated_db`
+-- Database: `hr4_hr_integrated_db`
 --
 
 -- --------------------------------------------------------
@@ -121,10 +120,6 @@ CREATE TABLE `claimtypes` (
 --
 
 INSERT INTO `claimtypes` (`ClaimTypeID`, `TypeName`, `Description`, `RequiresReceipt`) VALUES
-(1, 'Medical Supplies', 'Medical supplies and equipment', 1),
-(2, 'Training Costs', 'Professional development and training', 1),
-(3, 'Equipment Maintenance', 'Maintenance of medical equipment', 1),
-(4, 'Travel Expenses', 'Business travel related expenses', 1),
 (1, 'Travel Expenses', 'Business travel related expenses', 1),
 (2, 'Meal Allowance', 'Business meal expenses', 1),
 (3, 'Office Supplies', 'Office equipment and supplies', 1),
@@ -186,11 +181,6 @@ CREATE TABLE `departments` (
 
 INSERT INTO `departments` (`DepartmentID`, `DepartmentName`) VALUES
 (1, 'Administration'),
-(2, 'Emergency Department'),
-(3, 'Surgery'),
-(4, 'Nursing'),
-(5, 'Radiology'),
-(6, 'Pharmacy');
 (2, 'Human Resources'),
 (3, 'Information Technology'),
 (4, 'Finance'),
@@ -246,6 +236,25 @@ CREATE TABLE `employeedocuments` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `employeehmoenrollments`
+--
+
+CREATE TABLE `employeehmoenrollments` (
+  `EnrollmentID` int(11) NOT NULL,
+  `EmployeeID` int(11) NOT NULL,
+  `PlanID` int(11) NOT NULL,
+  `Status` enum('Active','Inactive','Suspended','Pending') NOT NULL DEFAULT 'Active',
+  `MonthlyDeduction` decimal(10,2) NOT NULL,
+  `EnrollmentDate` date NOT NULL,
+  `EffectiveDate` date NOT NULL,
+  `EndDate` date DEFAULT NULL,
+  `CreatedAt` timestamp NOT NULL DEFAULT current_timestamp(),
+  `UpdatedAt` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `employees`
 --
 
@@ -286,8 +295,6 @@ CREATE TABLE `employees` (
 --
 
 INSERT INTO `employees` (`EmployeeID`, `FirstName`, `MiddleName`, `LastName`, `Suffix`, `Email`, `PersonalEmail`, `PhoneNumber`, `DateOfBirth`, `Gender`, `MaritalStatus`, `Nationality`, `AddressLine1`, `AddressLine2`, `City`, `StateProvince`, `PostalCode`, `Country`, `EmergencyContactName`, `EmergencyContactRelationship`, `EmergencyContactPhone`, `HireDate`, `JobTitle`, `DepartmentID`, `ManagerID`, `IsActive`, `TerminationDate`, `TerminationReason`, `EmployeePhotoPath`) VALUES
-(1, 'System', NULL, 'Admin', NULL, 'admin@hospitalhr.com', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-09-09', 'System Administrator', 1, NULL, 1, NULL, NULL, NULL),
-(2, 'Dr. John', NULL, 'Smith', NULL, 'john.smith@hospitalhr.com', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-09-09', 'Emergency Physician', 2, NULL, 1, NULL, NULL, NULL);
 (1, 'System', NULL, 'Admin', NULL, 'admin@hr4.com', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-09-09', 'System Administrator', 1, NULL, 1, NULL, NULL, NULL),
 (2, 'John', NULL, 'Doe', NULL, 'john.doe@hr4.com', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-09-09', 'Software Developer', 7, NULL, 1, NULL, NULL, NULL),
 (3, 'john paul', NULL, 'austria', NULL, 'johnpaulaustria321@gmail.com', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, '2025-09-25', 'nursing', 14, NULL, 1, NULL, NULL, NULL);
@@ -322,6 +329,156 @@ INSERT INTO `employeesalaries` (`SalaryID`, `EmployeeID`, `BaseSalary`, `PayFreq
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `hmoclaims`
+--
+
+CREATE TABLE `hmoclaims` (
+  `ClaimID` int(11) NOT NULL,
+  `EnrollmentID` int(11) NOT NULL,
+  `EmployeeID` int(11) NOT NULL,
+  `ClaimNumber` varchar(50) NOT NULL,
+  `ClaimType` varchar(100) NOT NULL,
+  `ProviderName` varchar(255) DEFAULT NULL,
+  `Description` text NOT NULL,
+  `Amount` decimal(10,2) NOT NULL,
+  `ClaimDate` date NOT NULL,
+  `SubmittedDate` timestamp NOT NULL DEFAULT current_timestamp(),
+  `ApprovedDate` timestamp NULL DEFAULT NULL,
+  `Status` enum('Submitted','Under Review','Approved','Rejected','Paid') NOT NULL DEFAULT 'Submitted',
+  `Comments` text DEFAULT NULL,
+  `ApprovedBy` int(11) DEFAULT NULL,
+  `CreatedAt` timestamp NOT NULL DEFAULT current_timestamp(),
+  `UpdatedAt` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `hmoplans`
+--
+
+CREATE TABLE `hmoplans` (
+  `PlanID` int(11) NOT NULL,
+  `ProviderID` int(11) NOT NULL,
+  `PlanName` varchar(255) NOT NULL,
+  `PlanCode` varchar(50) DEFAULT NULL,
+  `Description` text DEFAULT NULL,
+  `CoverageType` varchar(100) DEFAULT 'Comprehensive',
+  `PlanCategory` enum('Individual','Family','Corporate','Employee') DEFAULT 'Individual',
+  `MonthlyPremium` decimal(10,2) NOT NULL,
+  `AnnualLimit` decimal(12,2) DEFAULT NULL,
+  `MaximumBenefitLimit` decimal(12,2) DEFAULT NULL,
+  `RoomAndBoardLimit` decimal(10,2) DEFAULT NULL,
+  `DoctorVisitLimit` decimal(10,2) DEFAULT NULL,
+  `EmergencyLimit` decimal(10,2) DEFAULT NULL,
+  `OutpatientLimit` decimal(10,2) DEFAULT NULL,
+  `InpatientLimit` decimal(10,2) DEFAULT NULL,
+  `MaternityLimit` decimal(10,2) DEFAULT NULL,
+  `DentalLimit` decimal(10,2) DEFAULT NULL,
+  `PreventiveCareLimit` decimal(10,2) DEFAULT NULL,
+  `CoverageInpatient` tinyint(1) DEFAULT 1,
+  `CoverageOutpatient` tinyint(1) DEFAULT 1,
+  `CoverageEmergency` tinyint(1) DEFAULT 1,
+  `CoveragePreventive` tinyint(1) DEFAULT 1,
+  `CoverageMaternity` tinyint(1) DEFAULT 0,
+  `CoverageDental` tinyint(1) DEFAULT 0,
+  `CoverageOptical` tinyint(1) DEFAULT 0,
+  `AccreditedHospitals` longtext DEFAULT NULL,
+  `ExclusionsLimitations` text DEFAULT NULL,
+  `EligibilityRequirements` text DEFAULT NULL,
+  `WaitingPeriod` varchar(100) DEFAULT NULL,
+  `CashlessLimit` decimal(10,2) DEFAULT NULL,
+  `IsActive` tinyint(1) NOT NULL DEFAULT 1,
+  `EffectiveDate` date DEFAULT NULL,
+  `EndDate` date DEFAULT NULL,
+  `CreatedDate` timestamp NOT NULL DEFAULT current_timestamp(),
+  `CreatedAt` timestamp NOT NULL DEFAULT current_timestamp(),
+  `UpdatedAt` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `hmoplans`
+--
+
+INSERT INTO `hmoplans` (`PlanID`, `ProviderID`, `PlanName`, `PlanCode`, `Description`, `CoverageType`, `PlanCategory`, `MonthlyPremium`, `AnnualLimit`, `MaximumBenefitLimit`, `RoomAndBoardLimit`, `DoctorVisitLimit`, `EmergencyLimit`, `OutpatientLimit`, `InpatientLimit`, `MaternityLimit`, `DentalLimit`, `PreventiveCareLimit`, `CoverageInpatient`, `CoverageOutpatient`, `CoverageEmergency`, `CoveragePreventive`, `CoverageMaternity`, `CoverageDental`, `CoverageOptical`, `AccreditedHospitals`, `ExclusionsLimitations`, `EligibilityRequirements`, `WaitingPeriod`, `CashlessLimit`, `IsActive`, `EffectiveDate`, `EndDate`, `CreatedDate`, `CreatedAt`, `UpdatedAt`) VALUES
+(1, 1, 'Maxicare Individual', 'MXI-IND', 'Individual healthcare coverage with comprehensive benefits', 'Comprehensive', 'Individual', 3500.00, 1000000.00, 1000000.00, 5000.00, NULL, 50000.00, 50000.00, 300000.00, 100000.00, 25000.00, 15000.00, 1, 1, 1, 1, 1, 1, 0, '[\"Asian Hospital and Medical Center\", \"St. Lukes Medical Center\", \"Makati Medical Center\", \"The Medical City\", \"Cardinal Santos Medical Center\", \"Manila Doctors Hospital\", \"Chinese General Hospital\", \"Fatima University Medical Center\"]', NULL, 'Age 0-65, Pre-existing conditions covered after 12 months', '30 days for accidents, 120 days for illnesses', 100000.00, 1, '2024-01-01', NULL, '2025-10-02 16:27:35', '2025-10-02 16:27:35', '2025-10-02 16:27:35'),
+(2, 1, 'Maxicare Family', 'MXF-FAM', 'Family healthcare plan covering up to 6 family members', 'Comprehensive', 'Family', 8500.00, 2000000.00, 2000000.00, 5000.00, NULL, 75000.00, 75000.00, 500000.00, 150000.00, 40000.00, 25000.00, 1, 1, 1, 1, 1, 1, 0, '[\"Asian Hospital and Medical Center\", \"St. Lukes Medical Center\", \"Makati Medical Center\", \"The Medical City\", \"Cardinal Santos Medical Center\", \"Manila Doctors Hospital\", \"Chinese General Hospital\", \"Fatima University Medical Center\"]', NULL, 'Principal member age 21-60, dependents 0-65', '30 days for accidents, 120 days for illnesses', 150000.00, 1, '2024-01-01', NULL, '2025-10-02 16:27:35', '2025-10-02 16:27:35', '2025-10-02 16:27:35'),
+(3, 1, 'Maxicare Corporate', 'MXC-CORP', 'Corporate healthcare plan for employees and dependents', 'Comprehensive', 'Corporate', 2800.00, 800000.00, 800000.00, 4000.00, NULL, 40000.00, 40000.00, 250000.00, 80000.00, 20000.00, 12000.00, 1, 1, 1, 1, 1, 1, 0, '[\"Asian Hospital and Medical Center\", \"St. Lukes Medical Center\", \"Makati Medical Center\", \"The Medical City\", \"Cardinal Santos Medical Center\", \"Manila Doctors Hospital\", \"Chinese General Hospital\", \"Fatima University Medical Center\"]', NULL, 'Minimum 5 employees, renewable annually', '30 days for accidents, 120 days for illnesses', 80000.00, 1, '2024-01-01', NULL, '2025-10-02 16:27:35', '2025-10-02 16:27:35', '2025-10-02 16:27:35'),
+(4, 2, 'Medicard Classic', 'MDC-CLS', 'Classic healthcare plan with essential medical coverage', 'Standard', 'Individual', 2800.00, 600000.00, 600000.00, 3500.00, NULL, 35000.00, 35000.00, 200000.00, 60000.00, 15000.00, 10000.00, 1, 1, 1, 1, 1, 0, 0, '[\"Manila Doctors Hospital\", \"University of Santo Tomas Hospital\", \"Ospital ng Makati\", \"Medical Center Manila\", \"Quirino Memorial Medical Center\", \"East Avenue Medical Center\", \"Lung Center of the Philippines\"]', NULL, 'Age 0-65, medical examination required above 50', '60 days general waiting period', 75000.00, 1, '2024-01-01', NULL, '2025-10-02 16:27:35', '2025-10-02 16:27:35', '2025-10-02 16:27:35'),
+(5, 2, 'Medicard VIP', 'MDV-VIP', 'VIP healthcare plan with premium medical services', 'Premium', 'Individual', 5200.00, 1500000.00, 1500000.00, 7500.00, NULL, 100000.00, 100000.00, 500000.00, 200000.00, 50000.00, 30000.00, 1, 1, 1, 1, 1, 1, 0, '[\"Manila Doctors Hospital\", \"University of Santo Tomas Hospital\", \"Ospital ng Makati\", \"Medical Center Manila\", \"Quirino Memorial Medical Center\", \"East Avenue Medical Center\", \"Lung Center of the Philippines\"]', NULL, 'Age 0-65, comprehensive medical examination', '60 days general, 12 months pre-existing', 200000.00, 1, '2024-01-01', NULL, '2025-10-02 16:27:35', '2025-10-02 16:27:35', '2025-10-02 16:27:35'),
+(6, 2, 'Medicard Corporate', 'MDC-CORP', 'Corporate healthcare solution for business organizations', 'Comprehensive', 'Corporate', 3200.00, 800000.00, 800000.00, 4000.00, NULL, 50000.00, 50000.00, 300000.00, 100000.00, 25000.00, 15000.00, 1, 1, 1, 1, 1, 1, 0, '[\"Manila Doctors Hospital\", \"University of Santo Tomas Hospital\", \"Ospital ng Makati\", \"Medical Center Manila\", \"Quirino Memorial Medical Center\", \"East Avenue Medical Center\", \"Lung Center of the Philippines\"]', NULL, 'Minimum 10 employees, group application', '60 days general waiting period', 100000.00, 1, '2024-01-01', NULL, '2025-10-02 16:27:35', '2025-10-02 16:27:35', '2025-10-02 16:27:35'),
+(7, 3, 'Intellicare Flexicare', 'INT-FLEX', 'Flexible healthcare plan with customizable benefits', 'Flexible', 'Individual', 2200.00, 500000.00, 500000.00, 3000.00, NULL, 30000.00, 30000.00, 150000.00, 50000.00, 12000.00, 8000.00, 1, 1, 1, 1, 1, 0, 0, '[\"Veterans Memorial Medical Center\", \"Philippine Heart Center\", \"National Kidney and Transplant Institute\", \"Research Institute for Tropical Medicine\", \"Philippine Orthopedic Center\", \"Lung Center of the Philippines\"]', NULL, 'Age 0-60, flexible payment terms', '45 days general waiting period', 60000.00, 1, '2024-01-01', NULL, '2025-10-02 16:27:35', '2025-10-02 16:27:35', '2025-10-02 16:27:35'),
+(8, 3, 'Intellicare Corporate Health', 'INT-CORP', 'Corporate health plan with comprehensive medical coverage', 'Comprehensive', 'Corporate', 2600.00, 700000.00, 700000.00, 3500.00, NULL, 40000.00, 40000.00, 200000.00, 70000.00, 18000.00, 12000.00, 1, 1, 1, 1, 1, 1, 0, '[\"Veterans Memorial Medical Center\", \"Philippine Heart Center\", \"National Kidney and Transplant Institute\", \"Research Institute for Tropical Medicine\", \"Philippine Orthopedic Center\", \"Lung Center of the Philippines\"]', NULL, 'Minimum 8 employees, annual contract', '45 days general waiting period', 80000.00, 1, '2024-01-01', NULL, '2025-10-02 16:27:35', '2025-10-02 16:27:35', '2025-10-02 16:27:35'),
+(9, 4, 'PhilCare Health PRO', 'PHC-PRO', 'Professional health plan with preventive care focus', 'Comprehensive', 'Individual', 3800.00, 1200000.00, 1200000.00, 6000.00, NULL, 60000.00, 60000.00, 400000.00, 120000.00, 30000.00, 20000.00, 1, 1, 1, 1, 1, 1, 0, '[\"Cebu Doctors University Hospital\", \"Chong Hua Hospital\", \"Vicente Sotto Memorial Medical Center\", \"Perpetual Succour Hospital\", \"Miller Sanitarium & Hospital\", \"Southwestern University Medical Center\"]', NULL, 'Age 0-65, wellness program included', '90 days general, 12 months pre-existing', 120000.00, 1, '2024-01-01', NULL, '2025-10-02 16:27:35', '2025-10-02 16:27:35', '2025-10-02 16:27:35'),
+(10, 4, 'PhilCare ER Vantage', 'PHC-ERV', 'Emergency-focused plan with 24/7 coverage', 'Emergency', 'Individual', 1800.00, 300000.00, 300000.00, 2500.00, NULL, 50000.00, 15000.00, 100000.00, 30000.00, 8000.00, 5000.00, 1, 1, 1, 1, 0, 0, 0, '[\"Cebu Doctors University Hospital\", \"Chong Hua Hospital\", \"Vicente Sotto Memorial Medical Center\", \"Perpetual Succour Hospital\", \"Miller Sanitarium & Hospital\", \"Southwestern University Medical Center\"]', NULL, 'Age 18-60, emergency response priority', '30 days general waiting period', 50000.00, 1, '2024-01-01', NULL, '2025-10-02 16:27:35', '2025-10-02 16:27:35', '2025-10-02 16:27:35'),
+(11, 4, 'PhilCare Corporate', 'PHC-CORP', 'Corporate wellness program with comprehensive benefits', 'Comprehensive', 'Corporate', 3200.00, 900000.00, 900000.00, 4500.00, NULL, 45000.00, 45000.00, 300000.00, 90000.00, 22000.00, 15000.00, 1, 1, 1, 1, 1, 1, 0, '[\"Cebu Doctors University Hospital\", \"Chong Hua Hospital\", \"Vicente Sotto Memorial Medical Center\", \"Perpetual Succour Hospital\", \"Miller Sanitarium & Hospital\", \"Southwestern University Medical Center\"]', NULL, 'Minimum 15 employees, wellness programs', '90 days general waiting period', 100000.00, 1, '2024-01-01', NULL, '2025-10-02 16:27:35', '2025-10-02 16:27:35', '2025-10-02 16:27:35'),
+(12, 5, 'Kaiser Ultimate Health Builder', 'KAI-UHB', 'Ultimate health plan with international coverage options', 'Premium', 'Individual', 6500.00, 2000000.00, 2000000.00, 10000.00, NULL, 150000.00, 150000.00, 800000.00, 300000.00, 75000.00, 50000.00, 1, 1, 1, 1, 1, 1, 0, '[\"Kaiser Medical Center\", \"Metropolitan Medical Center\", \"De Los Santos Medical Center\", \"World Citi Medical Center\", \"New World Diagnostics\", \"Capitol Medical Center\"]', NULL, 'Age 0-70, international network access', '120 days general, 24 months pre-existing', 300000.00, 1, '2024-01-01', NULL, '2025-10-02 16:27:35', '2025-10-02 16:27:35', '2025-10-02 16:27:35'),
+(13, 5, 'Kaiser Corporate', 'KAI-CORP', 'Corporate health plan with global network partnerships', 'Comprehensive', 'Corporate', 4200.00, 1200000.00, 1200000.00, 6000.00, NULL, 80000.00, 80000.00, 400000.00, 150000.00, 40000.00, 25000.00, 1, 1, 1, 1, 1, 1, 0, '[\"Kaiser Medical Center\", \"Metropolitan Medical Center\", \"De Los Santos Medical Center\", \"World Citi Medical Center\", \"New World Diagnostics\", \"Capitol Medical Center\"]', NULL, 'Minimum 20 employees, international coverage', '120 days general waiting period', 150000.00, 1, '2024-01-01', NULL, '2025-10-02 16:27:35', '2025-10-02 16:27:35', '2025-10-02 16:27:35'),
+(14, 6, 'Insular iCare', 'IHC-ICR', 'Individual care plan with comprehensive medical benefits', 'Comprehensive', 'Individual', 2900.00, 750000.00, 750000.00, 4000.00, NULL, 45000.00, 45000.00, 250000.00, 80000.00, 20000.00, 12000.00, 1, 1, 1, 1, 1, 1, 0, '[\"Makati Medical Center\", \"Asian Hospital and Medical Center\", \"Capitol Medical Center\", \"Medical Center Manila\", \"Dela Salle University Medical Center\", \"San Juan de Dios Hospital\"]', NULL, 'Age 0-65, family-friendly benefits', '75 days general waiting period', 90000.00, 1, '2024-01-01', NULL, '2025-10-02 16:27:35', '2025-10-02 16:27:35', '2025-10-02 16:27:35'),
+(15, 6, 'Insular Corporate Care', 'IHC-CORP', 'Corporate care solution for medium to large enterprises', 'Comprehensive', 'Corporate', 2400.00, 600000.00, 600000.00, 3500.00, NULL, 35000.00, 35000.00, 200000.00, 60000.00, 15000.00, 10000.00, 1, 1, 1, 1, 1, 1, 0, '[\"Makati Medical Center\", \"Asian Hospital and Medical Center\", \"Capitol Medical Center\", \"Medical Center Manila\", \"Dela Salle University Medical Center\", \"San Juan de Dios Hospital\"]', NULL, 'Minimum 12 employees, flexible terms', '75 days general waiting period', 70000.00, 1, '2024-01-01', NULL, '2025-10-02 16:27:35', '2025-10-02 16:27:35', '2025-10-02 16:27:35'),
+(16, 7, 'ValuCare Individual', 'VAL-IND', 'Affordable individual healthcare plan with essential benefits', 'Basic', 'Individual', 1500.00, 300000.00, 300000.00, 2000.00, NULL, 20000.00, 20000.00, 100000.00, 30000.00, 8000.00, 5000.00, 1, 1, 1, 1, 1, 0, 0, '[\"Dr. Jose Fabella Memorial Hospital\", \"Jose Reyes Memorial Medical Center\", \"Tondo Medical Center\", \"Pasig City General Hospital\", \"Marikina Valley Medical Center\", \"Rizal Medical Center\"]', NULL, 'Age 0-60, affordable premium payments', '60 days general waiting period', 40000.00, 1, '2024-01-01', NULL, '2025-10-02 16:27:35', '2025-10-02 16:27:35', '2025-10-02 16:27:35'),
+(17, 7, 'ValuCare Family', 'VAL-FAM', 'Family healthcare plan with value-for-money benefits', 'Standard', 'Family', 4200.00, 800000.00, 800000.00, 2500.00, NULL, 35000.00, 35000.00, 200000.00, 60000.00, 15000.00, 10000.00, 1, 1, 1, 1, 1, 1, 0, '[\"Dr. Jose Fabella Memorial Hospital\", \"Jose Reyes Memorial Medical Center\", \"Tondo Medical Center\", \"Pasig City General Hospital\", \"Marikina Valley Medical Center\", \"Rizal Medical Center\"]', NULL, 'Principal member 21-55, up to 5 dependents', '60 days general waiting period', 60000.00, 1, '2024-01-01', NULL, '2025-10-02 16:27:35', '2025-10-02 16:27:35', '2025-10-02 16:27:35'),
+(18, 7, 'ValuCare Corporate', 'VAL-CORP', 'Corporate healthcare solution for small to medium enterprises', 'Standard', 'Corporate', 1800.00, 400000.00, 400000.00, 2000.00, NULL, 25000.00, 25000.00, 120000.00, 40000.00, 10000.00, 6000.00, 1, 1, 1, 1, 1, 0, 0, '[\"Dr. Jose Fabella Memorial Hospital\", \"Jose Reyes Memorial Medical Center\", \"Tondo Medical Center\", \"Pasig City General Hospital\", \"Marikina Valley Medical Center\", \"Rizal Medical Center\"]', NULL, 'Minimum 5 employees, cost-effective', '60 days general waiting period', 50000.00, 1, '2024-01-01', NULL, '2025-10-02 16:27:35', '2025-10-02 16:27:35', '2025-10-02 16:27:35');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `hmoproviders`
+--
+
+CREATE TABLE `hmoproviders` (
+  `ProviderID` int(11) NOT NULL,
+  `ProviderName` varchar(255) NOT NULL,
+  `CompanyName` varchar(255) DEFAULT NULL,
+  `ContactPerson` varchar(255) DEFAULT NULL,
+  `ContactEmail` varchar(255) DEFAULT NULL,
+  `ContactPhone` varchar(50) DEFAULT NULL,
+  `PhoneNumber` varchar(50) DEFAULT NULL,
+  `Email` varchar(255) DEFAULT NULL,
+  `Address` text DEFAULT NULL,
+  `Website` varchar(255) DEFAULT NULL,
+  `Logo` varchar(255) DEFAULT NULL,
+  `Description` text DEFAULT NULL,
+  `EstablishedYear` year(4) DEFAULT NULL,
+  `AccreditationNumber` varchar(100) DEFAULT NULL,
+  `ServiceAreas` text DEFAULT NULL,
+  `IsActive` tinyint(1) NOT NULL DEFAULT 1,
+  `CreatedAt` timestamp NOT NULL DEFAULT current_timestamp(),
+  `UpdatedAt` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `hmoproviders`
+--
+
+INSERT INTO `hmoproviders` (`ProviderID`, `ProviderName`, `CompanyName`, `ContactPerson`, `ContactEmail`, `ContactPhone`, `PhoneNumber`, `Email`, `Address`, `Website`, `Logo`, `Description`, `EstablishedYear`, `AccreditationNumber`, `ServiceAreas`, `IsActive`, `CreatedAt`, `UpdatedAt`) VALUES
+(1, 'Maxicare', 'Maxicare Healthcare Corporation', 'Customer Service Manager', 'customercare@maxicare.com.ph', '+63-2-8711-9000', '+63-2-8711-9000', 'info@maxicare.com.ph', '7th Floor, The Enterprise Center, Tower 1, 6766 Ayala Avenue corner Paseo de Roxas, Makati City', 'https://www.maxicare.com.ph', NULL, 'Leading HMO provider in the Philippines with comprehensive healthcare coverage', '1987', 'DOH-LTO-HMO-001', 'Metro Manila, Cebu, Davao, Bacolod, Iloilo, Cagayan de Oro, Baguio', 1, '2025-10-02 16:27:35', '2025-10-02 16:27:35'),
+(2, 'Medicard', 'Medicard Philippines, Inc.', 'Customer Relations Head', 'customercare@medicard.com.ph', '+63-2-8985-9999', '+63-2-8985-9999', 'info@medicard.com.ph', '2nd Floor, Prestige Tower, F. Ortigas Jr. Road, Ortigas Center, Pasig City', 'https://www.medicard.com.ph', NULL, 'Premier healthcare provider offering innovative medical services and HMO plans', '1982', 'DOH-LTO-HMO-002', 'Metro Manila, Laguna, Cavite, Rizal, Bulacan, Pampanga, Bataan', 1, '2025-10-02 16:27:35', '2025-10-02 16:27:35'),
+(3, 'Intellicare', 'Asalus Corporation', 'Client Services Director', 'customerservice@intellicare.com.ph', '+63-2-8894-7777', '+63-2-8894-7777', 'info@intellicare.com.ph', '6th Floor, Tower One & Exchange Plaza, Ayala Triangle, Ayala Avenue, Makati City', 'https://www.intellicare.com.ph', NULL, 'Flexible healthcare solutions with personalized medical care programs', '1997', 'DOH-LTO-HMO-003', 'Metro Manila, Cebu, Davao, Baguio, Clark, Subic', 1, '2025-10-02 16:27:35', '2025-10-02 16:27:35'),
+(4, 'PhilCare', 'PhilHealthCare, Inc.', 'Operations Manager', 'customercare@philcare.com.ph', '+63-2-8638-9999', '+63-2-8638-9999', 'info@philcare.com.ph', '15th Floor, Ayala Life-FGU Center, 6811 Ayala Avenue, Makati City', 'https://www.philcare.com.ph', NULL, 'Comprehensive healthcare management with focus on preventive care and wellness', '1994', 'DOH-LTO-HMO-004', 'Metro Manila, Cebu, Davao, Iloilo, Bacolod, Dumaguete', 1, '2025-10-02 16:27:35', '2025-10-02 16:27:35'),
+(5, 'Kaiser', 'Kaiser International Health Group, Inc.', 'Account Manager', 'info@kaiser.com.ph', '+63-2-8892-2222', '+63-2-8892-2222', 'customerservice@kaiser.com.ph', '26th Floor, Petron Megaplaza, 358 Senator Gil Puyat Avenue, Makati City', 'https://www.kaiser.com.ph', NULL, 'International standard healthcare coverage with global network partnerships', '1993', 'DOH-LTO-HMO-005', 'Metro Manila, Cebu, Davao, Clark, Baguio', 1, '2025-10-02 16:27:35', '2025-10-02 16:27:35'),
+(6, 'Insular Health Care', 'Insular Health Care, Inc.', 'Client Relations Manager', 'customercare@insularhealthcare.com.ph', '+63-2-8818-9999', '+63-2-8818-9999', 'info@insularhealthcare.com.ph', '21st Floor, Insular Life Building, Ayala Avenue corner Paseo de Roxas, Makati City', 'https://www.insularhealthcare.com.ph', NULL, 'Comprehensive health maintenance organization with extensive provider network', '1990', 'DOH-LTO-HMO-006', 'Metro Manila, Laguna, Cavite, Batangas, Rizal, Bulacan', 1, '2025-10-02 16:27:35', '2025-10-02 16:27:35'),
+(7, 'ValuCare', 'Value Care Health Systems, Inc.', 'Customer Support Head', 'customerservice@valucare.com.ph', '+63-2-8756-8888', '+63-2-8756-8888', 'info@valucare.com.ph', '12th Floor, Orient Square Building, F. Ortigas Jr. Road, Ortigas Center, Pasig City', 'https://www.valucare.com.ph', NULL, 'Affordable healthcare solutions with quality medical services for all', '1996', 'DOH-LTO-HMO-007', 'Metro Manila, Central Luzon, CALABARZON, Cebu, Davao', 1, '2025-10-02 16:27:35', '2025-10-02 16:27:35');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `hmo_notifications`
+--
+
+CREATE TABLE `hmo_notifications` (
+  `NotificationID` int(11) NOT NULL,
+  `EmployeeID` int(11) NOT NULL,
+  `Type` varchar(50) NOT NULL,
+  `Title` varchar(255) NOT NULL,
+  `Message` text NOT NULL,
+  `IsRead` tinyint(1) NOT NULL DEFAULT 0,
+  `CreatedAt` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `incentives`
 --
 
@@ -352,10 +509,6 @@ CREATE TABLE `job_roles` (
 --
 
 INSERT INTO `job_roles` (`JobRoleID`, `JobRoleName`) VALUES
-(1, 'Doctor'),
-(2, 'Nurse'),
-(3, 'Technician'),
-(4, 'Administrator'),
 (1, 'Manager'),
 (2, 'Staff'),
 (3, 'Senior Staff'),
@@ -465,26 +618,6 @@ CREATE TABLE `organizationalstructure` (
 --
 
 INSERT INTO `organizationalstructure` (`DepartmentID`, `DepartmentName`, `ParentDepartmentID`) VALUES
-(1, 'Administration', NULL),
-(2, 'Emergency Department', NULL),
-(3, 'Surgery', NULL),
-(4, 'Nursing', NULL),
-(5, 'Radiology', NULL),
-(6, 'Pharmacy', NULL),
-(7, 'Human Resources', 1),
-(8, 'Finance', 1),
-(9, 'IT Support', 1),
-(10, 'Emergency Services', 2),
-(11, 'Administration', NULL),
-(12, 'Emergency Department', NULL),
-(13, 'Surgery', NULL),
-(14, 'Nursing', NULL),
-(15, 'Radiology', NULL),
-(16, 'Pharmacy', NULL),
-(17, 'Human Resources', 11),
-(18, 'Finance', 11),
-(19, 'IT Support', 11),
-(20, 'Emergency Services', 12);
 (1, 'Human Resources', NULL),
 (2, 'Information Technology', NULL),
 (3, 'Finance', NULL),
@@ -719,8 +852,6 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`UserID`, `EmployeeID`, `Username`, `PasswordHash`, `RoleID`, `IsActive`, `IsTwoFactorEnabled`, `TwoFactorEmailCode`, `TwoFactorCodeExpiry`) VALUES
-(1, 1, 'admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 1, 1, 0, NULL, NULL),
-(2, 2, 'doctor', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 4, 1, 0, NULL, NULL);
 (1, 1, 'admin@gmail.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 1, 1, 0, NULL, NULL),
 (2, 2, 'hr_chief@gmail.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 4, 1, 0, NULL, NULL),
 (3, 3, 'johnpaulaustria321@gmail.com', '$2y$10$SIzLwql6ST6EYAEfaksQhOc59wHZOjb4MfnqvkFbZYVnJ0zhMsTTK', 1, 1, 0, NULL, NULL);
@@ -804,6 +935,14 @@ ALTER TABLE `employeedocuments`
   ADD KEY `EmployeeID` (`EmployeeID`);
 
 --
+-- Indexes for table `employeehmoenrollments`
+--
+ALTER TABLE `employeehmoenrollments`
+  ADD PRIMARY KEY (`EnrollmentID`),
+  ADD KEY `fk_hmo_enrollments_employee` (`EmployeeID`),
+  ADD KEY `fk_hmo_enrollments_plan` (`PlanID`);
+
+--
 -- Indexes for table `employees`
 --
 ALTER TABLE `employees`
@@ -821,6 +960,38 @@ ALTER TABLE `employeesalaries`
   ADD PRIMARY KEY (`SalaryID`),
   ADD KEY `EmployeeID` (`EmployeeID`),
   ADD KEY `idx_empsal_iscurrent` (`IsCurrent`);
+
+--
+-- Indexes for table `hmoclaims`
+--
+ALTER TABLE `hmoclaims`
+  ADD PRIMARY KEY (`ClaimID`),
+  ADD UNIQUE KEY `ClaimNumber` (`ClaimNumber`),
+  ADD UNIQUE KEY `claim_number_unique` (`ClaimNumber`),
+  ADD KEY `fk_hmo_claims_enrollment` (`EnrollmentID`),
+  ADD KEY `fk_hmo_claims_employee` (`EmployeeID`),
+  ADD KEY `fk_hmo_claims_approver` (`ApprovedBy`);
+
+--
+-- Indexes for table `hmoplans`
+--
+ALTER TABLE `hmoplans`
+  ADD PRIMARY KEY (`PlanID`),
+  ADD UNIQUE KEY `plan_code_unique` (`PlanCode`),
+  ADD KEY `fk_hmo_plans_provider` (`ProviderID`);
+
+--
+-- Indexes for table `hmoproviders`
+--
+ALTER TABLE `hmoproviders`
+  ADD PRIMARY KEY (`ProviderID`);
+
+--
+-- Indexes for table `hmo_notifications`
+--
+ALTER TABLE `hmo_notifications`
+  ADD PRIMARY KEY (`NotificationID`),
+  ADD KEY `fk_hmo_notifications_employee` (`EmployeeID`);
 
 --
 -- Indexes for table `incentives`
@@ -970,14 +1141,12 @@ ALTER TABLE `bonuses`
 -- AUTO_INCREMENT for table `claimapprovals`
 --
 ALTER TABLE `claimapprovals`
-  MODIFY `ApprovalID` int(11) NOT NULL AUTO_INCREMENT;
   MODIFY `ApprovalID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT for table `claims`
 --
 ALTER TABLE `claims`
-  MODIFY `ClaimID` int(11) NOT NULL AUTO_INCREMENT;
   MODIFY `ClaimID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
@@ -1017,10 +1186,15 @@ ALTER TABLE `employeedocuments`
   MODIFY `DocumentID` int(11) NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT for table `employeehmoenrollments`
+--
+ALTER TABLE `employeehmoenrollments`
+  MODIFY `EnrollmentID` int(11) NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `employees`
 --
 ALTER TABLE `employees`
-  MODIFY `EmployeeID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
   MODIFY `EmployeeID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
@@ -1028,6 +1202,30 @@ ALTER TABLE `employees`
 --
 ALTER TABLE `employeesalaries`
   MODIFY `SalaryID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+
+--
+-- AUTO_INCREMENT for table `hmoclaims`
+--
+ALTER TABLE `hmoclaims`
+  MODIFY `ClaimID` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `hmoplans`
+--
+ALTER TABLE `hmoplans`
+  MODIFY `PlanID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
+
+--
+-- AUTO_INCREMENT for table `hmoproviders`
+--
+ALTER TABLE `hmoproviders`
+  MODIFY `ProviderID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+
+--
+-- AUTO_INCREMENT for table `hmo_notifications`
+--
+ALTER TABLE `hmo_notifications`
+  MODIFY `NotificationID` int(11) NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `incentives`
@@ -1063,7 +1261,6 @@ ALTER TABLE `leavetypes`
 -- AUTO_INCREMENT for table `notifications`
 --
 ALTER TABLE `notifications`
-  MODIFY `NotificationID` int(11) NOT NULL AUTO_INCREMENT;
   MODIFY `NotificationID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
@@ -1124,7 +1321,6 @@ ALTER TABLE `timesheets`
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `UserID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
   MODIFY `UserID` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
@@ -1174,6 +1370,13 @@ ALTER TABLE `employeedocuments`
   ADD CONSTRAINT `fk_docs_employee` FOREIGN KEY (`EmployeeID`) REFERENCES `employees` (`EmployeeID`) ON DELETE CASCADE;
 
 --
+-- Constraints for table `employeehmoenrollments`
+--
+ALTER TABLE `employeehmoenrollments`
+  ADD CONSTRAINT `fk_hmo_enrollments_employee` FOREIGN KEY (`EmployeeID`) REFERENCES `employees` (`EmployeeID`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_hmo_enrollments_plan` FOREIGN KEY (`PlanID`) REFERENCES `hmoplans` (`PlanID`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+--
 -- Constraints for table `employees`
 --
 ALTER TABLE `employees`
@@ -1185,6 +1388,26 @@ ALTER TABLE `employees`
 --
 ALTER TABLE `employeesalaries`
   ADD CONSTRAINT `fk_empsal_employee` FOREIGN KEY (`EmployeeID`) REFERENCES `employees` (`EmployeeID`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `hmoclaims`
+--
+ALTER TABLE `hmoclaims`
+  ADD CONSTRAINT `fk_hmo_claims_approver` FOREIGN KEY (`ApprovedBy`) REFERENCES `users` (`UserID`) ON DELETE SET NULL ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_hmo_claims_employee` FOREIGN KEY (`EmployeeID`) REFERENCES `employees` (`EmployeeID`) ON DELETE CASCADE ON UPDATE CASCADE,
+  ADD CONSTRAINT `fk_hmo_claims_enrollment` FOREIGN KEY (`EnrollmentID`) REFERENCES `employeehmoenrollments` (`EnrollmentID`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+--
+-- Constraints for table `hmoplans`
+--
+ALTER TABLE `hmoplans`
+  ADD CONSTRAINT `fk_hmo_plans_provider` FOREIGN KEY (`ProviderID`) REFERENCES `hmoproviders` (`ProviderID`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+--
+-- Constraints for table `hmo_notifications`
+--
+ALTER TABLE `hmo_notifications`
+  ADD CONSTRAINT `fk_hmo_notifications_employee` FOREIGN KEY (`EmployeeID`) REFERENCES `employees` (`EmployeeID`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 --
 -- Constraints for table `incentives`

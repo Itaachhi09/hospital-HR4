@@ -48,13 +48,34 @@ import {
     displayAnalyticsReportsSection,
     displayAnalyticsMetricsSection
  } from './analytics/analytics.js';
-// HMO module removed - provide no-op stubs to avoid import/reference errors
-const displayHMOProvidersSection = () => document.getElementById('main-content-area')?.innerHTML = '<div class="p-6"><div class="text-gray-600">HMO module has been removed.</div></div>';
-const displayHMOEnrollmentsSection = displayHMOProvidersSection;
-const displayHMOClaimsApprovalSection = displayHMOProvidersSection;
-const displayEmployeeHMOSection = displayHMOProvidersSection;
-const displayEmployeeHMOClaimsSection = displayHMOProvidersSection;
-const displaySubmitHMOClaimSection = displayHMOProvidersSection;
+// HMO admin/employee UI
+// New HMO submodule pages
+import { renderHMOProviders, showAddProviderModal } from './admin/hmo/providers.js';
+import { renderHMOPlans, showAddPlanModal } from './admin/hmo/plans.js';
+import { renderHMOEnrollments, showAddEnrollmentModal } from './admin/hmo/enrollments.js';
+import { renderHMOClaims, showAddClaimModal } from './admin/hmo/claims.js';
+import { renderHMODashboard } from './admin/hmo/dashboard.js';
+import { renderEmployeeHMO } from './employee/hmo.js';
+const displayHMOProvidersSection = () => renderHMOProviders('main-content-area');
+const displayHMOPlansSection = () => renderHMOPlans('main-content-area');
+const displayHMOEnrollmentsSection = () => renderHMOEnrollments('main-content-area');
+const displayHMOClaimsApprovalSection = () => renderHMOClaims('main-content-area');
+const displayHMODashboardSection = () => renderHMODashboard('main-content-area');
+const displayEmployeeHMOSection = () => renderEmployeeHMO('main-content-area');
+const displayEmployeeHMOClaimsSection = () => renderHMOClaims('main-content-area');
+const displaySubmitHMOClaimSection = () => showAddClaimModal('main-content-area');
+
+// Expose select display functions to the global window so inline/non-module scripts
+// (legacy fallbacks in PHP templates) can call them via window['display...'].
+// This preserves module encapsulation while restoring backward compatibility.
+window.displayHMOProvidersSection = displayHMOProvidersSection;
+window.displayHMOPlansSection = displayHMOPlansSection;
+window.displayHMOEnrollmentsSection = displayHMOEnrollmentsSection;
+window.displayHMOClaimsApprovalSection = displayHMOClaimsApprovalSection;
+window.displayHMODashboardSection = displayHMODashboardSection;
+window.displayEmployeeHMOSection = displayEmployeeHMOSection;
+window.displayEmployeeHMOClaimsSection = displayEmployeeHMOClaimsSection;
+window.displaySubmitHMOClaimSection = displaySubmitHMOClaimSection;
  // Admin
 import { displayUserManagementSection } from './admin/user_management.js';
 // User Profile
@@ -425,8 +446,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (sidebarItems.hmoProviders) {
              addClickListenerOnce(sidebarItems.hmoProviders, displayHMOProvidersSection);
         }
-        if (sidebarItems.hmoPlans) {
-             addClickListenerOnce(sidebarItems.hmoPlans, displayHMOProvidersSection);
+       if (sidebarItems.hmoPlans) {
+           addClickListenerOnce(sidebarItems.hmoPlans, displayHMOPlansSection);
         }
         if (sidebarItems.hmoEnrollments) {
              addClickListenerOnce(sidebarItems.hmoEnrollments, displayHMOEnrollmentsSection);
@@ -434,8 +455,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (sidebarItems.hmoClaimsAdmin) {
              addClickListenerOnce(sidebarItems.hmoClaimsAdmin, displayHMOClaimsApprovalSection);
         }
-        if (sidebarItems.hmoDashboard) {
-             addClickListenerOnce(sidebarItems.hmoDashboard, displayHMOProvidersSection);
+       if (sidebarItems.hmoDashboard) {
+           addClickListenerOnce(sidebarItems.hmoDashboard, displayHMODashboardSection);
         }
         if (sidebarItems.myHmoBenefits) {
              addClickListenerOnce(sidebarItems.myHmoBenefits, displayEmployeeHMOSection);
@@ -715,10 +736,11 @@ document.addEventListener('DOMContentLoaded', () => {
         'analytics-dashboards': displayAnalyticsDashboardsSection,
         'analytics-reports': displayAnalyticsReportsSection,
         'analytics-metrics': displayAnalyticsMetricsSection,
-        'hmo-providers': displayHMOProvidersSection,
-        'hmo-plans': displayHMOProvidersSection, // Same as providers for now
+    'hmo-providers': displayHMOProvidersSection,
+    'hmo-plans': displayHMOPlansSection,
         'hmo-enrollments': displayHMOEnrollmentsSection,
-        'hmo-claims-admin': displayHMOClaimsApprovalSection,
+    'hmo-claims-admin': displayHMOClaimsApprovalSection,
+    'hmo-dashboard': displayHMODashboardSection,
         'my-hmo-benefits': displayEmployeeHMOSection,
         'my-hmo-claims': displayEmployeeHMOClaimsSection,
         'submit-hmo-claim': displaySubmitHMOClaimSection,
@@ -923,6 +945,13 @@ document.addEventListener('DOMContentLoaded', () => {
     window.displayAnalyticsReportsSection = displayAnalyticsReportsSection;
     window.displayAnalyticsMetricsSection = displayAnalyticsMetricsSection;
     window.displayUserManagementSection = displayUserManagementSection;
+    // HMO display functions
+    window.displayHMOProvidersSection = displayHMOProvidersSection;
+    window.displayHMOEnrollmentsSection = displayHMOEnrollmentsSection;
+    window.displayHMOClaimsApprovalSection = displayHMOClaimsApprovalSection;
+    window.displayEmployeeHMOSection = displayEmployeeHMOSection;
+    window.displayEmployeeHMOClaimsSection = displayEmployeeHMOClaimsSection;
+    window.displaySubmitHMOClaimSection = displaySubmitHMOClaimSection;
 
     console.log("HR System JS Initialized (Role-Based Landing).");
     console.log("Functions made globally available:", Object.keys(window).filter(key => key.startsWith('display')));

@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/_api_bootstrap.php';
-api_require_auth(['System Admin','HR Admin']);
+// Providers: Admins can manage. Employees may list active providers (read-only).
+api_require_auth();
 
 try {
     global $pdo;
@@ -9,55 +10,58 @@ try {
     if ($method === 'GET') {
         // List or single
         if (isset($_GET['id'])) {
-            $stmt = $pdo->prepare("SELECT * FROM HMOProviders WHERE ProviderID = :id");
+            // Map actual DB columns to API expected keys (ContactNumber, Email, Status)
+            $stmt = $pdo->prepare("SELECT ProviderID, ProviderName, Description, ContactPerson, COALESCE(ContactPhone, PhoneNumber) AS ContactNumber, COALESCE(ContactEmail, Email) AS Email, CASE WHEN COALESCE(IsActive,1)=1 THEN 'Active' ELSE 'Inactive' END AS Status FROM hmoproviders WHERE ProviderID = :id");
             $stmt->execute([':id' => (int)$_GET['id']]);
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
             echo json_encode(['success' => true, 'provider' => $row]);
         } else {
-            $stmt = $pdo->query("SELECT * FROM HMOProviders WHERE COALESCE(IsActive,0)=1 ORDER BY ProviderName");
+            // Non-admins only see active providers
+            $role = $_SESSION['role_name'] ?? '';
+            if (in_array($role, ['System Admin','HR Admin'], true)) {
+                $stmt = $pdo->query("SELECT ProviderID, ProviderName, Description, ContactPerson, COALESCE(ContactPhone, PhoneNumber) AS ContactNumber, COALESCE(ContactEmail, Email) AS Email, CASE WHEN COALESCE(IsActive,1)=1 THEN 'Active' ELSE 'Inactive' END AS Status FROM hmoproviders ORDER BY ProviderName");
+            } else {
+                $stmt = $pdo->query("SELECT ProviderID, ProviderName, Description, ContactPerson, COALESCE(ContactPhone, PhoneNumber) AS ContactNumber, COALESCE(ContactEmail, Email) AS Email, CASE WHEN COALESCE(IsActive,1)=1 THEN 'Active' ELSE 'Inactive' END AS Status FROM hmoproviders WHERE COALESCE(IsActive,1)=1 ORDER BY ProviderName");
+            }
             echo json_encode(['success' => true, 'providers' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
         }
         exit;
     }
 
     if ($method === 'POST') {
+        // Only admins can create
+        api_require_auth(['System Admin','HR Admin']);
         $d = api_read_json();
-        $sql = "INSERT INTO HMOProviders (ProviderName,CompanyName,ContactPerson,ContactEmail,ContactPhone,Email,PhoneNumber,Address,Website,IsActive)
-                VALUES (:ProviderName,:CompanyName,:ContactPerson,:ContactEmail,:ContactPhone,:Email,:PhoneNumber,:Address,:Website,:IsActive)";
+        // Use actual DB columns: ContactPhone, ContactEmail, IsActive
+    $sql = "INSERT INTO hmoproviders (ProviderName, Description, ContactPerson, ContactPhone, ContactEmail, IsActive) VALUES (:ProviderName,:Description,:ContactPerson,:ContactPhone,:ContactEmail,:IsActive)";
         $stmt = $pdo->prepare($sql);
         $stmt->execute([
             ':ProviderName' => trim($d['provider_name'] ?? ''),
-            ':CompanyName' => $d['company_name'] ?? null,
+            ':Description' => $d['description'] ?? null,
             ':ContactPerson' => $d['contact_person'] ?? null,
-            ':ContactEmail' => $d['contact_email'] ?? null,
-            ':ContactPhone' => $d['contact_phone'] ?? null,
-            ':Email' => $d['email'] ?? null,
-            ':PhoneNumber' => $d['phone_number'] ?? null,
-            ':Address' => $d['address'] ?? null,
-            ':Website' => $d['website'] ?? null,
-            ':IsActive' => isset($d['is_active']) ? (int)$d['is_active'] : 1,
+            ':ContactPhone' => $d['contact_number'] ?? $d['contact_phone'] ?? null,
+            ':ContactEmail' => $d['email'] ?? $d['contact_email'] ?? null,
+            ':IsActive' => (isset($d['status']) && strtolower($d['status'])==='inactive') ? 0 : 1,
         ]);
         echo json_encode(['success' => true, 'id' => $pdo->lastInsertId()]);
         exit;
     }
 
     if ($method === 'PUT') {
+        // Only admins can update
+        api_require_auth(['System Admin','HR Admin']);
         $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
         if ($id <= 0) { http_response_code(400); echo json_encode(['error' => 'Missing id']); exit; }
         $d = api_read_json();
-        $sql = "UPDATE HMOProviders SET ProviderName=:ProviderName,CompanyName=:CompanyName,ContactPerson=:ContactPerson,ContactEmail=:ContactEmail,ContactPhone=:ContactPhone,Email=:Email,PhoneNumber=:PhoneNumber,Address=:Address,Website=:Website,IsActive=:IsActive WHERE ProviderID=:id";
+    $sql = "UPDATE hmoproviders SET ProviderName=:ProviderName, Description=:Description, ContactPerson=:ContactPerson, ContactPhone=:ContactPhone, ContactEmail=:ContactEmail, IsActive=:IsActive WHERE ProviderID=:id";
         $stmt = $pdo->prepare($sql);
         $stmt->execute([
             ':ProviderName' => trim($d['provider_name'] ?? ''),
-            ':CompanyName' => $d['company_name'] ?? null,
+            ':Description' => $d['description'] ?? null,
             ':ContactPerson' => $d['contact_person'] ?? null,
-            ':ContactEmail' => $d['contact_email'] ?? null,
-            ':ContactPhone' => $d['contact_phone'] ?? null,
-            ':Email' => $d['email'] ?? null,
-            ':PhoneNumber' => $d['phone_number'] ?? null,
-            ':Address' => $d['address'] ?? null,
-            ':Website' => $d['website'] ?? null,
-            ':IsActive' => isset($d['is_active']) ? (int)$d['is_active'] : 1,
+            ':ContactPhone' => $d['contact_number'] ?? $d['contact_phone'] ?? null,
+            ':ContactEmail' => $d['email'] ?? $d['contact_email'] ?? null,
+            ':IsActive' => (isset($d['status']) && strtolower($d['status'])==='inactive') ? 0 : 1,
             ':id' => $id,
         ]);
         echo json_encode(['success' => true]);
@@ -65,9 +69,11 @@ try {
     }
 
     if ($method === 'DELETE') {
+        // Only admins can delete (soft-delete by status)
+        api_require_auth(['System Admin','HR Admin']);
         $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
         if ($id <= 0) { http_response_code(400); echo json_encode(['error' => 'Missing id']); exit; }
-        $stmt = $pdo->prepare("UPDATE HMOProviders SET IsActive=0 WHERE ProviderID=:id");
+    $stmt = $pdo->prepare("UPDATE hmoproviders SET IsActive=0 WHERE ProviderID=:id");
         $stmt->execute([':id' => $id]);
         echo json_encode(['success' => true]);
         exit;

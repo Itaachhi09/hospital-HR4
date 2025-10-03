@@ -48,18 +48,28 @@ $options = [
     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION, // Throw exceptions on errors
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,       // Fetch associative arrays
     PDO::ATTR_EMULATE_PREPARES   => false,                  // Use native prepared statements for security
+    PDO::ATTR_TIMEOUT            => 5,                      // Connection timeout (seconds)
+    PDO::ATTR_PERSISTENT         => false,                  // Avoid persistent connections in web apps by default
 ];
+
+// Optional SSL CA file for secure DB connections (set DB_SSL_CA env var to path)
+$db_ssl_ca = getenv('DB_SSL_CA') ?: '';
+if ($db_ssl_ca) {
+    $options[
+        defined('PDO::MYSQL_ATTR_SSL_CA') ? PDO::MYSQL_ATTR_SSL_CA : 1006
+    ] = $db_ssl_ca;
+}
 
 // --- Establish Connection ---
 $pdo = null; // Initialize $pdo to null
 try {
-     $pdo = new PDO($dsn, $db_user, $db_pass, $options);
-     // Optional: Log successful connection for debugging if needed
-     // error_log("Database connection successful to {$db_name}@{$db_host}");
+    $pdo = new PDO($dsn, $db_user, $db_pass, $options);
+    // Optional: Log successful connection for debugging if needed (avoid sensitive details)
+    // error_log("Database connection successful");
 
 } catch (\PDOException $e) {
-     // Log the detailed error message securely on the server
-     error_log("Database Connection Error: " . $e->getMessage() . " (DSN: " . $dsn . ", User: " . $db_user . ")");
+    // Log the error without exposing DSN or username/password in logs
+    error_log("Database Connection Error: " . $e->getMessage());
 
      // Send a generic error response to the client (important for APIs)
      // Check if headers have already been sent before trying to set them

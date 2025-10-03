@@ -66,9 +66,9 @@ if (!isset($_SESSION['user_id'])) {
             transition: transform 0.25s ease;
         }
     </style>
-    <script src="js/main.js" type="module" defer></script> 
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="js/main.js" type="module" defer></script>
 </head>
 
 
@@ -363,6 +363,30 @@ if (!isset($_SESSION['user_id'])) {
         <p class="text-slate-600">Welcome to HMVH Hospital Dashboard. Select a module from the sidebar.</p>
       </div>
     </section>
+      <script>
+        document.addEventListener('DOMContentLoaded', function(){
+          try {
+            fetch(`php/api/get_employee_enrollments.php`)
+              .then(r=>r.json())
+              .then(data=>{
+                if (!data.success) return;
+                const enrollments = data.enrollments || [];
+                const container = document.getElementById('main-content-area');
+                if (container) {
+                  const card = document.createElement('div');
+                  card.className='bg-white rounded-lg shadow p-4 mb-4';
+                  if (enrollments.length===0) {
+                    card.innerHTML = '<h3 class="text-lg font-semibold">HMO Coverage</h3><p class="text-sm">No active enrollments found.</p>';
+                  } else {
+                    const list = enrollments.slice(0,5).map(e=>`<li class="text-sm">${e.EmployeeName}: <strong>${e.PlanName}</strong> (${e.Status})</li>`).join('');
+                    card.innerHTML = `\n                    <h3 class="text-lg font-semibold">Recent HMO Enrollments</h3>\n                    <ul class="mt-2 space-y-1">${list}</ul>\n                  `;
+                  }
+                  container.prepend(card);
+                }
+              }).catch(e=>console.error(e));
+          } catch(e){console.error(e);} 
+        });
+      </script>
   </main>
 
         <div id="timesheet-detail-modal" class="fixed inset-0 z-[60] hidden items-center justify-center p-4 modal" aria-labelledby="modal-title-ts" role="dialog" aria-modal="true">
@@ -400,6 +424,8 @@ if (!isset($_SESSION['user_id'])) {
                 </div>
             </div>
         </div>
+  <!-- Global modal container for injecting module modals -->
+  <div id="modalContainer"></div>
         
         <div id="add-shift-modal" class="fixed inset-0 z-[60] hidden items-center justify-center p-4 modal" aria-labelledby="add-shift-modal-title" role="dialog" aria-modal="true">
             <div id="add-shift-modal-overlay" class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"></div>
@@ -537,8 +563,7 @@ if (!isset($_SESSION['user_id'])) {
   </div> <!-- End app-container -->
 
   <!-- JavaScript Modules -->
-  <script type="module" src="js/main.js"></script>
-  
+  <!-- main.js is already included in the head with defer; remove duplicate to avoid double-loading -->
   <!-- Original functionality restoration script -->
   <script>
     console.log("Original functionality restoration script loaded");
@@ -621,15 +646,12 @@ if (!isset($_SESSION['user_id'])) {
         'submit-claim-link': 'displaySubmitClaimSection',
         'my-claims-link': 'displayMyClaimsSection',
         'claims-approval-link': 'displayClaimsApprovalSection',
-        'claim-types-admin-link': 'displayClaimTypesAdminSection',
-<<<<<<< HEAD
-=======
-        'hmo-providers-link': 'displayHMOProvidersSection',
-        'hmo-plans-link': 'displayHMOProvidersSection',
-        'hmo-enrollments-link': 'displayHMOEnrollmentsSection',
-        'hmo-claims-admin-link': 'displayHMOClaimsApprovalSection',
-        'hmo-dashboard-link': 'displayHMODashboardSection',
->>>>>>> f41f02e (new hmo)
+  'claim-types-admin-link': 'displayClaimTypesAdminSection',
+  'hmo-providers-link': 'displayHMOProvidersSection',
+  'hmo-plans-link': 'displayHMOPlansSection',
+  'hmo-enrollments-link': 'displayHMOEnrollmentsSection',
+  'hmo-claims-admin-link': 'displayHMOClaimsApprovalSection',
+  'hmo-dashboard-link': 'displayHMODashboardSection',
         'leave-requests-link': 'displayLeaveRequestsSection',
         'leave-balances-link': 'displayLeaveBalancesSection',
         'leave-types-link': 'displayLeaveTypesAdminSection',

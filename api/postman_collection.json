@@ -733,6 +733,154 @@
               "path": ["hmo", "enrollments"]
             }
           }
+        },
+        {
+          "name": "Get HMO Enrollment by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/hmo/enrollments?id=1",
+              "host": ["{{base_url}}"],
+              "path": ["hmo", "enrollments"],
+              "query": [
+                {"key":"id","value":"1"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create HMO Enrollment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key":"Content-Type","value":"application/json"},
+              {"key":"Authorization","value":"Bearer {{auth_token}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employee_id\": 1,\n  \"plan_id\": 1,\n  \"start_date\": \"2025-10-01\",\n  \"end_date\": \"2026-09-30\",\n  \"status\": \"Active\"\n}"
+            },
+            "url": {"raw":"{{base_url}}/hmo/enrollments","host":["{{base_url}}"],"path":["hmo","enrollments"]}
+          }
+        },
+        {
+          "name": "Update HMO Enrollment",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {"key":"Content-Type","value":"application/json"},
+              {"key":"Authorization","value":"Bearer {{auth_token}}"}
+            ],
+            "body": {"mode":"raw","raw":"{\n  \"plan_id\": 2,\n  \"start_date\": \"2025-11-01\",\n  \"end_date\": \"2026-10-31\",\n  \"status\": \"Active\"\n}"},
+            "url": {"raw":"{{base_url}}/hmo/enrollments?id=1","host":["{{base_url}}"],"path":["hmo","enrollments"],"query":[{"key":"id","value":"1"}]}
+          }
+        },
+        {
+          "name": "Terminate HMO Enrollment",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {"key":"Content-Type","value":"application/json"},
+              {"key":"Authorization","value":"Bearer {{auth_token}}"}
+            ],
+            "body": {"mode":"raw","raw":"{\n  \"status\": \"Terminated\",\n  \"end_date\": \"2025-10-04\"\n}"},
+            "url": {"raw":"{{base_url}}/hmo/enrollments?id=1","host":["{{base_url}}"],"path":["hmo","enrollments"],"query":[{"key":"id","value":"1"}]}
+          }
+        },
+        {
+          "name": "Delete HMO Enrollment",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {"key":"Authorization","value":"Bearer {{auth_token}}"}
+            ],
+            "url": {"raw":"{{base_url}}/hmo/enrollments?id=1","host":["{{base_url}}"],"path":["hmo","enrollments"],"query":[{"key":"id","value":"1"}]}
+          }
+        }
+        ,
+        {
+          "name": "Get HMO Claims",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key":"Authorization","value":"Bearer {{auth_token}}"}
+            ],
+            "url": {"raw":"{{base_url}}/hmo/claims","host":["{{base_url}}"],"path":["hmo","claims"]}
+          }
+        },
+        {
+          "name": "Get HMO Claim by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {"key":"Authorization","value":"Bearer {{auth_token}}"}
+            ],
+            "url": {"raw":"{{base_url}}/hmo/claims?id=1","host":["{{base_url}}"],"path":["hmo","claims"],"query":[{"key":"id","value":"1"}]}
+          }
+        },
+        {
+          "name": "File HMO Claim",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key":"Content-Type","value":"application/json"},
+              {"key":"Authorization","value":"Bearer {{auth_token}}"}
+            ],
+            "body": {"mode":"raw","raw":"{\n  \"enrollment_id\": 1,\n  \"claim_date\": \"2025-10-04\",\n  \"hospital_clinic\": \"ACME Hospital\",\n  \"diagnosis\": \"Flu\",\n  \"claim_amount\": 1500.00,\n  \"remarks\": \"ER visit\"\n}"},
+            "url": {"raw":"{{base_url}}/hmo/claims","host":["{{base_url}}"],"path":["hmo","claims"]}
+          }
+        },
+        {
+          "name": "Update HMO Claim",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {"key":"Content-Type","value":"application/json"},
+              {"key":"Authorization","value":"Bearer {{auth_token}}"}
+            ],
+            "body": {"mode":"raw","raw":"{\n  \"hospital_clinic\": \"Updated Clinic\",\n  \"diagnosis\": \"Updated diagnosis\",\n  \"claim_amount\": 1700.00,\n  \"remarks\": \"Updated notes\"\n}"},
+            "url": {"raw":"{{base_url}}/hmo/claims?id=1","host":["{{base_url}}"],"path":["hmo","claims"],"query":[{"key":"id","value":"1"}]}
+          }
+        },
+        {
+          "name": "Approve HMO Claim",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {"key":"Content-Type","value":"application/json"},
+              {"key":"Authorization","value":"Bearer {{auth_token}}"}
+            ],
+            "body": {"mode":"raw","raw":"{\n  \"claim_status\": \"Approved\",\n  \"remarks\": \"Approved by admin\"\n}"},
+            "url": {"raw":"{{base_url}}/hmo/claims?id=1","host":["{{base_url}}"],"path":["hmo","claims"],"query":[{"key":"id","value":"1"}]}
+          }
+        },
+        {
+          "name": "Deny HMO Claim",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {"key":"Content-Type","value":"application/json"},
+              {"key":"Authorization","value":"Bearer {{auth_token}}"}
+            ],
+            "body": {"mode":"raw","raw":"{\n  \"claim_status\": \"Denied\",\n  \"remarks\": \"Insufficient documentation\"\n}"},
+            "url": {"raw":"{{base_url}}/hmo/claims?id=1","host":["{{base_url}}"],"path":["hmo","claims"],"query":[{"key":"id","value":"1"}]}
+          }
+        },
+        {
+          "name": "Delete HMO Claim",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {"key":"Authorization","value":"Bearer {{auth_token}}"}
+            ],
+            "url": {"raw":"{{base_url}}/hmo/claims?id=1","host":["{{base_url}}"],"path":["hmo","claims"],"query":[{"key":"id","value":"1"}]}
+          }
         }
       ]
     },

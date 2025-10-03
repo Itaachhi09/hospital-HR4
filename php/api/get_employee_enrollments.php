@@ -21,25 +21,27 @@ if (!isset($pdo)) {
 
 try {
     $sql = "SELECT 
-                ehe.EnrollmentID,
-                ehe.EmployeeID,
-                ehe.PlanID,
-                ehe.EnrollmentDate,
-                ehe.EffectiveDate,
-                ehe.EndDate,
-                ehe.Status,
-                ehe.MonthlyContribution,
-                ehe.CompanyContribution,
-                ehe.Notes,
-                ehe.CreatedAt,
-                ehe.UpdatedAt,
+                    ehe.EnrollmentID,
+                    ehe.EmployeeID,
+                    ehe.PlanID,
+                    ehe.EnrollmentDate,
+                    ehe.EffectiveDate,
+                    ehe.EndDate,
+                    ehe.Status,
+                    COALESCE(ehe.MonthlyContribution, ehe.MonthlyDeduction, 0) AS MonthlyContribution,
+                    COALESCE(ehe.CompanyContribution, 0) AS CompanyContribution,
+                    COALESCE(ehe.Notes, '') AS Notes,
+                    ehe.CreatedAt,
+                    ehe.UpdatedAt,
                 CONCAT(e.FirstName, ' ', e.LastName) AS EmployeeName,
                 hp.PlanName,
-                hpr.ProviderName
-            FROM EmployeeHMOEnrollments ehe
+                hpr.ProviderName,
+                hp.AccreditedHospitals,
+                COALESCE(hp.EligibilityRequirements, '') AS Eligibility
+            FROM employeehmoenrollments ehe
             LEFT JOIN Employees e ON ehe.EmployeeID = e.EmployeeID
-            LEFT JOIN HMOPlans hp ON ehe.PlanID = hp.PlanID
-            LEFT JOIN HMOProviders hpr ON hp.ProviderID = hpr.ProviderID
+                LEFT JOIN hmoplans hp ON ehe.PlanID = hp.PlanID
+                LEFT JOIN hmoproviders hpr ON hp.ProviderID = hpr.ProviderID
             ORDER BY ehe.EnrollmentDate DESC";
     
     $stmt = $pdo->query($sql);

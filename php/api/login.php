@@ -98,7 +98,7 @@ function send_2fa_email_code_phpmailer(string $recipientEmail, string $code, str
 
         // Recipients
         $mail->setFrom($gmailUser, 'hospital HR System'); // Sender Email and Name
-        $mail->addAddress($recipientEmail, 'johnpaulaustria@gmailc.com');          // Add a recipient
+        $mail->addAddress($recipientEmail, 'johnpaulaustria321@gmailc.com');          // Add a recipient
 
         // Content
         $mail->isHTML(false); // Set email format to plain text
@@ -282,14 +282,14 @@ try {
                         eh.EnrollmentID,
                         eh.PlanID,
                         eh.Status as EnrollmentStatus,
-                        eh.MonthlyDeduction,
+                        COALESCE(eh.MonthlyDeduction, eh.MonthlyContribution, 0) AS MonthlyDeduction,
                         eh.EnrollmentDate,
                         eh.EffectiveDate,
                         hp.PlanName,
                         hpr.ProviderName
-                       FROM EmployeeHMOEnrollments eh
-                       LEFT JOIN HMOPlans hp ON eh.PlanID = hp.PlanID
-                       LEFT JOIN HMOProviders hpr ON hp.ProviderID = hpr.ProviderID
+                       FROM employeehmoenrollments eh
+                       LEFT JOIN hmoplans hp ON eh.PlanID = hp.PlanID
+                       LEFT JOIN hmoproviders hpr ON hp.ProviderID = hpr.ProviderID
                        WHERE eh.EmployeeID = :employee_id AND eh.Status = 'Active'
                        ORDER BY eh.EffectiveDate DESC LIMIT 1";
 

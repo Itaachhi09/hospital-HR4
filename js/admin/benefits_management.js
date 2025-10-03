@@ -294,44 +294,158 @@ class BenefitsManagement {
 
     // Employee Benefits Management
     loadEmployeeBenefits() {
-        // This would load employee benefits data
-        // For now, just render an empty table
-        this.renderEmployeeBenefitsTable();
+        // Load from API - list all recent employee benefits for admin
+        const self = this;
+        // If there's a selected employee filter on the page, use it
+        const employeeSelect = document.querySelector('[data-employee-filter]');
+        const empId = employeeSelect ? employeeSelect.value : null;
+        const url = empId ? `php/api/get_employee_benefits.php?employee_id=${empId}` : `php/api/get_employee_benefits.php?employee_id=${empId || 0}`;
+        $.get(url)
+            .done((response) => {
+                // Response from legacy wrapper may already be the structured API response
+                try {
+                    const parsed = typeof response === 'string' ? JSON.parse(response) : response;
+                    if (parsed.error || parsed.success===false) {
+                        this.showError(parsed.error || 'Failed to load employee benefits');
+                        return;
+                    }
+                    // The REST route returns { success:true, data: [...] } or direct array (depending on controller)
+                    let list = [];
+                    if (Array.isArray(parsed)) list = parsed;
+                    else if (Array.isArray(parsed.data)) list = parsed.data;
+                    else if (Array.isArray(parsed)) list = parsed;
+                    else if (Array.isArray(parsed.benefits)) list = parsed.benefits;
+                    else if (Array.isArray(parsed)) list = parsed;
+                    // Fallback: if response has 'success' and the data was printed directly
+                    if (parsed.success && Array.isArray(parsed)) list = parsed;
+
+                    this.employeeBenefits = list;
+                    this.renderEmployeeBenefitsTable();
+                } catch (err) {
+                    // If parsing failed, assume response is already array
+                    this.employeeBenefits = response || [];
+                    this.renderEmployeeBenefitsTable();
+                }
+            })
+            .fail(() => this.showError('Error loading employee benefits'));
     }
 
     renderEmployeeBenefitsTable() {
         const tbody = $('#employee-benefits-table tbody');
         tbody.empty();
+        if (!this.employeeBenefits || this.employeeBenefits.length===0) {
+            tbody.append(`<tr><td colspan="5" class="text-center">No employee benefits assigned.</td></tr>`);
+            return;
+        }
 
-        // Sample data - in real implementation, this would come from API
-        tbody.append(`
-            <tr>
-                <td>John Doe</td>
-                <td>Health Insurance</td>
-                <td>₱15,000.00</td>
-                <td>Active</td>
-                <td>
-                    <button class="btn btn-sm btn-warning remove-benefit-btn" data-id="1">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </td>
-            </tr>
-            <tr>
-                <td>Jane Smith</td>
-                <td>Dental Coverage</td>
-                <td>₱5,000.00</td>
-                <td>Active</td>
-                <td>
-                    <button class="btn btn-sm btn-warning remove-benefit-btn" data-id="2">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </td>
-            </tr>
-        `);
+        this.employeeBenefits.forEach(item => {
+            const start = item.StartDate ? new Date(item.StartDate).toLocaleDateString() : '—';
+            const end = item.EndDate ? new Date(item.EndDate).toLocaleDateString() : '—';
+            const amount = item.BenefitAmount ? `₱${parseFloat(item.BenefitAmount).toLocaleString()}` : '-';
+            const employeeName = item.FirstName ? `${item.FirstName} ${item.LastName}` : (item.EmployeeName || 'Employee');
+            tbody.append(`
+                <tr>
+                    <td>${employeeName}</td>
+                    <td>${item.BenefitName || item.CategoryName || 'Benefit'}</td>
+                    <td>${amount}</td>
+                    <td>${item.Status || 'Active'}</td>
+                    <td>
+                        <button class="btn btn-sm btn-info view-benefit-details" data-id="${item.BenefitID}">Details</button>
+                        <button class="btn btn-sm btn-warning remove-benefit-btn" data-id="${item.BenefitID}">Remove</button>
+                    </td>
+                </tr>
+            `);
+        });
     }
 
     showAssignBenefitModal() {
-        this.showSuccess('Assign benefit modal would be implemented here');
+        // Build assign modal with employee and benefit dropdowns
+        const employeeSelectId = 'assignBenefitEmployee';
+        const benefitSelectId = 'assignBenefitSelect';
+        const modal = `
+            <div class="modal fade" id="assignBenefitModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Assign Benefit to Employee</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <form id="assignBenefitForm">
+                            <div class="modal-body">
+                                <div class="mb-3">
+                                    <label class="form-label">Employee *</label>
+                                    <select id="${employeeSelectId}" class="form-control" name="employee_id" required></select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Benefit *</label>
+                                    <select id="${benefitSelectId}" class="form-control" name="benefit_id" required></select>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Amount</label>
+                                    <input type="number" step="0.01" class="form-control" name="benefit_amount">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Start Date</label>
+                                    <input type="date" class="form-control" name="start_date">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">End Date</label>
+                                    <input type="date" class="form-control" name="end_date">
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Notes</label>
+                                    <textarea class="form-control" name="notes"></textarea>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="submit" class="btn btn-primary">Assign Benefit</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        $('#modalContainer').html(modal);
+        $('#assignBenefitModal').modal('show');
+
+        // Populate employee dropdown and benefit dropdown
+        populateEmployeeDropdown(employeeSelectId, false).then(() => {});
+        // Load benefits
+        $.get('php/api/get_benefits.php').done((resp) => {
+            const parsed = typeof resp === 'string' ? JSON.parse(resp) : resp;
+            const list = parsed && parsed.benefits ? parsed.benefits : (Array.isArray(parsed) ? parsed : []);
+            const sel = document.getElementById(benefitSelectId);
+            if (sel) {
+                sel.innerHTML = '<option value="">-- Select Benefit --</option>' + list.map(b => `<option value="${b.BenefitID}">${b.BenefitName}</option>`).join('');
+            }
+        });
+
+        $('#assignBenefitForm').on('submit', (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const fd = new FormData(form);
+            // Basic validation
+            if (!fd.get('employee_id') || !fd.get('benefit_id')) { this.showError('Employee and Benefit are required'); return; }
+            // Submit via legacy wrapper
+            $.ajax({
+                url: 'php/api/assign_employee_benefit.php',
+                method: 'POST',
+                data: fd,
+                processData: false,
+                contentType: false
+            }).done((res) => {
+                const parsed = typeof res === 'string' ? JSON.parse(res) : res;
+                if (parsed.error || parsed.success===false) {
+                    this.showError(parsed.error || 'Failed to assign benefit');
+                } else {
+                    this.showSuccess('Benefit assigned successfully');
+                    $('#assignBenefitModal').modal('hide');
+                    this.loadEmployeeBenefits();
+                }
+            }).fail(() => this.showError('Error assigning benefit'));
+        });
     }
 
     // Utility Methods
@@ -378,11 +492,17 @@ class BenefitsManagement {
     }
 
     removeEmployeeBenefit(id) {
-        if (confirm('Are you sure you want to remove this benefit from the employee?')) {
-            // Implement remove API call
-            this.showSuccess('Benefit removed successfully');
-            this.loadEmployeeBenefits();
-        }
+        if (!confirm('Are you sure you want to remove this benefit from the employee?')) return;
+        $.ajax({ url: `php/api/delete_employee_benefit.php?id=${encodeURIComponent(id)}`, method: 'DELETE' })
+            .done((res) => {
+                const parsed = typeof res === 'string' ? JSON.parse(res) : res;
+                if (parsed.error || parsed.success===false) {
+                    this.showError(parsed.error || 'Failed to remove benefit');
+                } else {
+                    this.showSuccess('Benefit removed successfully');
+                    this.loadEmployeeBenefits();
+                }
+            }).fail(() => this.showError('Error removing benefit'));
     }
 }
 

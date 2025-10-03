@@ -257,6 +257,29 @@ if (!isset($_SESSION['user_id'])) {
         <p class="text-slate-600">Welcome to HMVH Hospital Dashboard. Select a module from the sidebar.</p>
       </div>
     </section>
+  <script>
+      document.addEventListener('DOMContentLoaded', function(){
+        try {
+          const empId = '<?php echo $_SESSION['employee_id'] ?? 0; ?>';
+          if (!empId) return;
+          fetch(`php/api/get_employee_enrollments.php`)
+            .then(r=>r.json())
+            .then(data=>{
+              if (!data.success) return;
+              const my = data.enrollments.find(e=>String(e.EmployeeID)===String(empId));
+              const container = document.getElementById('main-content-area');
+              if (my && container) {
+                const card = document.createElement('div');
+                card.className='bg-white rounded-lg shadow p-4 mb-4';
+                card.innerHTML = `\n                  <h3 class="text-lg font-semibold">My HMO Coverage</h3>\n                  <p class="text-sm">Plan: <strong>${my.PlanName}</strong></p>\n                  <p class="text-sm">Status: <strong>${my.Status}</strong></p>\n                  <p class="text-sm">Effective: <strong>${my.EffectiveDate}</strong></p>\n                `;
+                container.prepend(card);
+              }
+            }).catch(e=>console.error(e));
+        } catch(e){console.error(e);} 
+      });
+    </script>
+  <!-- Global modal container for injecting module modals -->
+  <div id="modalContainer"></div>
   </main>
 
         <div id="timesheet-detail-modal" class="fixed inset-0 z-[60] hidden items-center justify-center p-4 modal" aria-labelledby="modal-title-ts" role="dialog" aria-modal="true">

@@ -48,15 +48,13 @@ import {
     displayAnalyticsReportsSection,
     displayAnalyticsMetricsSection
  } from './analytics/analytics.js';
-// HMO & Benefits functions
-import {
-    displayHMOProvidersSection,
-    displayHMOEnrollmentsSection,
-    displayHMOClaimsApprovalSection,
-    displayEmployeeHMOSection,
-    displayEmployeeHMOClaimsSection,
-    displaySubmitHMOClaimSection
-} from './hmo/hmo.js';
+// HMO module removed - provide no-op stubs to avoid import/reference errors
+const displayHMOProvidersSection = () => document.getElementById('main-content-area')?.innerHTML = '<div class="p-6"><div class="text-gray-600">HMO module has been removed.</div></div>';
+const displayHMOEnrollmentsSection = displayHMOProvidersSection;
+const displayHMOClaimsApprovalSection = displayHMOProvidersSection;
+const displayEmployeeHMOSection = displayHMOProvidersSection;
+const displayEmployeeHMOClaimsSection = displayHMOProvidersSection;
+const displaySubmitHMOClaimSection = displayHMOProvidersSection;
  // Admin
 import { displayUserManagementSection } from './admin/user_management.js';
 // User Profile

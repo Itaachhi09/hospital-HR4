@@ -175,6 +175,18 @@ function renderHospitalHierarchy() {
     // Build hierarchy tree
     const hierarchy = buildDepartmentHierarchy(departments);
     hierarchyDisplay.innerHTML = renderDepartmentTree(hierarchy);
+
+    // Attach event delegation for edit/view buttons so clicks reliably call handlers
+    hierarchyDisplay.querySelectorAll && hierarchyDisplay.addEventListener('click', function(evt){
+        const editBtn = evt.target.closest && evt.target.closest('.btn-edit-dept');
+        if (editBtn) {
+            const id = editBtn.getAttribute('data-id'); if (id) return editDepartment(id);
+        }
+        const viewBtn = evt.target.closest && evt.target.closest('.btn-view-dept');
+        if (viewBtn) {
+            const id = viewBtn.getAttribute('data-id'); if (id) return viewDepartmentDetails(id);
+        }
+    });
 }
 
 // ===================== DIVISIONS VIEW =====================
@@ -340,10 +352,10 @@ function renderDepartmentTree(departments, level = 0) {
                             </div>
                         </div>
                         <div class="flex items-center space-x-2">
-                            <button onclick="editDepartment(${dept.DepartmentID})" class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg" title="Edit">
+                            <button data-id="${dept.DepartmentID}" class="btn-edit-dept p-2 text-blue-600 hover:bg-blue-50 rounded-lg" title="Edit">
                                 <i class="fas fa-edit"></i>
                             </button>
-                            <button onclick="viewDepartmentDetails(${dept.DepartmentID})" class="p-2 text-green-600 hover:bg-green-50 rounded-lg" title="View Details">
+                            <button data-id="${dept.DepartmentID}" class="btn-view-dept p-2 text-green-600 hover:bg-green-50 rounded-lg" title="View Details">
                                 <i class="fas fa-eye"></i>
                             </button>
                         </div>
@@ -409,4 +421,232 @@ window.setupHospitalStructure = function() {
         }
     });
 };
+
+// ----------------- Department CRUD UI Helpers -----------------
+// Show Add Department modal
+window.showAddDepartmentModal = async function() {
+    // Create overlay appended to body so it's centered regardless of container position
+    const depts = (hospitalOrgData.departments || []).map(d => `<option value="${d.DepartmentID}">${d.DepartmentName}</option>`).join('');
+    const overlay = document.createElement('div');
+    overlay.id = 'add-dept-overlay';
+    overlay.className = 'fixed inset-0 z-60 flex items-center justify-center bg-black/40';
+    // Inline fallback styles to ensure centering even if utility classes aren't applied
+    overlay.style.position = 'fixed';
+    overlay.style.inset = '0';
+    overlay.style.display = 'flex';
+    overlay.style.alignItems = 'center';
+    overlay.style.justifyContent = 'center';
+    overlay.style.background = 'rgba(0,0,0,0.4)';
+    overlay.style.zIndex = '9999';
+    overlay.innerHTML = `
+            <div class="bg-white rounded-lg shadow-lg w-full max-w-2xl mx-4">
+                <div class="flex items-center justify-between px-4 py-3 border-b">
+                    <h5 class="text-lg font-semibold">Add Department</h5>
+                    <button id="add-dept-close" class="text-gray-500 hover:text-gray-700">&times;</button>
+                </div>
+                <form id="addDeptForm" class="p-4 space-y-3">
+                    <div><label class="block text-sm">Department Name</label><input name="DepartmentName" class="w-full p-2 border rounded" required/></div>
+                    <div><label class="block text-sm">Department Code</label><input name="DepartmentCode" class="w-full p-2 border rounded" required/></div>
+                    <div><label class="block text-sm">Department Type</label>
+                        <select name="DepartmentType" class="w-full p-2 border rounded" required>
+                            <option value="Executive">Executive</option>
+                            <option value="Clinical">Clinical</option>
+                            <option value="Administrative">Administrative</option>
+                            <option value="Support">Support</option>
+                            <option value="Ancillary">Ancillary</option>
+                        </select>
+                    </div>
+                    <div><label class="block text-sm">Parent Department</label>
+                        <select name="ParentDepartmentID" class="w-full p-2 border rounded"><option value="">None</option>${depts}</select>
+                    </div>
+                    <div><label class="block text-sm">Manager</label>
+                        <select id="add-dept-manager" name="ManagerID" class="w-full p-2 border rounded"><option value="">-- Select Manager --</option></select>
+                    </div>
+                    <div><label class="block text-sm">Description</label><textarea name="Description" class="w-full p-2 border rounded" rows="3"></textarea></div>
+                    <div class="flex justify-end gap-2 pt-2">
+                        <button type="button" id="add-dept-cancel" class="px-4 py-2 bg-gray-200 rounded">Cancel</button>
+                        <button type="submit" class="px-4 py-2 bg-[#594423] text-white rounded">Save</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+
+    // Append overlay to body and wire handlers
+    // Ensure the modal inner container is centered using transform fallback
+    document.body.appendChild(overlay);
+    const addModalInner = overlay.querySelector('div');
+    if (addModalInner) {
+        addModalInner.style.position = 'fixed';
+        addModalInner.style.left = '50%';
+        addModalInner.style.top = '50%';
+        addModalInner.style.transform = 'translate(-50%, -50%)';
+        addModalInner.style.maxWidth = '800px';
+        addModalInner.style.width = 'calc(100% - 48px)';
+        addModalInner.style.margin = '0';
+    }
+    // Populate manager select
+    populateEmployeeDropdown('add-dept-manager', false).catch(()=>{});
+
+    overlay.querySelector('#add-dept-close')?.addEventListener('click', ()=>{ overlay.remove(); });
+    overlay.querySelector('#add-dept-cancel')?.addEventListener('click', ()=>{ overlay.remove(); });
+
+    overlay.querySelector('#addDeptForm')?.addEventListener('submit', async e=>{
+        e.preventDefault();
+        const fd = new FormData(e.target); const payload = {};
+        fd.forEach((v,k)=>{ if (v !== '') payload[k]= v; });
+        try {
+            const res = await fetch(`${API_BASE_URL}manage_hr_structure.php?entity=department`, { method: 'POST', credentials: 'include', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+            const j = await res.json();
+            if (j.success) { overlay.remove(); await loadHospitalOrgData(); switchOrgView(currentView); Swal.fire('Success','Department created','success'); }
+            else Swal.fire('Error', j.error || 'Failed to create department','error');
+        } catch (err) { console.error(err); Swal.fire('Error','Server error while creating department','error'); }
+    });
+}
+
+// Edit department - show modal prefilled
+window.editDepartment = function(id) {
+    const dept = (hospitalOrgData.departments || []).find(d=>Number(d.DepartmentID)===Number(id));
+    if (!dept) { Swal.fire('Error','Department not found','error'); return; }
+    // Append overlay to body so it centers regardless of container
+    const depts = (hospitalOrgData.departments || []).filter(d=>d.DepartmentID!=id).map(d => `<option value="${d.DepartmentID}" ${d.DepartmentID==dept.ParentDepartmentID?'selected':''}>${d.DepartmentName}</option>`).join('');
+    const overlay = document.createElement('div');
+    overlay.id = 'edit-dept-overlay';
+    overlay.className = 'fixed inset-0 z-60 flex items-center justify-center bg-black/40';
+    overlay.style.position = 'fixed';
+    overlay.style.inset = '0';
+    overlay.style.display = 'flex';
+    overlay.style.alignItems = 'center';
+    overlay.style.justifyContent = 'center';
+    overlay.style.background = 'rgba(0,0,0,0.4)';
+    overlay.style.zIndex = '9999';
+    overlay.innerHTML = `
+            <div class="bg-white rounded-lg shadow-lg w-full max-w-2xl mx-4">
+                <div class="flex items-center justify-between px-4 py-3 border-b">
+                    <h5 class="text-lg font-semibold">Edit Department</h5>
+                    <button id="edit-dept-close" class="text-gray-500 hover:text-gray-700">&times;</button>
+                </div>
+                <form id="editDeptForm" class="p-4 space-y-3">
+                    <input type="hidden" name="DepartmentID" value="${dept.DepartmentID}" />
+                    <div><label class="block text-sm">Department Name</label><input name="DepartmentName" class="w-full p-2 border rounded" value="${dept.DepartmentName}" required/></div>
+                    <div><label class="block text-sm">Department Code</label><input name="DepartmentCode" class="w-full p-2 border rounded" value="${dept.DepartmentCode||''}" required/></div>
+                    <div><label class="block text-sm">Department Type</label>
+                        <select name="DepartmentType" class="w-full p-2 border rounded" required>
+                            <option ${dept.DepartmentType==='Executive'?'selected':''}>Executive</option>
+                            <option ${dept.DepartmentType==='Clinical'?'selected':''}>Clinical</option>
+                            <option ${dept.DepartmentType==='Administrative'?'selected':''}>Administrative</option>
+                            <option ${dept.DepartmentType==='Support'?'selected':''}>Support</option>
+                            <option ${dept.DepartmentType==='Ancillary'?'selected':''}>Ancillary</option>
+                        </select>
+                    </div>
+                    <div><label class="block text-sm">Parent Department</label>
+                        <select name="ParentDepartmentID" class="w-full p-2 border rounded"><option value="">None</option>${depts}</select>
+                    </div>
+                    <div><label class="block text-sm">Manager</label>
+                        <select id="edit-dept-manager" name="ManagerID" class="w-full p-2 border rounded"><option value="">-- Select Manager --</option></select>
+                    </div>
+                    <div><label class="block text-sm">Description</label><textarea name="Description" class="w-full p-2 border rounded" rows="3">${dept.Description||''}</textarea></div>
+                    <div class="flex justify-end gap-2 pt-2">
+                        <button type="button" id="edit-dept-cancel" class="px-4 py-2 bg-gray-200 rounded">Cancel</button>
+                        <button type="submit" class="px-4 py-2 bg-[#594423] text-white rounded">Save</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
+
+    // Attach overlay and wire handlers
+    document.body.appendChild(overlay);
+    const editModalInner = overlay.querySelector('div');
+    if (editModalInner) {
+        editModalInner.style.position = 'fixed';
+        editModalInner.style.left = '50%';
+        editModalInner.style.top = '50%';
+        editModalInner.style.transform = 'translate(-50%, -50%)';
+        editModalInner.style.maxWidth = '800px';
+        editModalInner.style.width = 'calc(100% - 48px)';
+        editModalInner.style.margin = '0';
+    }
+    // Populate manager select and set value when ready
+    populateEmployeeDropdown('edit-dept-manager', false).then(()=>{
+        if (dept.ManagerID) {
+            const sel = overlay.querySelector('#edit-dept-manager'); if (sel) sel.value = dept.ManagerID;
+        }
+    }).catch(()=>{});
+
+    overlay.querySelector('#edit-dept-close')?.addEventListener('click', ()=>{ overlay.remove(); });
+    overlay.querySelector('#edit-dept-cancel')?.addEventListener('click', ()=>{ overlay.remove(); });
+
+    overlay.querySelector('#editDeptForm')?.addEventListener('submit', async e=>{
+        e.preventDefault(); const fd = new FormData(e.target); const payload = {}; fd.forEach((v,k)=>{ if (v !== '') payload[k]= v; });
+        try {
+            const id = payload.DepartmentID;
+            const res = await fetch(`${API_BASE_URL}manage_hr_structure.php?entity=department&id=${id}`, { method: 'PUT', credentials: 'include', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+            const j = await res.json();
+            if (j.success) { overlay.remove(); await loadHospitalOrgData(); switchOrgView(currentView); Swal.fire('Success','Department updated','success'); }
+            else Swal.fire('Error', j.error || 'Failed to update department','error');
+        } catch(err){ console.error(err); Swal.fire('Error','Server error while updating department','error'); }
+    });
+}
+
+// View department details
+window.viewDepartmentDetails = function(id) {
+    const dept = (hospitalOrgData.departments || []).find(d=>Number(d.DepartmentID)===Number(id));
+    // Append overlay to body for proper centering
+    if (!dept) { Swal.fire('Error','Department not found','error'); return; }
+    const overlay = document.createElement('div');
+    overlay.id = 'view-dept-overlay';
+    overlay.className = 'fixed inset-0 z-60 flex items-center justify-center bg-black/40';
+    overlay.style.position = 'fixed';
+    overlay.style.inset = '0';
+    overlay.style.display = 'flex';
+    overlay.style.alignItems = 'center';
+    overlay.style.justifyContent = 'center';
+    overlay.style.background = 'rgba(0,0,0,0.4)';
+    overlay.style.zIndex = '9999';
+    overlay.innerHTML = `
+            <div class="bg-white rounded-lg shadow-lg w-full max-w-2xl mx-4">
+                <div class="flex items-center justify-between px-4 py-3 border-b">
+                    <h5 class="text-lg font-semibold">Department Details</h5>
+                    <button id="view-dept-close" class="text-gray-500 hover:text-gray-700">&times;</button>
+                </div>
+                <div class="p-4">
+                    <h4 class="text-lg font-semibold mb-2">${dept.DepartmentName}</h4>
+                    <div class="text-sm text-gray-600"><strong>Code:</strong> ${dept.DepartmentCode||'N/A'}</div>
+                    <div class="text-sm text-gray-600"><strong>Type:</strong> ${dept.DepartmentType||'N/A'}</div>
+                    <div class="text-sm text-gray-600"><strong>Manager:</strong> ${dept.ManagerName||'N/A'}</div>
+                    <div class="text-sm text-gray-600 mt-2"><strong>Description:</strong><div class="mt-1 text-gray-700">${dept.Description||''}</div></div>
+                </div>
+                <div class="flex justify-end p-4 border-t"><button id="view-dept-close-btn" class="px-4 py-2 bg-gray-200 rounded">Close</button></div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+    const viewModalInner = overlay.querySelector('div');
+    if (viewModalInner) {
+        viewModalInner.style.position = 'fixed';
+        viewModalInner.style.left = '50%';
+        viewModalInner.style.top = '50%';
+        viewModalInner.style.transform = 'translate(-50%, -50%)';
+        viewModalInner.style.maxWidth = '800px';
+        viewModalInner.style.width = 'calc(100% - 48px)';
+        viewModalInner.style.margin = '0';
+    }
+    overlay.querySelector('#view-dept-close')?.addEventListener('click', ()=>{ overlay.remove(); });
+    overlay.querySelector('#view-dept-close-btn')?.addEventListener('click', ()=>{ overlay.remove(); });
+}
+
+// Delete Department (hard check via API which performs soft delete)
+window.deleteDepartment = async function(id) {
+    const confirmed = await Swal.fire({ title: 'Delete Department', text: 'Are you sure you want to delete this department? This will deactivate it if there are no active employees.', icon: 'warning', showCancelButton: true, confirmButtonText: 'Delete' });
+    if (!confirmed.isConfirmed) return;
+    try {
+        const res = await fetch(`${API_BASE_URL}manage_hr_structure.php?entity=department`, { method: 'DELETE', credentials: 'include', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ id }) });
+        // Note: API expects id as query param; supporting both
+        const j = await res.json();
+        if (j.success) { await loadHospitalOrgData(); switchOrgView(currentView); Swal.fire('Deleted','Department deactivated','success'); }
+        else if (j.employee_count) { Swal.fire('Cannot delete', `Department has ${j.employee_count} active employees`, 'error'); }
+        else Swal.fire('Error', j.error || 'Failed to delete department','error');
+    } catch(err){ console.error(err); Swal.fire('Error','Server error while deleting department','error'); }
+}
 

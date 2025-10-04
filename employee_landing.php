@@ -65,7 +65,7 @@ if (!isset($_SESSION['user_id'])) {
             transition: transform 0.25s ease;
         }
     </style>
-    <script src="js/main.js" type="module" defer></script> 
+    
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
@@ -561,12 +561,19 @@ if (!isset($_SESSION['user_id'])) {
           link.addEventListener('click', function(e) {
             e.preventDefault();
             const functionName = moduleHandlers[linkId];
-            console.log(`${linkId} clicked - calling ${functionName}`);
-            
-            if (typeof window[functionName] === 'function') {
+            console.log(`${linkId} clicked - routing via centralized navigation if available`);
+            // Prefer the centralized navigation function if available
+            const sectionId = linkId.replace(/-link$/, '');
+            if (typeof navigateToSectionById === 'function') {
+              navigateToSectionById(sectionId).catch(err => {
+                console.error('navigateToSectionById failed for', sectionId, err);
+                // Fallback: try calling the legacy function if present
+                if (typeof window[functionName] === 'function') window[functionName]();
+                else loadModuleContent(linkId, functionName);
+              });
+            } else if (typeof window[functionName] === 'function') {
               window[functionName]();
             } else {
-              console.warn(`Function ${functionName} not found, using fallback`);
               loadModuleContent(linkId, functionName);
             }
           });

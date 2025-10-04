@@ -14,9 +14,11 @@ try { global $pdo; $method = $_SERVER['REQUEST_METHOD'];
             $to = isset($_GET['to']) ? trim($_GET['to']) : '';
             $params = [];
             // Use actual table names and explicit columns
-            $sql = "SELECT hc.ClaimID, hc.EnrollmentID, hc.EmployeeID, hc.ClaimNumber, hc.ClaimType, hc.ProviderName AS ProviderName, hc.Description, hc.Amount, hc.ClaimDate, hc.SubmittedDate, hc.ApprovedDate, hc.Status AS ClaimStatus, hc.Comments, hc.ApprovedBy, hc.CreatedAt, hc.UpdatedAt, ehe.EmployeeID AS EnEmployeeID, e.FirstName, e.LastName, hp.PlanName FROM hmoclaims hc JOIN employeehmoenrollments ehe ON hc.EnrollmentID=ehe.EnrollmentID JOIN employees e ON ehe.EmployeeID=e.EmployeeID JOIN hmoplans hp ON ehe.PlanID=hp.PlanID WHERE 1=1";
+            // Include Attachments column to avoid undefined index notices in the normalization step below
+            $sql = "SELECT hc.ClaimID, hc.EnrollmentID, hc.EmployeeID, hc.ClaimNumber, hc.ClaimType, hc.ProviderName AS ProviderName, hc.Description, hc.Amount, hc.ClaimDate, hc.SubmittedDate, hc.ApprovedDate, hc.Status AS ClaimStatus, hc.Comments, hc.ApprovedBy, hc.Attachments, hc.CreatedAt, hc.UpdatedAt, ehe.EmployeeID AS EnEmployeeID, e.FirstName, e.LastName, hp.PlanName FROM hmoclaims hc JOIN employeehmoenrollments ehe ON hc.EnrollmentID=ehe.EnrollmentID JOIN employees e ON ehe.EmployeeID=e.EmployeeID JOIN hmoplans hp ON ehe.PlanID=hp.PlanID WHERE 1=1";
             if ($employeeId>0) { $sql .= " AND ehe.EmployeeID=:emp"; $params[':emp']=$employeeId; }
-            if ($status!=='') { $sql .= " AND hc.ClaimStatus=:status"; $params[':status']=$status; }
+            // Use actual column name 'Status' on the hmoclaims table (aliased above as ClaimStatus)
+            if ($status!=='') { $sql .= " AND hc.Status=:status"; $params[':status']=$status; }
             if ($from!=='') { $sql .= " AND hc.ClaimDate>=:from"; $params[':from']=$from; }
             if ($to!=='') { $sql .= " AND hc.ClaimDate<=:to"; $params[':to']=$to; }
             $sql .= " ORDER BY hc.ClaimDate DESC";
@@ -35,7 +37,8 @@ try { global $pdo; $method = $_SERVER['REQUEST_METHOD'];
 
         if (isset($_GET['id'])) {
             $id = (int)$_GET['id'];
-            $stmt = $pdo->prepare("SELECT hc.ClaimID, hc.EnrollmentID, hc.EmployeeID, hc.ClaimNumber, hc.ClaimType, hc.ProviderName AS ProviderName, hc.Description, hc.Amount, hc.ClaimDate, hc.SubmittedDate, hc.ApprovedDate, hc.Status AS ClaimStatus, hc.Comments, hc.ApprovedBy, hc.CreatedAt, hc.UpdatedAt, ehe.EmployeeID AS EnEmployeeID, e.FirstName, e.LastName, hp.PlanName FROM hmoclaims hc JOIN employeehmoenrollments ehe ON hc.EnrollmentID=ehe.EnrollmentID JOIN employees e ON ehe.EmployeeID=e.EmployeeID JOIN hmoplans hp ON ehe.PlanID=hp.PlanID WHERE hc.ClaimID=:id");
+            // Include Attachments so callers receive attachments array (may be empty)
+            $stmt = $pdo->prepare("SELECT hc.ClaimID, hc.EnrollmentID, hc.EmployeeID, hc.ClaimNumber, hc.ClaimType, hc.ProviderName AS ProviderName, hc.Description, hc.Amount, hc.ClaimDate, hc.SubmittedDate, hc.ApprovedDate, hc.Status AS ClaimStatus, hc.Comments, hc.ApprovedBy, hc.Attachments, hc.CreatedAt, hc.UpdatedAt, ehe.EmployeeID AS EnEmployeeID, e.FirstName, e.LastName, hp.PlanName FROM hmoclaims hc JOIN employeehmoenrollments ehe ON hc.EnrollmentID=ehe.EnrollmentID JOIN employees e ON ehe.EmployeeID=e.EmployeeID JOIN hmoplans hp ON ehe.PlanID=hp.PlanID WHERE hc.ClaimID=:id");
             $stmt->execute([':id'=>$id]); $row = $stmt->fetch(PDO::FETCH_ASSOC);
             $role = $_SESSION['role_name'] ?? '';
             if ($role !== 'System Admin' && $role !== 'HR Admin') {
@@ -49,11 +52,12 @@ try { global $pdo; $method = $_SERVER['REQUEST_METHOD'];
         }
         $role = $_SESSION['role_name'] ?? '';
         if ($role === 'System Admin' || $role === 'HR Admin') {
-            $stmt = $pdo->query("SELECT hc.ClaimID, hc.EnrollmentID, hc.EmployeeID, hc.ClaimNumber, hc.ClaimType, hc.ProviderName AS ProviderName, hc.Description, hc.Amount, hc.ClaimDate, hc.SubmittedDate, hc.ApprovedDate, hc.Status AS ClaimStatus, hc.Comments, hc.ApprovedBy, hc.CreatedAt, hc.UpdatedAt, ehe.EmployeeID AS EnEmployeeID, e.FirstName, e.LastName, hp.PlanName FROM hmoclaims hc JOIN employeehmoenrollments ehe ON hc.EnrollmentID=ehe.EnrollmentID JOIN employees e ON ehe.EmployeeID=e.EmployeeID JOIN hmoplans hp ON ehe.PlanID=hp.PlanID ORDER BY hc.SubmittedDate DESC");
+            // Include Attachments in the listing to keep the response consistent
+            $stmt = $pdo->query("SELECT hc.ClaimID, hc.EnrollmentID, hc.EmployeeID, hc.ClaimNumber, hc.ClaimType, hc.ProviderName AS ProviderName, hc.Description, hc.Amount, hc.ClaimDate, hc.SubmittedDate, hc.ApprovedDate, hc.Status AS ClaimStatus, hc.Comments, hc.ApprovedBy, hc.Attachments, hc.CreatedAt, hc.UpdatedAt, ehe.EmployeeID AS EnEmployeeID, e.FirstName, e.LastName, hp.PlanName FROM hmoclaims hc JOIN employeehmoenrollments ehe ON hc.EnrollmentID=ehe.EnrollmentID JOIN employees e ON ehe.EmployeeID=e.EmployeeID JOIN hmoplans hp ON ehe.PlanID=hp.PlanID ORDER BY hc.SubmittedDate DESC");
             $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         } else {
             $userEmpId = (int)($_SESSION['employee_id'] ?? 0);
-            $stmt = $pdo->prepare("SELECT hc.ClaimID, hc.EnrollmentID, hc.EmployeeID, hc.ClaimNumber, hc.ClaimType, hc.ProviderName AS ProviderName, hc.Description, hc.Amount, hc.ClaimDate, hc.SubmittedDate, hc.ApprovedDate, hc.Status AS ClaimStatus, hc.Comments, hc.ApprovedBy, hc.CreatedAt, hc.UpdatedAt, ehe.EmployeeID AS EnEmployeeID, e.FirstName, e.LastName, hp.PlanName FROM hmoclaims hc JOIN employeehmoenrollments ehe ON hc.EnrollmentID=ehe.EnrollmentID JOIN employees e ON ehe.EmployeeID=e.EmployeeID JOIN hmoplans hp ON ehe.PlanID=hp.PlanID WHERE ehe.EmployeeID=:emp ORDER BY hc.SubmittedDate DESC");
+            $stmt = $pdo->prepare("SELECT hc.ClaimID, hc.EnrollmentID, hc.EmployeeID, hc.ClaimNumber, hc.ClaimType, hc.ProviderName AS ProviderName, hc.Description, hc.Amount, hc.ClaimDate, hc.SubmittedDate, hc.ApprovedDate, hc.Status AS ClaimStatus, hc.Comments, hc.ApprovedBy, hc.Attachments, hc.CreatedAt, hc.UpdatedAt, ehe.EmployeeID AS EnEmployeeID, e.FirstName, e.LastName, hp.PlanName FROM hmoclaims hc JOIN employeehmoenrollments ehe ON hc.EnrollmentID=ehe.EnrollmentID JOIN employees e ON ehe.EmployeeID=e.EmployeeID JOIN hmoplans hp ON ehe.PlanID=hp.PlanID WHERE ehe.EmployeeID=:emp ORDER BY hc.SubmittedDate DESC");
             $stmt->execute([':emp'=>$userEmpId]); $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         }
         // normalize attachments per row

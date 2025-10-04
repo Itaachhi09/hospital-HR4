@@ -26,7 +26,23 @@ export async function loadModule(modulePath, container, title = '') {
             const cached = moduleCache.get(modulePath);
             const initializer = cached.initializer;
             if (typeof initializer === 'function') {
-                await initializer(container);
+                // Call cached initializer the same way we call freshly-imported initializers:
+                // if it expects at least one argument, pass the container id string; otherwise call with no args.
+                try {
+                    if (initializer.length >= 1) {
+                        await initializer(container.id || 'main-content-area');
+                    } else {
+                        await initializer();
+                    }
+                } catch (err) {
+                    // If calling with id fails for any reason, attempt to call with the element itself as a fallback
+                    try {
+                        await initializer(container);
+                    } catch (err2) {
+                        // If it still fails, rethrow the original error to trigger the normal loadModule error handling
+                        throw err;
+                    }
+                }
                 return cached.module;
             }
             // If cache exists but initializer missing, continue to re-import
@@ -34,10 +50,15 @@ export async function loadModule(modulePath, container, title = '') {
 
         // If not in cache, load it
         const fullPath = `${JS_BASE_URL}${modulePath}`;
-        console.log(`Loading module from: ${fullPath}`);
-        
+        // For employee-facing modules, append a cache-busting query param to avoid stale module code in browser cache.
+        // We still cache the resolved module in moduleCache after a successful load so subsequent navigations in the same session are fast.
+        let importPath = fullPath;
+        if (modulePath.indexOf('employee/') !== -1) {
+            importPath = `${fullPath}${fullPath.includes('?') ? '&' : '?'}_=${Date.now()}`;
+        }
+        console.log(`Loading module from: ${importPath}`);
 
-        const module = await import(fullPath);
+        const module = await import(importPath);
 
 
         // Resolve an initializer function from the module exports.

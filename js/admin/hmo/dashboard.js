@@ -37,6 +37,63 @@ export async function renderHMODashboard(containerId='main-content-area'){
         `;
         // draw charts after DOM updated
         setTimeout(()=>{ if (document.getElementById('hmo-monthly-claims-chart')) drawHMOCharts(); }, 250);
+
+        // Attach click handlers to dashboard cards so they always work after render
+        try {
+            const attachCardHandlers = () => {
+                try {
+                    const providersCard = document.getElementById('hmo-active-providers-card');
+                    if (providersCard) {
+                        providersCard.replaceWith(providersCard.cloneNode(true));
+                    }
+                    const pCard = document.getElementById('hmo-active-providers-card');
+                    if (pCard) pCard.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        if (typeof window.displayHMOProvidersSection === 'function') { window.displayHMOProvidersSection(); return; }
+                        if (typeof window.navigateToSectionById === 'function') { window.navigateToSectionById('hmo-providers'); return; }
+                    });
+
+                    const plansCard = document.getElementById('hmo-active-plans-card');
+                    if (plansCard) {
+                        plansCard.replaceWith(plansCard.cloneNode(true));
+                    }
+                    const plCard = document.getElementById('hmo-active-plans-card');
+                    if (plCard) plCard.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        if (typeof window.displayHMOPlansSection === 'function') { window.displayHMOPlansSection(); return; }
+                        if (typeof window.navigateToSectionById === 'function') { window.navigateToSectionById('hmo-plans'); return; }
+                    });
+
+                    const enrollCard = document.getElementById('hmo-enrolled-employees-card');
+                    if (enrollCard) {
+                        enrollCard.replaceWith(enrollCard.cloneNode(true));
+                    }
+                    const enCard = document.getElementById('hmo-enrolled-employees-card');
+                    if (enCard) enCard.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        if (typeof window.displayHMOEnrollmentsSection === 'function') { window.displayHMOEnrollmentsSection(); return; }
+                        if (typeof window.navigateToSectionById === 'function') { window.navigateToSectionById('hmo-enrollments'); return; }
+                    });
+
+                    const pendingCard = document.getElementById('hmo-pending-claims-card');
+                    if (pendingCard) {
+                        pendingCard.replaceWith(pendingCard.cloneNode(true));
+                    }
+                    const pdCard = document.getElementById('hmo-pending-claims-card');
+                    if (pdCard) pdCard.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        if (typeof window.displayHMOClaimsApprovalSection === 'function') { window.displayHMOClaimsApprovalSection(); return; }
+                        if (typeof window.navigateToSectionById === 'function') { window.navigateToSectionById('hmo-claims-admin'); return; }
+                    });
+                } catch (err) {
+                    console.warn('Failed to attach HMO dashboard card handlers:', err);
+                }
+            };
+            // Run attachment shortly after render to ensure DOM is ready
+            setTimeout(attachCardHandlers, 300);
+        } catch (e) {
+            console.warn('HMO dashboard handler attachment failed:', e);
+        }
     }catch(e){console.error(e); container.innerHTML='<div class="p-6">Error loading dashboard</div>'}
 }
 // chart bootstrapper
@@ -151,70 +208,3 @@ setTimeout(()=>{ if (document.getElementById('hmo-monthly-claims-chart')) drawHM
 export async function initialize(containerId = 'main-content-area') {
     return renderHMODashboard(containerId);
 }
-
-// Make the providers card clickable after render
-setTimeout(() => {
-    try {
-        const card = document.getElementById('hmo-active-providers-card');
-        if (card) {
-            card.addEventListener('click', (e) => {
-                e.preventDefault();
-                // Prefer the global display function if available
-                if (typeof window.displayHMOProvidersSection === 'function') {
-                    window.displayHMOProvidersSection();
-                    return;
-                }
-                // Fallback to navigateToSectionById
-                if (typeof window.navigateToSectionById === 'function') {
-                    window.navigateToSectionById('hmo-providers');
-                    return;
-                }
-                // Last resort: dynamic import directly
-                import('../../utils.js').then(mod => {
-                    const { loadModule } = mod;
-                    const main = document.getElementById('main-content-area');
-                    if (typeof loadModule === 'function' && main) loadModule('admin/hmo/providers.js', main, 'HMO Providers');
-                }).catch(err => console.error('Failed to load providers via fallback:', err));
-            });
-        }
-    } catch (err) {
-        console.warn('Could not attach click handler to HMO providers card:', err);
-    }
-}, 300);
-
-// Attach handlers for other dashboard cards
-setTimeout(() => {
-    try {
-        const plansCard = document.getElementById('hmo-active-plans-card');
-        if (plansCard) {
-            plansCard.addEventListener('click', (e) => {
-                e.preventDefault();
-                if (typeof window.displayHMOPlansSection === 'function') { window.displayHMOPlansSection(); return; }
-                if (typeof window.navigateToSectionById === 'function') { window.navigateToSectionById('hmo-plans'); return; }
-                import('../../utils.js').then(mod => { const { loadModule } = mod; const main = document.getElementById('main-content-area'); if (typeof loadModule === 'function' && main) loadModule('admin/hmo/plans.js', main, 'HMO Plans'); }).catch(err => console.error('Failed to load plans via fallback:', err));
-            });
-        }
-
-        const enrollCard = document.getElementById('hmo-enrolled-employees-card');
-        if (enrollCard) {
-            enrollCard.addEventListener('click', (e) => {
-                e.preventDefault();
-                if (typeof window.displayHMOEnrollmentsSection === 'function') { window.displayHMOEnrollmentsSection(); return; }
-                if (typeof window.navigateToSectionById === 'function') { window.navigateToSectionById('hmo-enrollments'); return; }
-                import('../../utils.js').then(mod => { const { loadModule } = mod; const main = document.getElementById('main-content-area'); if (typeof loadModule === 'function' && main) loadModule('admin/hmo/enrollments.js', main, 'HMO Enrollments'); }).catch(err => console.error('Failed to load enrollments via fallback:', err));
-            });
-        }
-
-        const pendingCard = document.getElementById('hmo-pending-claims-card');
-        if (pendingCard) {
-            pendingCard.addEventListener('click', (e) => {
-                e.preventDefault();
-                if (typeof window.displayHMOClaimsApprovalSection === 'function') { window.displayHMOClaimsApprovalSection(); return; }
-                if (typeof window.navigateToSectionById === 'function') { window.navigateToSectionById('hmo-claims-admin'); return; }
-                import('../../utils.js').then(mod => { const { loadModule } = mod; const main = document.getElementById('main-content-area'); if (typeof loadModule === 'function' && main) loadModule('admin/hmo/claims.js', main, 'HMO Claims'); }).catch(err => console.error('Failed to load claims via fallback:', err));
-            });
-        }
-    } catch (err) {
-        console.warn('Could not attach click handlers to HMO dashboard cards:', err);
-    }
-}, 360);

@@ -145,6 +145,28 @@ export async function initializeApp() {
 
     const runInit = async () => {
     console.log("DOM fully loaded and parsed. Initializing HR System JS (session-based)...");
+
+    // Global handler for unhandled promise rejections to surface module loading/init errors
+    window.addEventListener('unhandledrejection', (ev) => {
+        console.error('Unhandled promise rejection:', ev.reason);
+        try {
+            const mainContentArea = document.getElementById('main-content-area');
+            if (mainContentArea) {
+                mainContentArea.innerHTML = `<div class="p-6 text-red-600">An unexpected error occurred: ${String(ev.reason && ev.reason.message ? ev.reason.message : ev.reason)}</div>`;
+            }
+        } catch (e) { console.error('Failed to render unhandled rejection to UI', e); }
+    });
+
+    // Ensure a modal container exists; some modules expect #modalContainer to be present
+    try {
+        if (!document.getElementById('modalContainer')) {
+            const modalDiv = document.createElement('div');
+            modalDiv.id = 'modalContainer';
+            // Keep it at the end of body so fixed overlays position correctly
+            document.body.appendChild(modalDiv);
+            console.log('Created fallback #modalContainer appended to document.body');
+        }
+    } catch (e) { console.warn('Could not create fallback modalContainer', e); }
     
     // Set initial dashboard content immediately
     const initialPageTitle = document.getElementById('page-title');
@@ -420,14 +442,19 @@ export async function initializeApp() {
             targetElement.addEventListener('click', (e) => {
                 e.preventDefault();
                 const sidebar = document.querySelector('.sidebar');
-                if(sidebar && sidebar.classList.contains('mobile-active')) { closeSidebar(); } // Assuming closeSidebar is defined globally or in this scope
+                if(sidebar && sidebar.classList.contains('mobile-active')) { try{ if(typeof closeSidebar === 'function') closeSidebar(); }catch(e){} }
                 if (typeof handler === 'function') {
-                    try { handler(); } catch (error) {
-                         console.error(`Error executing handler for ${targetElement.id || 'sidebar link'}:`, error);
-                         if(mainContentArea) { mainContentArea.innerHTML = `<p class="text-red-500 p-4">Error loading section. Please check the console.</p>`; }
-                    }
-                } else { console.error("Handler is not a function for element:", targetElement); }
-                 updateActiveSidebarLink(targetElement);
+                    // Support async handlers and surface promise rejections
+                    Promise.resolve()
+                        .then(() => handler())
+                        .catch(error => {
+                            console.error(`Error executing handler for ${targetElement.id || 'sidebar link'}:`, error);
+                            if(mainContentArea) { mainContentArea.innerHTML = `<p class="text-red-500 p-4">Error loading section. Please check the console.</p>`; }
+                        });
+                } else {
+                    console.error("Handler is not a function for element:", targetElement);
+                }
+                updateActiveSidebarLink(targetElement);
             });
             targetElement.setAttribute('data-listener-added', 'true');
         } else if (!targetElement && handler && typeof handler === 'function') {
@@ -436,8 +463,12 @@ export async function initializeApp() {
                 element.addEventListener('click', (e) => {
                     e.preventDefault();
                     const sidebar = document.querySelector('.sidebar');
-                    if(sidebar && sidebar.classList.contains('mobile-active')) { closeSidebar(); }
-                    if (typeof handler === 'function') { try { handler(); } catch (error) { console.error(`Error executing handler:`, error); } }
+                    if(sidebar && sidebar.classList.contains('mobile-active')) { try{ if(typeof closeSidebar === 'function') closeSidebar(); }catch(e){} }
+                    if (typeof handler === 'function') {
+                        Promise.resolve()
+                            .then(() => handler())
+                            .catch(error => console.error(`Error executing handler:`, error));
+                    }
                     updateActiveSidebarLink(element);
                 });
                 element.setAttribute('data-listener-added', 'true');
@@ -834,10 +865,17 @@ export async function initializeApp() {
         'notifications': displayNotificationsSection
     };
 
-    window.navigateToSectionById = function(sectionId) {
+    window.navigateToSectionById = async function(sectionId) {
         console.log(`[Main Navigation] Attempting to navigate to section: ${sectionId}`);
         const displayFunction = sectionDisplayFunctions[sectionId];
         const mainContentArea = document.getElementById('main-content-area'); 
+
+        // Immediate visual feedback so clicks are not mistaken for no-ops
+        try {
+            if (mainContentArea) {
+                mainContentArea.innerHTML = `<div class="p-6 text-center text-gray-600">Loading <strong>${sectionId}</strong>...</div>`;
+            }
+        } catch (e) { console.warn('Failed to set loading placeholder', e); }
 
         console.log(`[Main Navigation] Display function for ${sectionId}:`, displayFunction);
         console.log(`[Main Navigation] Main content area:`, mainContentArea);
@@ -846,7 +884,8 @@ export async function initializeApp() {
         if (typeof displayFunction === 'function') {
             try {
                 console.log(`[Main Navigation] Calling display function for ${sectionId}`);
-                displayFunction(); // Call the function to render the section
+                // Support async display functions and catch rejections
+                await Promise.resolve().then(() => displayFunction()).catch(err => { throw err; });
                 console.log(`[Main Navigation] Display function completed for ${sectionId}`);
                 // Try to find the corresponding sidebar link to highlight it
                 const sidebarLink = document.getElementById(`${sectionId}-link`);
@@ -870,6 +909,40 @@ export async function initializeApp() {
             }
         } else {
             console.warn(`[Main Navigation] No display function found for sectionId: ${sectionId}`);
+            // Fallback: try to dynamically load an HMO admin module if the sectionId matches common HMO patterns
+            try {
+                const hmoMatch = sectionId && sectionId.startsWith('hmo-');
+                if (hmoMatch) {
+                    // Map section ids to module filenames
+                    const map = {
+                        'hmo-providers': 'admin/hmo/providers.js',
+                        'hmo-plans': 'admin/hmo/plans.js',
+                        'hmo-enrollments': 'admin/hmo/enrollments.js',
+                        'hmo-claims-admin': 'admin/hmo/claims.js',
+                        'hmo-dashboard': 'admin/hmo/dashboard.js'
+                    };
+                    const modulePath = map[sectionId];
+                    if (modulePath) {
+                        // Import utils dynamically (which exports loadModule)
+                        const utils = await import('./utils.js');
+                        if (typeof utils.loadModule === 'function' && mainContentArea) {
+                            try {
+                                await utils.loadModule(modulePath, mainContentArea, '');
+                                // After loading, see if the display function is now available and call it
+                                const retryFnName = Object.keys(sectionDisplayFunctions).find(k => k.toLowerCase().includes(sectionId.replace(/-/g, '').toLowerCase()));
+                                if (retryFnName && typeof window[retryFnName] === 'function') {
+                                    await Promise.resolve().then(() => window[retryFnName]()).catch(err=>{throw err;});
+                                    return;
+                                }
+                            } catch (err) {
+                                console.error('Fallback loadModule failed for', modulePath, err);
+                            }
+                        }
+                    }
+                }
+            } catch (err) {
+                console.warn('Fallback navigation attempt failed:', err);
+            }
             if (mainContentArea) {
                  mainContentArea.innerHTML = `<p class="text-orange-500 p-4">Section '${sectionId}' not found or not yet implemented.</p>`;
             }
@@ -916,6 +989,38 @@ export async function initializeApp() {
                 updateUserDisplay(window.currentUser);
                 updateSidebarAccess(window.currentUser.role_name);
                 attachSidebarListeners();
+                // Add robust event delegation on sidebar so clicks always navigate even if links are re-rendered
+                try {
+                    const sidebarRoot = document.querySelector('.sidebar');
+                    if (sidebarRoot && !sidebarRoot.hasAttribute('data-delegation-added')) {
+                        sidebarRoot.addEventListener('click', async (ev) => {
+                            const anchor = ev.target.closest && ev.target.closest('a');
+                            if (!anchor) return; // not a link click
+                            // Derive section id from link id (e.g., 'hmo-providers-link' -> 'hmo-providers')
+                            const linkId = anchor.id || '';
+                            const sectionId = linkId.replace(/-link$/, '');
+                            if (!sectionId) return; // nothing to navigate to
+                            ev.preventDefault();
+                            // Close mobile sidebar if open
+                            try { const sidebar = document.querySelector('.sidebar'); if (sidebar && sidebar.classList.contains('mobile-active') && typeof closeSidebar === 'function') try{ closeSidebar(); }catch(e){} } catch(e){}
+                            // Call the navigation function and await it (safe-guarded)
+                            if (typeof navigateToSectionById === 'function') {
+                                try {
+                                    await navigateToSectionById(sectionId);
+                                } catch (err) {
+                                    console.error('Navigation handler rejected for section', sectionId, err);
+                                    // Let user know something went wrong in the main content area
+                                    const mainContentArea = document.getElementById('main-content-area'); if (mainContentArea) mainContentArea.innerHTML = `<p class="text-red-500 p-4">Navigation failed. See console for details.</p>`;
+                                }
+                            }
+                            // Update active styling
+                            updateActiveSidebarLink(anchor);
+                        });
+                        sidebarRoot.setAttribute('data-delegation-added', 'true');
+                    }
+                } catch (err) {
+                    console.warn('Failed to attach sidebar delegation:', err);
+                }
                 navigateToSectionById('dashboard');
                 initializeNotificationSystem();
             } else {

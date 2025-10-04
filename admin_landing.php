@@ -58,6 +58,55 @@ if (!isset($_SESSION['user_id'])) {
             color: white;
         }
 
+    /* Ensure notification dropdown is anchored to the bell container */
+    #notification-bell-button + #notification-dropdown,
+    #notification-dropdown {
+      transform-origin: top right;
+    }
+    /* When the dropdown is inside a positioned parent, absolute positioning will anchor beside the bell */
+    .relative > #notification-dropdown {
+      min-width: 16rem;
+    }
+
+    /* Sidebar fixed on the left: give main content a left margin to avoid overlap */
+    main.flex-1 {
+      transition: margin-left 0.25s ease;
+      margin-left: 16rem; /* default for expanded sidebar */
+    }
+    /* Smaller margin when sidebar is collapsed (approx 4rem) */
+    aside[style*="width: 4rem"], aside[style*="width:4rem"] ~ main.flex-1 {
+      margin-left: 4rem;
+    }
+    /* Ensure content doesn't underflow behind fixed sidebar on small screens */
+    @media (max-width: 768px) {
+      main.flex-1 { margin-left: 0; }
+      aside.fixed { position: fixed; bottom: 0; top: auto; height: auto; width: 100%; }
+    }
+
+    /* HMO module button styles: oval buttons with variant colors */
+    .hmo-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: .5rem;
+      padding: .35rem .6rem;
+      border-radius: 9999px; /* pill/oval */
+      font-size: .85rem;
+      line-height: 1;
+      border: none;
+      cursor: pointer;
+      transition: transform .08s ease, box-shadow .12s ease, opacity .12s ease;
+    }
+    .hmo-btn:active { transform: translateY(1px); }
+  .hmo-btn-primary { background:#1d4ed8; color:white; box-shadow: 0 1px 0 rgba(0,0,0,0.05); }
+  .hmo-btn-success { background:#16a34a; color:white; }
+  /* Make secondary (Edit/View) blue to match requested style */
+  .hmo-btn-secondary { background:#2563eb; color:white; }
+    .hmo-btn-warning { background:#f59e0b; color:white; }
+    .hmo-btn-danger { background:#dc2626; color:white; }
+    /* Make small primary buttons slightly larger visual weight */
+    .hmo-btn.hmo-large { padding: .45rem .85rem; }
+
         /* Generic Modal Styles */
         .modal {
             transition: opacity 0.25s ease;
@@ -65,6 +114,42 @@ if (!isset($_SESSION['user_id'])) {
         .modal-content {
             transition: transform 0.25s ease;
         }
+  /* HMO tables: headers should be white with black text per user request */
+  #hmo-providers-table thead tr,
+  #hmo-plans-table thead tr,
+  #hmo-enrollments-table thead tr,
+  #hmo-claims-table thead tr { background: #ffffff; color: #000000; }
+  #hmo-providers-table thead tr th,
+  #hmo-plans-table thead tr th,
+  #hmo-enrollments-table thead tr th,
+  #hmo-claims-table thead tr th { color: #000; }
+  /* All HMO tables: use strong header divider and solid black row separators for consistent treatment */
+  #hmo-providers-table tbody tr,
+  #hmo-plans-table tbody tr,
+  #hmo-enrollments-table tbody tr,
+  #hmo-claims-table tbody tr { border-bottom: 1px solid #000000; }
+  /* Make a clear divider between the header and rows for all HMO tables */
+  #hmo-providers-table thead th,
+  #hmo-plans-table thead th,
+  #hmo-enrollments-table thead th,
+  #hmo-claims-table thead th { border-bottom: 3px solid #000000; }
+  /* Add a bit more top padding to the first row so the separator reads as row divider, not header artifact */
+  #hmo-providers-table tbody tr:first-child td,
+  #hmo-plans-table tbody tr:first-child td,
+  #hmo-enrollments-table tbody tr:first-child td,
+  #hmo-claims-table tbody tr:first-child td { padding-top: 1.25rem; }
+  #hmo-plans-table tbody tr,
+  #hmo-enrollments-table tbody tr,
+  #hmo-claims-table tbody tr { border-bottom: 1px solid rgba(13, 48, 202, 0.09); }
+  #hmo-providers-table tbody tr:last-child,
+  #hmo-plans-table tbody tr:last-child,
+  #hmo-enrollments-table tbody tr:last-child,
+  #hmo-claims-table tbody tr:last-child { border-bottom: none; }
+  /* Ensure the separator spans full width when table cells have padding */
+  #hmo-providers-table tbody td,
+  #hmo-plans-table tbody td,
+  #hmo-enrollments-table tbody td,
+  #hmo-claims-table tbody td { padding-top: .75rem; padding-bottom: .75rem; }
     </style>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -75,10 +160,12 @@ if (!isset($_SESSION['user_id'])) {
 <body class="h-screen flex bg-slate-50" x-data="{ sidebarOpen: true, open: '' }">
   <div id="app-container" class="flex w-full h-full">
 
-  <!-- Sidebar -->
+  <!-- Sidebar (fixed to left) -->
   <aside 
-    class="flex flex-col bg-[#0b1b3b] text-white transition-all duration-300"
+    id="sidebar"
+    class="fixed left-0 top-0 bottom-0 flex flex-col bg-[#0b1b3b] text-white transition-all duration-300 z-50"
     :class="sidebarOpen ? 'w-64' : 'w-16'"
+    style="width: 16rem;"
   >
     <!-- Sidebar Header -->
     <div class="flex items-center justify-between px-4 py-4 bg-gradient-to-r from-[#0b1b3b] to-[#102650]">
@@ -317,21 +404,25 @@ if (!isset($_SESSION['user_id'])) {
         <p class="text-xs text-slate-500">Integrity • Service • Commitment • Respect • Compassion</p>
       </div>
       <div class="flex items-center gap-3">
-        <button id="notification-bell-button" class="relative p-2 rounded-lg border hover:bg-slate-50">
-          <!-- Bell Icon -->
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[#0b1b3b]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405M19 13V8a7 7 0 10-14 0v5l-1.405 1.405A2.032 2.032 0 004 17h16z"/>
-          </svg>
-          <span id="notification-dot" class="absolute -top-1 -right-1 h-5 w-5 rounded-full text-xs bg-[#d4af37] text-[#0b1b3b] grid place-items-center hidden"></span>
-        </button>
-        
-        <!-- Notification Dropdown -->
-        <div id="notification-dropdown" class="absolute top-full right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border z-50 hidden">
-          <div class="p-4 border-b">
-            <h3 class="text-lg font-semibold text-gray-800">Notifications</h3>
-          </div>
-          <div id="notification-list" class="max-h-64 overflow-y-auto">
-            <!-- Notifications will be loaded here -->
+        <div class="relative">
+          <button id="notification-bell-button" class="relative p-2 rounded-lg border hover:bg-slate-50">
+            <!-- Bell Icon -->
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-[#0b1b3b]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405M19 13V8a7 7 0 10-14 0v5l-1.405 1.405A2.032 2.032 0 004 17h16z"/>
+            </svg>
+            <span id="notification-dot" class="absolute -top-1 -right-1 h-5 w-5 rounded-full text-xs bg-[#d4af37] text-[#0b1b3b] grid place-items-center hidden"></span>
+          </button>
+
+          <!-- Notification Dropdown (anchored to bell) -->
+          <div id="notification-dropdown" class="absolute top-full right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border z-50 hidden transform origin-top-right scale-95 opacity-0 transition-all duration-150">
+            <!-- Caret / pointer -->
+            <div class="absolute -top-2 right-4 w-3 h-3 rotate-45 bg-white border-t border-l"></div>
+            <div class="p-4 border-b">
+              <h3 class="text-lg font-semibold text-gray-800">Notifications</h3>
+            </div>
+            <div id="notification-list" class="max-h-64 overflow-y-auto">
+              <!-- Notifications will be loaded here -->
+            </div>
           </div>
         </div>
         <div class="relative">
@@ -609,6 +700,24 @@ if (!isset($_SESSION['user_id'])) {
             // Fallback to direct call
             loadDashboardContent();
           }
+
+            // Keep the fixed sidebar width in sync with Alpine's class toggles (w-64 / w-16)
+            try {
+              const sidebarEl = document.getElementById('sidebar');
+              if (sidebarEl) {
+                const mo = new MutationObserver(() => {
+                  const classList = sidebarEl.className;
+                  if (classList.includes('w-64')) {
+                    sidebarEl.style.width = '16rem';
+                  } else if (classList.includes('w-16')) {
+                    sidebarEl.style.width = '4rem';
+                  }
+                });
+                mo.observe(sidebarEl, { attributes: true, attributeFilter: ['class'] });
+                // Initialize
+                if (sidebarEl.className.includes('w-64')) sidebarEl.style.width = '16rem'; else sidebarEl.style.width = '4rem';
+              }
+            } catch (err) { console.warn('Sidebar width observer failed', err); }
         });
       }
       

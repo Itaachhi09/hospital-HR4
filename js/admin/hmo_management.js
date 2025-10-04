@@ -98,36 +98,43 @@ export class HMOManagement {
     }
 
     showAddPlanModal() {
-        const modalHtml = `
-            <div class="modal fade" id="addPlanModal" tabindex="-1">
-                <div class="modal-dialog">
-                    <div class="modal-content">
-                        <div class="modal-header"><h5 class="modal-title">Add HMO Plan</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
-                        <form id="addPlanForm">
-                            <div class="modal-body">
-                                <div class="mb-3">
-                                    <label>Provider</label>
-                                    <select name="provider_id" class="form-control" required>
-                                        <option value="">Select Provider</option>
-                                        ${this.providers.map(p=>`<option value="${p.ProviderID}">${p.ProviderName}</option>`).join('')}
-                                    </select>
-                                </div>
-                                <div class="mb-3"><label>Plan Name</label><input name="plan_name" class="form-control" required/></div>
-                                <div class="mb-3"><label>Monthly Premium</label><input type="number" step="0.01" name="monthly_premium" class="form-control"/></div>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                <button type="submit" class="btn btn-primary">Save</button>
-                            </div>
-                        </form>
+        const container = document.getElementById('modalContainer'); if (!container) return;
+        container.innerHTML = `
+            <div id="add-plan-overlay" class="fixed inset-0 z-60 flex items-center justify-center bg-black/40">
+                <div class="bg-white rounded-lg shadow-lg w-full max-w-2xl mx-4">
+                    <div class="flex items-center justify-between px-4 py-3 border-b">
+                        <h5 class="text-lg font-semibold">Add HMO Plan</h5>
+                        <button id="add-plan-close" class="text-gray-500 hover:text-gray-700">&times;</button>
                     </div>
+                    <form id="addPlanForm" class="p-4 space-y-3">
+                        <div>
+                            <label class="block text-sm">Provider</label>
+                            <select name="provider_id" class="w-full p-2 border rounded" required>
+                                <option value="">Select Provider</option>
+                                ${this.providers.map(p=>`<option value="${p.ProviderID}">${p.ProviderName}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm">Plan Name</label>
+                            <input name="plan_name" class="w-full p-2 border rounded" required/>
+                        </div>
+                        <div>
+                            <label class="block text-sm">Monthly Premium</label>
+                            <input type="number" step="0.01" name="monthly_premium" class="w-full p-2 border rounded"/>
+                        </div>
+                        <div class="flex justify-end gap-2 pt-2">
+                            <button type="button" id="add-plan-cancel" class="px-4 py-2 bg-gray-200 rounded">Cancel</button>
+                            <button type="submit" class="px-4 py-2 bg-[#594423] text-white rounded">Save</button>
+                        </div>
+                    </form>
                 </div>
             </div>
         `;
-        const container = document.getElementById('modalContainer');
-        container.innerHTML = modalHtml;
-        $('#addPlanModal').modal('show');
-        document.getElementById('addPlanForm').addEventListener('submit', async (e)=>{
+
+        document.getElementById('add-plan-close')?.addEventListener('click', ()=>{ document.getElementById('add-plan-overlay')?.remove(); });
+        document.getElementById('add-plan-cancel')?.addEventListener('click', ()=>{ document.getElementById('add-plan-overlay')?.remove(); });
+
+        document.getElementById('addPlanForm')?.addEventListener('submit', async (e)=>{
             e.preventDefault();
             const fd = new FormData(e.target);
             const payload = {};
@@ -136,7 +143,7 @@ export class HMOManagement {
                 const res = await fetch(`${API_BASE_URL}hmo_plans.php`, { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
                 const data = await res.json();
                 if (data.success) {
-                    $('#addPlanModal').modal('hide');
+                    document.getElementById('add-plan-overlay')?.remove();
                     this.renderPlans();
                 } else alert(data.error||'Failed to add plan');
             } catch(err){console.error(err); alert('Error adding plan');}
@@ -203,41 +210,42 @@ export class HMOManagement {
     }
 
     showAddEnrollmentModal() {
-        const modalHtml = `
-            <div class="modal fade" id="addEnrollmentModal" tabindex="-1">
-                <div class="modal-dialog">
-                    <div class="modal-content">
-                        <div class="modal-header"><h5 class="modal-title">Add Enrollment</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
-                        <form id="addEnrollmentForm">
-                            <div class="modal-body">
-                                <div class="mb-3">
-                                    <label>Employee ID</label>
-                                    <input name="employee_id" class="form-control" required />
-                                </div>
-                                <div class="mb-3">
-                                    <label>Plan</label>
-                                    <select name="plan_id" class="form-control" required>
-                                        <option value="">Select Plan</option>
-                                        ${this.plans.map(p=>`<option value="${p.PlanID}">${p.PlanName} (${p.ProviderName||''})</option>`).join('')}
-                                    </select>
-                                </div>
-                                <div class="mb-3">
-                                    <label>Effective Date</label>
-                                    <input type="date" name="effective_date" class="form-control" required />
-                                </div>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                                <button type="submit" class="btn btn-primary">Save</button>
-                            </div>
-                        </form>
+        const container = document.getElementById('modalContainer'); if (!container) return;
+        container.innerHTML = `
+            <div id="add-enrollment-overlay" class="fixed inset-0 z-60 flex items-center justify-center bg-black/40">
+                <div class="bg-white rounded-lg shadow-lg w-full max-w-xl mx-4">
+                    <div class="flex items-center justify-between px-4 py-3 border-b">
+                        <h5 class="text-lg font-semibold">Add Enrollment</h5>
+                        <button id="add-enrollment-close" class="text-gray-500 hover:text-gray-700">&times;</button>
                     </div>
+                    <form id="addEnrollmentForm" class="p-4 space-y-3">
+                        <div>
+                            <label class="block text-sm">Employee ID</label>
+                            <input name="employee_id" class="w-full p-2 border rounded" required />
+                        </div>
+                        <div>
+                            <label class="block text-sm">Plan</label>
+                            <select name="plan_id" class="w-full p-2 border rounded" required>
+                                <option value="">Select Plan</option>
+                                ${this.plans.map(p=>`<option value="${p.PlanID}">${p.PlanName} (${p.ProviderName||''})</option>`).join('')}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm">Effective Date</label>
+                            <input type="date" name="effective_date" class="w-full p-2 border rounded" required />
+                        </div>
+                        <div class="flex justify-end gap-2 pt-2">
+                            <button type="button" id="add-enrollment-cancel" class="px-4 py-2 bg-gray-200 rounded">Cancel</button>
+                            <button type="submit" class="px-4 py-2 bg-[#594423] text-white rounded">Save</button>
+                        </div>
+                    </form>
                 </div>
             </div>
         `;
-        const container = document.getElementById('modalContainer');
-        container.innerHTML = modalHtml;
-        $('#addEnrollmentModal').modal('show');
+
+        document.getElementById('add-enrollment-close')?.addEventListener('click', ()=>{ document.getElementById('add-enrollment-overlay')?.remove(); });
+        document.getElementById('add-enrollment-cancel')?.addEventListener('click', ()=>{ document.getElementById('add-enrollment-overlay')?.remove(); });
+
         document.getElementById('addEnrollmentForm').addEventListener('submit', async (e)=>{
             e.preventDefault();
             const fd = new FormData(e.target);
@@ -247,7 +255,7 @@ export class HMOManagement {
                 const res = await fetch(`${API_BASE_URL}hmo_enrollments.php`, { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
                 const data = await res.json();
                 if (data.success) {
-                    $('#addEnrollmentModal').modal('hide');
+                    document.getElementById('add-enrollment-overlay')?.remove();
                     this.renderEnrollments();
                 } else alert(data.error||'Failed to enroll');
             } catch(err){console.error(err); alert('Error enrolling');}

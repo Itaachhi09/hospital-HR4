@@ -14,8 +14,8 @@ export async function renderHMOProviders(containerId='main-content-area'){
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-2xl font-semibold">HMO Providers</h2>
                     <div>
-                        <button id="refresh-providers" class="btn btn-sm btn-primary">Refresh</button>
-                        <button id="add-provider-btn" class="btn btn-sm btn-success">Add Provider</button>
+                        <button id="refresh-providers" class="hmo-btn hmo-btn-primary">Refresh</button>
+                        <button id="add-provider-btn" class="hmo-btn hmo-btn-success">Add Provider</button>
                     </div>
                 </div>
                 <div class="flex items-center gap-4 mb-3">
@@ -68,7 +68,7 @@ function populateProvidersTbody(providers, containerId='main-content-area'){
     const container = document.getElementById(containerId); if (!container) return;
     const tbody = document.getElementById('hmo-providers-tbody'); if (!tbody) return;
     if (!providers || providers.length === 0){
-    tbody.innerHTML = `<tr><td class="p-6 text-center text-sm text-gray-500" colspan="5">No HMO providers found. You can add one using the "Add Provider" button.<div class="mt-2"><button id="empty-add-provider" class="btn btn-sm btn-success">Add Provider</button></div><div class="mt-2 text-xs text-gray-400">Tip: you can seed sample data. On Windows/XAMPP run:<div class="mt-2 font-mono text-xs bg-black text-white inline-block p-2">"C:/xampp/mysql/bin/mysql.exe" -u root -p hr_integrated_db &lt; database/hmo_top7_seed.sql</div> or import <code>database/hmo_top7_seed.sql</code> via phpMyAdmin.</div></td></tr>`;
+    tbody.innerHTML = `<tr><td class="p-6 text-center text-sm text-gray-500" colspan="5">No HMO providers found. You can add one using the "Add Provider" button.<div class="mt-2"><button id="empty-add-provider" class="hmo-btn hmo-btn-success">Add Provider</button></div><div class="mt-2 text-xs text-gray-400">Tip: you can seed sample data. On Windows/XAMPP run:<div class="mt-2 font-mono text-xs bg-black text-white inline-block p-2">"C:/xampp/mysql/bin/mysql.exe" -u root -p hr_integrated_db &lt; database/hmo_top7_seed.sql</div> or import <code>database/hmo_top7_seed.sql</code> via phpMyAdmin.</div></td></tr>`;
     } else {
         tbody.innerHTML = providers.map(p=>`<tr>
             <td class="p-3">${p.ProviderName}</td>
@@ -76,8 +76,8 @@ function populateProvidersTbody(providers, containerId='main-content-area'){
             <td class="p-3">${p.Email||''}</td>
             <td class="p-3">${p.Status||''}</td>
             <td class="p-3">
-                <button class="btn btn-sm btn-secondary edit-provider" data-id="${p.ProviderID}">Edit</button>
-                <button class="btn btn-sm btn-danger delete-provider" data-id="${p.ProviderID}">Delete</button>
+                <button class="hmo-btn hmo-btn-secondary edit-provider" data-id="${p.ProviderID}">Edit</button>
+                <button class="hmo-btn hmo-btn-danger delete-provider" data-id="${p.ProviderID}">Delete</button>
             </td>
         </tr>`).join('');
     }
@@ -98,34 +98,42 @@ function populateProvidersTbody(providers, containerId='main-content-area'){
 
 export function showAddProviderModal(containerId='main-content-area'){
     const container = document.getElementById('modalContainer'); if (!container) return;
+    // Tailwind-style overlay modal (avoids Bootstrap/jQuery and layout shift)
     container.innerHTML = `
-        <div class="modal fade" id="addProviderModal" tabindex="-1">
-            <div class="modal-dialog"><div class="modal-content">
-                <div class="modal-header"><h5 class="modal-title">Add Provider</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
-                <form id="addProviderForm">
-                                    <div class="modal-body">
-                                    <div class="mb-3"><label>Name</label><input name="provider_name" class="form-control" required/></div>
-                                    <div class="mb-3"><label>Description</label><textarea name="description" class="form-control"></textarea></div>
-                                    <div class="mb-3"><label>Contact Person</label><input name="contact_person" class="form-control"/></div>
-                                    <div class="mb-3"><label>Contact Number</label><input name="contact_number" class="form-control"/></div>
-                                    <div class="mb-3"><label>Email</label><input name="email" type="email" class="form-control"/></div>
-                                    <div class="mb-3"><label>Status</label>
-                                        <select name="status" class="form-control">
-                                            <option value="Active" selected>Active</option>
-                                            <option value="Inactive">Inactive</option>
-                                        </select>
-                                    </div>
-                                </div>
-                    <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Save</button></div>
+        <div id="add-provider-overlay" class="fixed inset-0 z-60 flex items-center justify-center bg-black/40">
+            <div class="bg-white rounded-lg shadow-lg w-full max-w-xl mx-4">
+                <div class="flex items-center justify-between px-4 py-3 border-b">
+                    <h5 class="text-lg font-semibold">Add Provider</h5>
+                    <button id="add-provider-close" class="text-gray-500 hover:text-gray-700">&times;</button>
+                </div>
+                <form id="addProviderForm" class="p-4 space-y-3">
+                    <div class="space-y-1"><label class="block text-sm">Name</label><input name="provider_name" class="w-full p-2 border rounded" required/></div>
+                    <div class="space-y-1"><label class="block text-sm">Description</label><textarea name="description" class="w-full p-2 border rounded"></textarea></div>
+                    <div class="space-y-1"><label class="block text-sm">Contact Person</label><input name="contact_person" class="w-full p-2 border rounded"/></div>
+                    <div class="space-y-1"><label class="block text-sm">Contact Number</label><input name="contact_number" class="w-full p-2 border rounded"/></div>
+                    <div class="space-y-1"><label class="block text-sm">Email</label><input name="email" type="email" class="w-full p-2 border rounded"/></div>
+                    <div class="space-y-1"><label class="block text-sm">Status</label>
+                        <select name="status" class="w-full p-2 border rounded"><option value="Active" selected>Active</option><option value="Inactive">Inactive</option></select>
+                    </div>
+                    <div class="flex justify-end gap-2 pt-2">
+                        <button type="button" id="add-provider-cancel" class="px-4 py-2 bg-gray-200 rounded">Cancel</button>
+                        <button type="submit" class="px-4 py-2 bg-[#594423] text-white rounded">Save</button>
+                    </div>
                 </form>
-            </div></div>
+            </div>
         </div>
     `;
-    $('#addProviderModal').modal('show');
+
+    // close handlers
+    document.getElementById('add-provider-close')?.addEventListener('click', ()=>{ document.getElementById('add-provider-overlay')?.remove(); });
+    document.getElementById('add-provider-cancel')?.addEventListener('click', ()=>{ document.getElementById('add-provider-overlay')?.remove(); });
+
     document.getElementById('addProviderForm')?.addEventListener('submit', async e=>{
         e.preventDefault(); const fd = new FormData(e.target); const payload = {}; fd.forEach((v,k)=>payload[k]=v);
-        const res = await fetch(`${API_BASE_URL}hmo_providers.php`, { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-        const j = await res.json(); if (j.success) { $('#addProviderModal').modal('hide'); renderHMOProviders(containerId); } else alert(j.error||'Failed');
+        try{
+            const res = await fetch(`${API_BASE_URL}hmo_providers.php`, { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+            const j = await res.json(); if (j.success) { document.getElementById('add-provider-overlay')?.remove(); renderHMOProviders(containerId); } else alert(j.error||'Failed');
+        }catch(err){console.error(err); alert('Failed to add provider');}
     });
 }
 
@@ -134,33 +142,41 @@ export async function showEditProviderModal(id, containerId='main-content-area')
     try{
         const r = await fetch(`${API_BASE_URL}hmo_providers.php?id=${id}`, { credentials:'include' });
         const data = await r.json(); const p = data.provider || {};
+        // Tailwind-style overlay modal for editing
         container.innerHTML = `
-            <div class="modal fade" id="editProviderModal" tabindex="-1">
-                <div class="modal-dialog"><div class="modal-content">
-                    <div class="modal-header"><h5 class="modal-title">Edit Provider</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
-                    <form id="editProviderForm">
-                        <div class="modal-body">
-                            <input type="hidden" name="id" value="${id}" />
-                            <div class="mb-3"><label>Name</label><input name="provider_name" class="form-control" value="${p.ProviderName || ''}" required/></div>
-                            <div class="mb-3"><label>Description</label><textarea name="description" class="form-control">${p.Description || ''}</textarea></div>
-                            <div class="mb-3"><label>Contact Person</label><input name="contact_person" class="form-control" value="${p.ContactPerson || ''}"/></div>
-                            <div class="mb-3"><label>Contact Number</label><input name="contact_number" class="form-control" value="${p.ContactNumber || ''}"/></div>
-                            <div class="mb-3"><label>Email</label><input name="email" type="email" class="form-control" value="${p.Email || ''}"/></div>
-                            <div class="mb-3"><label>Status</label>
-                                <select name="status" class="form-control"><option value="Active" ${p.Status==='Active'?'selected':''}>Active</option><option value="Inactive" ${p.Status==='Inactive'?'selected':''}>Inactive</option></select>
-                            </div>
+            <div id="edit-provider-overlay" class="fixed inset-0 z-60 flex items-center justify-center bg-black/40">
+                <div class="bg-white rounded-lg shadow-lg w-full max-w-xl mx-4">
+                    <div class="flex items-center justify-between px-4 py-3 border-b">
+                        <h5 class="text-lg font-semibold">Edit Provider</h5>
+                        <button id="edit-provider-close" class="text-gray-500 hover:text-gray-700">&times;</button>
+                    </div>
+                    <form id="editProviderForm" class="p-4 space-y-3">
+                        <input type="hidden" name="id" value="${id}" />
+                        <div class="space-y-1"><label class="block text-sm">Name</label><input name="provider_name" class="w-full p-2 border rounded" value="${p.ProviderName || ''}" required/></div>
+                        <div class="space-y-1"><label class="block text-sm">Description</label><textarea name="description" class="w-full p-2 border rounded">${p.Description || ''}</textarea></div>
+                        <div class="space-y-1"><label class="block text-sm">Contact Person</label><input name="contact_person" class="w-full p-2 border rounded" value="${p.ContactPerson || ''}"/></div>
+                        <div class="space-y-1"><label class="block text-sm">Contact Number</label><input name="contact_number" class="w-full p-2 border rounded" value="${p.ContactNumber || ''}"/></div>
+                        <div class="space-y-1"><label class="block text-sm">Email</label><input name="email" type="email" class="w-full p-2 border rounded" value="${p.Email || ''}"/></div>
+                        <div class="space-y-1"><label class="block text-sm">Status</label>
+                            <select name="status" class="w-full p-2 border rounded"><option value="Active" ${p.Status==='Active'?'selected':''}>Active</option><option value="Inactive" ${p.Status==='Inactive'?'selected':''}>Inactive</option></select>
                         </div>
-                        <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Save</button></div>
+                        <div class="flex justify-end gap-2 pt-2">
+                            <button type="button" id="edit-provider-cancel" class="px-4 py-2 bg-gray-200 rounded">Cancel</button>
+                            <button type="submit" class="px-4 py-2 bg-[#594423] text-white rounded">Save</button>
+                        </div>
                     </form>
-                </div></div>
+                </div>
             </div>
         `;
-        $('#editProviderModal').modal('show');
+
+        document.getElementById('edit-provider-close')?.addEventListener('click', ()=>{ document.getElementById('edit-provider-overlay')?.remove(); });
+        document.getElementById('edit-provider-cancel')?.addEventListener('click', ()=>{ document.getElementById('edit-provider-overlay')?.remove(); });
+
         document.getElementById('editProviderForm')?.addEventListener('submit', async e=>{
             e.preventDefault(); const fd = new FormData(e.target); const payload = {}; fd.forEach((v,k)=>payload[k]=v);
             try{
                 const res = await fetch(`${API_BASE_URL}hmo_providers.php?id=${id}`, { method:'PUT', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-                const j = await res.json(); if (j.success) { $('#editProviderModal').modal('hide'); renderHMOProviders(containerId); } else alert(j.error||'Failed');
+                const j = await res.json(); if (j.success) { document.getElementById('edit-provider-overlay')?.remove(); renderHMOProviders(containerId); } else alert(j.error||'Failed');
             }catch(err){console.error(err); alert('Error updating provider');}
         });
     }catch(e){console.error(e); alert('Failed to load provider');}

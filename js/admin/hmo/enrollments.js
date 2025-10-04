@@ -9,8 +9,8 @@ export async function renderHMOEnrollments(containerId='main-content-area'){
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-2xl font-semibold">Employee Enrollments</h2>
                     <div>
-                        <button id="refresh-enrollments" class="btn btn-sm btn-primary">Refresh</button>
-                        <button id="add-enrollment-btn" class="btn btn-sm btn-success">Enroll Employee</button>
+                        <button id="refresh-enrollments" class="hmo-btn hmo-btn-primary">Refresh</button>
+                        <button id="add-enrollment-btn" class="hmo-btn hmo-btn-success">Enroll Employee</button>
                     </div>
                 </div>
                 <div class="bg-white rounded-lg shadow">
@@ -30,7 +30,7 @@ export async function renderHMOEnrollments(containerId='main-content-area'){
                             <tr>
                                 <td class="p-6 text-center text-sm text-gray-500" colspan="6">
                                     No employee enrollments found. Use "Enroll Employee" to add a new enrollment. Employees can also enroll themselves via the employee portal.
-                                    <div class="mt-2"><button id="empty-add-enrollment" class="btn btn-sm btn-success">Enroll Employee</button></div>
+                                    <div class="mt-2"><button id="empty-add-enrollment" class="hmo-btn hmo-btn-success">Enroll Employee</button></div>
                                 </td>
                             </tr>
                         ` : enrollments.map(e=>`<tr>
@@ -40,9 +40,9 @@ export async function renderHMOEnrollments(containerId='main-content-area'){
                             <td class="p-3">${e.EndDate||''}</td>
                             <td class="p-3">${e.Status||''}</td>
                             <td class="p-3">
-                                <button class="btn btn-sm btn-secondary edit-enrollment" data-id="${e.EnrollmentID}">Edit</button>
-                                <button class="btn btn-sm btn-warning terminate-enrollment" data-id="${e.EnrollmentID}">Terminate</button>
-                                <button class="btn btn-sm btn-danger delete-enrollment" data-id="${e.EnrollmentID}">Remove</button>
+                                <button class="hmo-btn hmo-btn-secondary edit-enrollment" data-id="${e.EnrollmentID}">Edit</button>
+                                <button class="hmo-btn hmo-btn-warning terminate-enrollment" data-id="${e.EnrollmentID}">Terminate</button>
+                                <button class="hmo-btn hmo-btn-danger delete-enrollment" data-id="${e.EnrollmentID}">Remove</button>
                             </td>
                         </tr>`).join('')}
                         </tbody>
@@ -69,35 +69,48 @@ export async function showAddEnrollmentModal(containerId='main-content-area'){
     const eres = await fetch(`${API_BASE_URL}get_employees.php`, { credentials:'include' }); const employees = await eres.json();
     const container = document.getElementById('modalContainer'); if (!container) return;
     container.innerHTML = `
-        <div class="modal fade" id="addEnrollmentModal" tabindex="-1">
-            <div class="modal-dialog"><div class="modal-content">
-                <div class="modal-header"><h5 class="modal-title">Add Enrollment</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
-                <form id="addEnrollmentForm">
-                    <div class="modal-body">
-                        <div class="mb-3"><label>Employee</label>
-                            <select name="employee_id" class="form-control" required>
-                                <option value="">Select Employee</option>
-                                ${ (Array.isArray(employees)?employees:[]).map(emp=>`<option value="${emp.EmployeeID}">${emp.FirstName||''} ${emp.LastName||''} (${emp.EmployeeID})</option>`).join('') }
-                            </select>
-                        </div>
-                        <div class="mb-3"><label>Plan</label>
-                            <select name="plan_id" class="form-control" required>
-                                <option value="">Select Plan</option>
-                                ${plans.map(p=>`<option value="${p.PlanID}">${p.PlanName} (${p.ProviderName||''})</option>`).join('')}
-                            </select>
-                        </div>
-                        <div class="mb-3"><label>Start Date</label><input type="date" name="start_date" class="form-control" required/></div>
-                        <div class="mb-3"><label>End Date</label><input type="date" name="end_date" class="form-control"/></div>
+        <div id="add-enrollment-overlay" class="fixed inset-0 z-60 flex items-center justify-center bg-black/40">
+            <div class="bg-white rounded-lg shadow-lg w-full max-w-xl mx-4">
+                <div class="flex items-center justify-between px-4 py-3 border-b">
+                    <h5 class="text-lg font-semibold">Add Enrollment</h5>
+                    <button id="add-enrollment-close" class="text-gray-500 hover:text-gray-700">&times;</button>
+                </div>
+                <form id="addEnrollmentForm" class="p-4 space-y-3">
+                    <div>
+                        <label class="block text-sm">Employee</label>
+                        <select name="employee_id" class="w-full p-2 border rounded" required>
+                            <option value="">Select Employee</option>
+                            ${ (Array.isArray(employees)?employees:[]).map(emp=>`<option value="${emp.EmployeeID}">${emp.FirstName||''} ${emp.LastName||''} (${emp.EmployeeID})</option>`).join('') }
+                        </select>
                     </div>
-                    <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Save</button></div>
+                    <div>
+                        <label class="block text-sm">Plan</label>
+                        <select name="plan_id" class="w-full p-2 border rounded" required>
+                            <option value="">Select Plan</option>
+                            ${plans.map(p=>`<option value="${p.PlanID}">${p.PlanName} (${p.ProviderName||''})</option>`).join('')}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm">Start Date</label>
+                        <input type="date" name="start_date" class="w-full p-2 border rounded" required/>
+                    </div>
+                    <div>
+                        <label class="block text-sm">End Date</label>
+                        <input type="date" name="end_date" class="w-full p-2 border rounded"/>
+                    </div>
+                    <div class="flex justify-end gap-2 pt-2">
+                        <button type="button" id="add-enrollment-cancel" class="px-4 py-2 bg-gray-200 rounded">Cancel</button>
+                        <button type="submit" class="px-4 py-2 bg-[#594423] text-white rounded">Save</button>
+                    </div>
                 </form>
-            </div></div>
+            </div>
         </div>
     `;
-    $('#addEnrollmentModal').modal('show');
+    document.getElementById('add-enrollment-close')?.addEventListener('click', ()=>{ document.getElementById('add-enrollment-overlay')?.remove(); });
+    document.getElementById('add-enrollment-cancel')?.addEventListener('click', ()=>{ document.getElementById('add-enrollment-overlay')?.remove(); });
     document.getElementById('addEnrollmentForm')?.addEventListener('submit', async e=>{
         e.preventDefault(); const fd = new FormData(e.target); const payload = {}; fd.forEach((v,k)=>payload[k]=v);
-        const res = await fetch(`${API_BASE_URL}hmo_enrollments.php`, { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); const j = await res.json(); if (j.success) { $('#addEnrollmentModal').modal('hide'); renderHMOEnrollments(containerId); } else alert(j.error||'Failed');
+        const res = await fetch(`${API_BASE_URL}hmo_enrollments.php`, { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); const j = await res.json(); if (j.success) { document.getElementById('add-enrollment-overlay')?.remove(); renderHMOEnrollments(containerId); } else alert(j.error||'Failed');
     });
 }
 
@@ -116,37 +129,53 @@ export async function showEditEnrollmentModal(id, containerId='main-content-area
         }).join('');
 
         container.innerHTML = `
-            <div class="modal fade" id="editEnrollmentModal" tabindex="-1">
-                <div class="modal-dialog"><div class="modal-content">
-                    <div class="modal-header"><h5 class="modal-title">Edit Enrollment</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
-                    <form id="editEnrollmentForm">
-                        <div class="modal-body">
-                            <input type="hidden" name="id" value="${id}" />
-                            <div class="mb-3"><label>Employee</label>
-                                <select name="employee_id" class="form-control" required>
-                                    <option value="">Select Employee</option>
-                                    ${employeeOptions}
-                                </select>
-                            </div>
-                            <div class="mb-3"><label>Plan</label>
-                                <select name="plan_id" class="form-control" required>
-                                    <option value="">Select Plan</option>
-                                    ${planOptions}
-                                </select>
-                            </div>
-                            <div class="mb-3"><label>Start Date</label><input type="date" name="start_date" class="form-control" value="${e.StartDate||''}" required/></div>
-                            <div class="mb-3"><label>End Date</label><input type="date" name="end_date" class="form-control" value="${e.EndDate||''}"/></div>
-                            <div class="mb-3"><label>Status</label><select name="status" class="form-control"><option value="Active" ${e.Status==='Active'?'selected':''}>Active</option><option value="Terminated" ${e.Status==='Terminated'?'selected':''}>Terminated</option></select></div>
+            <div id="edit-enrollment-overlay" class="fixed inset-0 z-60 flex items-center justify-center bg-black/40">
+                <div class="bg-white rounded-lg shadow-lg w-full max-w-xl mx-4">
+                    <div class="flex items-center justify-between px-4 py-3 border-b">
+                        <h5 class="text-lg font-semibold">Edit Enrollment</h5>
+                        <button id="edit-enrollment-close" class="text-gray-500 hover:text-gray-700">&times;</button>
+                    </div>
+                    <form id="editEnrollmentForm" class="p-4 space-y-3">
+                        <input type="hidden" name="id" value="${id}" />
+                        <div>
+                            <label class="block text-sm">Employee</label>
+                            <select name="employee_id" class="w-full p-2 border rounded" required>
+                                <option value="">Select Employee</option>
+                                ${employeeOptions}
+                            </select>
                         </div>
-                        <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Save</button></div>
+                        <div>
+                            <label class="block text-sm">Plan</label>
+                            <select name="plan_id" class="w-full p-2 border rounded" required>
+                                <option value="">Select Plan</option>
+                                ${planOptions}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm">Start Date</label>
+                            <input type="date" name="start_date" class="w-full p-2 border rounded" value="${e.StartDate||''}" required/>
+                        </div>
+                        <div>
+                            <label class="block text-sm">End Date</label>
+                            <input type="date" name="end_date" class="w-full p-2 border rounded" value="${e.EndDate||''}"/>
+                        </div>
+                        <div>
+                            <label class="block text-sm">Status</label>
+                            <select name="status" class="w-full p-2 border rounded"><option value="Active" ${e.Status==='Active'?'selected':''}>Active</option><option value="Terminated" ${e.Status==='Terminated'?'selected':''}>Terminated</option></select>
+                        </div>
+                        <div class="flex justify-end gap-2 pt-2">
+                            <button type="button" id="edit-enrollment-cancel" class="px-4 py-2 bg-gray-200 rounded">Cancel</button>
+                            <button type="submit" class="px-4 py-2 bg-[#594423] text-white rounded">Save</button>
+                        </div>
                     </form>
-                </div></div>
+                </div>
             </div>
         `;
-        $('#editEnrollmentModal').modal('show');
+        document.getElementById('edit-enrollment-close')?.addEventListener('click', ()=>{ document.getElementById('edit-enrollment-overlay')?.remove(); });
+        document.getElementById('edit-enrollment-cancel')?.addEventListener('click', ()=>{ document.getElementById('edit-enrollment-overlay')?.remove(); });
         document.getElementById('editEnrollmentForm')?.addEventListener('submit', async e2=>{
             e2.preventDefault(); const fd = new FormData(e2.target); const payload = {}; fd.forEach((v,k)=>payload[k]=v);
-            const res2 = await fetch(`${API_BASE_URL}hmo_enrollments.php?id=${id}`, { method:'PUT', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); const j2 = await res2.json(); if (j2.success) { $('#editEnrollmentModal').modal('hide'); renderHMOEnrollments(containerId); } else alert(j2.error||'Failed');
+            const res2 = await fetch(`${API_BASE_URL}hmo_enrollments.php?id=${id}`, { method:'PUT', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); const j2 = await res2.json(); if (j2.success) { document.getElementById('edit-enrollment-overlay')?.remove(); renderHMOEnrollments(containerId); } else alert(j2.error||'Failed');
         });
     }catch(e){console.error(e); alert('Failed to load enrollment');}
 }

@@ -14,8 +14,8 @@ export async function renderHMOPlans(containerId='main-content-area'){
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-2xl font-semibold">Benefit Plans</h2>
                     <div>
-                        <button id="refresh-plans" class="btn btn-sm btn-primary">Refresh</button>
-                        <button id="add-plan-btn" class="btn btn-sm btn-success">Add Plan</button>
+                        <button id="refresh-plans" class="hmo-btn hmo-btn-primary">Refresh</button>
+                        <button id="add-plan-btn" class="hmo-btn hmo-btn-success">Add Plan</button>
                     </div>
                 </div>
                 <div class="flex items-center gap-4 mb-3">
@@ -69,7 +69,7 @@ function applyPlanFilters(){
 function populatePlansTbody(plans){
     const tbody = document.getElementById('hmo-plans-tbody'); if (!tbody) return;
     if (!plans || plans.length === 0){
-        tbody.innerHTML = `<tr><td class="p-6 text-center text-sm text-gray-500" colspan="7">No benefit plans found. Click "Add Plan" to create one or import seed data from <code>database/hmo_schema_and_seed.sql</code>.<div class="mt-2"><button id="empty-add-plan" class="btn btn-sm btn-success">Add Plan</button></div></td></tr>`;
+    tbody.innerHTML = `<tr><td class="p-6 text-center text-sm text-gray-500" colspan="7">No benefit plans found. Click "Add Plan" to create one or import seed data from <code>database/hmo_schema_and_seed.sql</code>.<div class="mt-2"><button id="empty-add-plan" class="hmo-btn hmo-btn-success">Add Plan</button></div></td></tr>`;
         document.getElementById('empty-add-plan')?.addEventListener('click', ()=>showAddPlanModal());
         return;
     }
@@ -81,9 +81,9 @@ function populatePlansTbody(plans){
         <td class="p-3">${p.PremiumCost||''}</td>
         <td class="p-3">${p.Status||''}</td>
         <td class="p-3">
-            <button class="btn btn-sm btn-secondary view-plan" data-id="${p.PlanID}">View</button>
-            <button class="btn btn-sm btn-secondary edit-plan" data-id="${p.PlanID}">Edit</button>
-            <button class="btn btn-sm btn-danger delete-plan" data-id="${p.PlanID}">Delete</button>
+            <button class="hmo-btn hmo-btn-secondary" data-id="${p.PlanID}">View</button>
+            <button class="hmo-btn hmo-btn-secondary" data-id="${p.PlanID}">Edit</button>
+            <button class="hmo-btn hmo-btn-danger" data-id="${p.PlanID}">Delete</button>
         </td>
     </tr>`).join('');
     tbody.querySelectorAll('.view-plan').forEach(b=>b.addEventListener('click', ev=>{ const id = ev.target.dataset.id; if (!id) return; showPlanDetailsModal(id); }));
@@ -96,58 +96,76 @@ export async function showAddPlanModal(containerId='main-content-area'){
     const pres = await fetch(`${API_BASE_URL}hmo_providers.php`, { credentials:'include' }); const pdata = await pres.json(); const providers = pdata.providers||[];
     const container = document.getElementById('modalContainer'); if (!container) return;
     container.innerHTML = `
-        <div class="modal fade" id="addPlanModal" tabindex="-1">
-            <div class="modal-dialog"><div class="modal-content">
-                <div class="modal-header"><h5 class="modal-title">Add Benefit Plan</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
-                <form id="addPlanForm">
-                    <div class="modal-body">
-                        <div class="mb-3"><label>Provider</label>
-                            <select name="provider_id" class="form-control" required>
-                                <option value="">Select Provider</option>
-                                ${providers.map(p=>`<option value="${p.ProviderID}">${p.ProviderName}</option>`).join('')}
-                            </select>
-                        </div>
-                        <div class="mb-3"><label>Plan Name</label><input name="plan_name" class="form-control" required/></div>
-                        <div class="mb-3"><label>Coverage</label>
-                            <div class="form-check">
-                                <label><input type="checkbox" name="coverage_option" value="inpatient"/> Inpatient</label>
-                                <label class="ml-3"><input type="checkbox" name="coverage_option" value="outpatient"/> Outpatient</label>
-                                <label class="ml-3"><input type="checkbox" name="coverage_option" value="emergency"/> Emergency</label>
-                                <label class="ml-3"><input type="checkbox" name="coverage_option" value="preventive"/> Preventive</label>
-                                <label class="ml-3"><input type="checkbox" name="coverage_option" value="dental"/> Dental</label>
-                                <label class="ml-3"><input type="checkbox" name="coverage_option" value="maternity"/> Maternity</label>
-                            </div>
-                        </div>
-                        <div class="mb-3"><label>Maximum Benefit Limit</label><input type="number" step="0.01" name="maximum_benefit_limit" class="form-control"/></div>
-                        <div class="mb-3"><label>Premium Cost</label><input type="number" step="0.01" name="premium_cost" class="form-control"/></div>
-                        <div class="mb-3"><label>Eligibility</label>
-                            <select name="eligibility" class="form-control">
-                                <option value="Individual">Individual</option>
-                                <option value="Family">Family</option>
-                                <option value="Corporate">Corporate</option>
-                            </select>
-                        </div>
-                        <div class="mb-3"><label>Accredited Hospitals (one per line or comma separated)</label><textarea name="accredited_hospitals" class="form-control" rows="3" placeholder="e.g. St. Luke's Medical Center\nThe Medical City"></textarea></div>
+        <div id="add-plan-overlay" class="fixed inset-0 z-60 flex items-center justify-center bg-black/40">
+            <div class="bg-white rounded-lg shadow-lg w-full max-w-2xl mx-4">
+                <div class="flex items-center justify-between px-4 py-3 border-b">
+                    <h5 class="text-lg font-semibold">Add Benefit Plan</h5>
+                    <button id="add-plan-close" class="text-gray-500 hover:text-gray-700">&times;</button>
+                </div>
+                <form id="addPlanForm" class="p-4 space-y-3">
+                    <div>
+                        <label class="block text-sm">Provider</label>
+                        <select name="provider_id" class="w-full p-2 border rounded" required>
+                            <option value="">Select Provider</option>
+                            ${providers.map(p=>`<option value="${p.ProviderID}">${p.ProviderName}</option>`).join('')}
+                        </select>
                     </div>
-                    <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Save</button></div>
+                    <div>
+                        <label class="block text-sm">Plan Name</label>
+                        <input name="plan_name" class="w-full p-2 border rounded" required/>
+                    </div>
+                    <div>
+                        <label class="block text-sm">Coverage</label>
+                        <div class="flex flex-wrap gap-3 text-sm">
+                            <label><input type="checkbox" name="coverage_option" value="inpatient"/> Inpatient</label>
+                            <label><input type="checkbox" name="coverage_option" value="outpatient"/> Outpatient</label>
+                            <label><input type="checkbox" name="coverage_option" value="emergency"/> Emergency</label>
+                            <label><input type="checkbox" name="coverage_option" value="preventive"/> Preventive</label>
+                            <label><input type="checkbox" name="coverage_option" value="dental"/> Dental</label>
+                            <label><input type="checkbox" name="coverage_option" value="maternity"/> Maternity</label>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm">Maximum Benefit Limit</label>
+                        <input type="number" step="0.01" name="maximum_benefit_limit" class="w-full p-2 border rounded"/>
+                    </div>
+                    <div>
+                        <label class="block text-sm">Premium Cost</label>
+                        <input type="number" step="0.01" name="premium_cost" class="w-full p-2 border rounded"/>
+                    </div>
+                    <div>
+                        <label class="block text-sm">Eligibility</label>
+                        <select name="eligibility" class="w-full p-2 border rounded">
+                            <option value="Individual">Individual</option>
+                            <option value="Family">Family</option>
+                            <option value="Corporate">Corporate</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm">Accredited Hospitals (one per line or comma separated)</label>
+                        <textarea name="accredited_hospitals" class="w-full p-2 border rounded" rows="3" placeholder="e.g. St. Luke's Medical Center\nThe Medical City"></textarea>
+                    </div>
+                    <div class="flex justify-end gap-2 pt-2">
+                        <button type="button" id="add-plan-cancel" class="px-4 py-2 bg-gray-200 rounded">Cancel</button>
+                        <button type="submit" class="px-4 py-2 bg-[#594423] text-white rounded">Save</button>
+                    </div>
                 </form>
-            </div></div>
+            </div>
         </div>
     `;
-    $('#addPlanModal').modal('show');
-        document.getElementById('addPlanForm')?.addEventListener('submit', async e=>{
+    document.getElementById('add-plan-close')?.addEventListener('click', ()=>{ document.getElementById('add-plan-overlay')?.remove(); });
+    document.getElementById('add-plan-cancel')?.addEventListener('click', ()=>{ document.getElementById('add-plan-overlay')?.remove(); });
+    document.getElementById('addPlanForm')?.addEventListener('submit', async e=>{
         e.preventDefault();
         const payload = {};
         const fd = new FormData(e.target);
         fd.forEach((v,k)=>{ if (k!=='coverage_option') payload[k]=v; });
-        // collect checked coverage options
         const checks = Array.from(e.target.querySelectorAll('input[name="coverage_option"]:checked')).map(c=>c.value);
         if (checks.length) payload.coverage = checks;
-            // include accredited hospitals and eligibility (FormData already collected)
-            if (payload.accredited_hospitals) payload.accredited_hospitals = payload.accredited_hospitals.trim();
-            if (payload.eligibility) payload.eligibility = payload.eligibility.trim();
+        if (payload.accredited_hospitals) payload.accredited_hospitals = payload.accredited_hospitals.trim();
+        if (payload.eligibility) payload.eligibility = payload.eligibility.trim();
         const res = await fetch(`${API_BASE_URL}hmo_plans.php`, { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); const j = await res.json();
-        if (j.success) { $('#addPlanModal').modal('hide'); renderHMOPlans(containerId); } else alert(j.error||'Failed');
+        if (j.success) { document.getElementById('add-plan-overlay')?.remove(); renderHMOPlans(containerId); } else alert(j.error||'Failed');
     });
 }
 
@@ -161,54 +179,77 @@ export async function showEditPlanModal(id, containerId='main-content-area'){
     const accreditedVal = Array.isArray(p.AccreditedHospitals)?p.AccreditedHospitals.join('\n'):(p.AccreditedHospitals?JSON.parse(p.AccreditedHospitals).join('\n'):'');
     const eligibilityVal = p.Eligibility || 'Individual';
         container.innerHTML = `
-            <div class="modal fade" id="editPlanModal" tabindex="-1">
-                <div class="modal-dialog"><div class="modal-content">
-                    <div class="modal-header"><h5 class="modal-title">Edit Benefit Plan</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
-                    <form id="editPlanForm">
-                        <div class="modal-body">
-                            <input type="hidden" name="id" value="${id}" />
-                            <div class="mb-3"><label>Provider</label>
-                                <select name="provider_id" class="form-control" required>
-                                    <option value="">Select Provider</option>
-                                    ${provOptions}
-                                </select>
-                            </div>
-                            <div class="mb-3"><label>Plan Name</label><input name="plan_name" class="form-control" value="${p.PlanName||''}" required/></div>
-                            <div class="mb-3"><label>Coverage</label>
-                                <div class="form-check">
-                                    <label><input type="checkbox" name="coverage_option" value="inpatient" ${coverageVal.includes('inpatient')?'checked':''}/> Inpatient</label>
-                                    <label class="ml-3"><input type="checkbox" name="coverage_option" value="outpatient" ${coverageVal.includes('outpatient')?'checked':''}/> Outpatient</label>
-                                    <label class="ml-3"><input type="checkbox" name="coverage_option" value="emergency" ${coverageVal.includes('emergency')?'checked':''}/> Emergency</label>
-                                    <label class="ml-3"><input type="checkbox" name="coverage_option" value="preventive" ${coverageVal.includes('preventive')?'checked':''}/> Preventive</label>
-                                    <label class="ml-3"><input type="checkbox" name="coverage_option" value="dental" ${coverageVal.includes('dental')?'checked':''}/> Dental</label>
-                                    <label class="ml-3"><input type="checkbox" name="coverage_option" value="maternity" ${coverageVal.includes('maternity')?'checked':''}/> Maternity</label>
-                                </div>
-                            </div>
-                            <div class="mb-3"><label>Maximum Benefit Limit</label><input type="number" step="0.01" name="maximum_benefit_limit" class="form-control" value="${p.MaximumBenefitLimit||''}"/></div>
-                            <div class="mb-3"><label>Premium Cost</label><input type="number" step="0.01" name="premium_cost" class="form-control" value="${p.PremiumCost||''}"/></div>
-                            <div class="mb-3"><label>Eligibility</label>
-                                <select name="eligibility" class="form-control">
-                                    <option value="Individual" ${eligibilityVal==='Individual'?'selected':''}>Individual</option>
-                                    <option value="Family" ${eligibilityVal==='Family'?'selected':''}>Family</option>
-                                    <option value="Corporate" ${eligibilityVal==='Corporate'?'selected':''}>Corporate</option>
-                                </select>
-                            </div>
-                            <div class="mb-3"><label>Accredited Hospitals (one per line)</label><textarea name="accredited_hospitals" class="form-control" rows="3">${accreditedVal}</textarea></div>
-                            <div class="mb-3"><label>Status</label><select name="status" class="form-control"><option value="Active" ${p.Status==='Active'?'selected':''}>Active</option><option value="Inactive" ${p.Status==='Inactive'?'selected':''}>Inactive</option></select></div>
+            <div id="edit-plan-overlay" class="fixed inset-0 z-60 flex items-center justify-center bg-black/40">
+                <div class="bg-white rounded-lg shadow-lg w-full max-w-2xl mx-4">
+                    <div class="flex items-center justify-between px-4 py-3 border-b">
+                        <h5 class="text-lg font-semibold">Edit Benefit Plan</h5>
+                        <button id="edit-plan-close" class="text-gray-500 hover:text-gray-700">&times;</button>
+                    </div>
+                    <form id="editPlanForm" class="p-4 space-y-3">
+                        <input type="hidden" name="id" value="${id}" />
+                        <div>
+                            <label class="block text-sm">Provider</label>
+                            <select name="provider_id" class="w-full p-2 border rounded" required>
+                                <option value="">Select Provider</option>
+                                ${provOptions}
+                            </select>
                         </div>
-                        <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Save</button></div>
+                        <div>
+                            <label class="block text-sm">Plan Name</label>
+                            <input name="plan_name" class="w-full p-2 border rounded" value="${p.PlanName||''}" required/>
+                        </div>
+                        <div>
+                            <label class="block text-sm">Coverage</label>
+                            <div class="flex flex-wrap gap-3 text-sm">
+                                <label><input type="checkbox" name="coverage_option" value="inpatient" ${coverageVal.includes('inpatient')?'checked':''}/> Inpatient</label>
+                                <label><input type="checkbox" name="coverage_option" value="outpatient" ${coverageVal.includes('outpatient')?'checked':''}/> Outpatient</label>
+                                <label><input type="checkbox" name="coverage_option" value="emergency" ${coverageVal.includes('emergency')?'checked':''}/> Emergency</label>
+                                <label><input type="checkbox" name="coverage_option" value="preventive" ${coverageVal.includes('preventive')?'checked':''}/> Preventive</label>
+                                <label><input type="checkbox" name="coverage_option" value="dental" ${coverageVal.includes('dental')?'checked':''}/> Dental</label>
+                                <label><input type="checkbox" name="coverage_option" value="maternity" ${coverageVal.includes('maternity')?'checked':''}/> Maternity</label>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm">Maximum Benefit Limit</label>
+                            <input type="number" step="0.01" name="maximum_benefit_limit" class="w-full p-2 border rounded" value="${p.MaximumBenefitLimit||''}"/>
+                        </div>
+                        <div>
+                            <label class="block text-sm">Premium Cost</label>
+                            <input type="number" step="0.01" name="premium_cost" class="w-full p-2 border rounded" value="${p.PremiumCost||''}"/>
+                        </div>
+                        <div>
+                            <label class="block text-sm">Eligibility</label>
+                            <select name="eligibility" class="w-full p-2 border rounded">
+                                <option value="Individual" ${eligibilityVal==='Individual'?'selected':''}>Individual</option>
+                                <option value="Family" ${eligibilityVal==='Family'?'selected':''}>Family</option>
+                                <option value="Corporate" ${eligibilityVal==='Corporate'?'selected':''}>Corporate</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm">Accredited Hospitals (one per line)</label>
+                            <textarea name="accredited_hospitals" class="w-full p-2 border rounded" rows="3">${accreditedVal}</textarea>
+                        </div>
+                        <div>
+                            <label class="block text-sm">Status</label>
+                            <select name="status" class="w-full p-2 border rounded"><option value="Active" ${p.Status==='Active'?'selected':''}>Active</option><option value="Inactive" ${p.Status==='Inactive'?'selected':''}>Inactive</option></select>
+                        </div>
+                        <div class="flex justify-end gap-2 pt-2">
+                            <button type="button" id="edit-plan-cancel" class="px-4 py-2 bg-gray-200 rounded">Cancel</button>
+                            <button type="submit" class="px-4 py-2 bg-[#594423] text-white rounded">Save</button>
+                        </div>
                     </form>
-                </div></div>
+                </div>
             </div>
         `;
-        $('#editPlanModal').modal('show');
-            document.getElementById('editPlanForm')?.addEventListener('submit', async e=>{
+        document.getElementById('edit-plan-close')?.addEventListener('click', ()=>{ document.getElementById('edit-plan-overlay')?.remove(); });
+        document.getElementById('edit-plan-cancel')?.addEventListener('click', ()=>{ document.getElementById('edit-plan-overlay')?.remove(); });
+        document.getElementById('editPlanForm')?.addEventListener('submit', async e=>{
             e.preventDefault(); const payload = {}; const fd = new FormData(e.target); fd.forEach((v,k)=>{ if (k!=='coverage_option') payload[k]=v; });
             const checks = Array.from(e.target.querySelectorAll('input[name="coverage_option"]:checked')).map(c=>c.value);
             if (checks.length) payload.coverage = checks;
             if (payload.accredited_hospitals) payload.accredited_hospitals = payload.accredited_hospitals.trim();
             if (payload.eligibility) payload.eligibility = payload.eligibility.trim();
-            const res = await fetch(`${API_BASE_URL}hmo_plans.php?id=${id}`, { method:'PUT', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); const j = await res.json(); if (j.success) { $('#editPlanModal').modal('hide'); renderHMOPlans(containerId); } else alert(j.error||'Failed');
+            const res = await fetch(`${API_BASE_URL}hmo_plans.php?id=${id}`, { method:'PUT', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); const j = await res.json(); if (j.success) { document.getElementById('edit-plan-overlay')?.remove(); renderHMOPlans(containerId); } else alert(j.error||'Failed');
         });
     }catch(e){console.error(e); alert('Failed to load plan');}
 }
@@ -220,21 +261,25 @@ export async function showPlanDetailsModal(id){
         // fetch provider details
         const pr = await fetch(`${API_BASE_URL}hmo_providers.php?id=${p.ProviderID}`, { credentials:'include' }); const pd = await pr.json(); const prov = pd.provider||{};
         container.innerHTML = `
-            <div class="modal fade" id="viewPlanModal" tabindex="-1">
-                <div class="modal-dialog"><div class="modal-content">
-                    <div class="modal-header"><h5 class="modal-title">Plan Details</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
-                    <div class="modal-body">
-                        <h4>${p.PlanName||''}</h4>
+            <div id="view-plan-overlay" class="fixed inset-0 z-60 flex items-center justify-center bg-black/40">
+                <div class="bg-white rounded-lg shadow-lg w-full max-w-xl mx-4">
+                    <div class="flex items-center justify-between px-4 py-3 border-b">
+                        <h5 class="text-lg font-semibold">Plan Details</h5>
+                        <button id="view-plan-close" class="text-gray-500 hover:text-gray-700">&times;</button>
+                    </div>
+                    <div class="p-4">
+                        <h4 class="text-lg font-semibold mb-2">${p.PlanName||''}</h4>
                         <div><strong>Provider:</strong> ${prov.ProviderName||''}</div>
                         <div><strong>Coverage:</strong> ${p.Coverage? (Array.isArray(p.Coverage)?p.Coverage.join(', '):JSON.parse(p.Coverage).join(', ')) : ''}</div>
                         <div><strong>Max Limit:</strong> ${p.MaximumBenefitLimit||''}</div>
                         <div><strong>Premium:</strong> ${p.PremiumCost||''}</div>
                         <div class="mt-3"><strong>Provider Contact</strong><div>${prov.ContactPerson||''} ${prov.ContactNumber?('<br/>'+prov.ContactNumber):''} ${prov.Email?('<br/>'+prov.Email):''}</div></div>
                     </div>
-                    <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button></div>
-                </div></div>
+                    <div class="flex justify-end p-4 border-t"><button id="view-plan-close-btn" class="px-4 py-2 bg-gray-200 rounded">Close</button></div>
+                </div>
             </div>
         `;
-        $('#viewPlanModal').modal('show');
+        document.getElementById('view-plan-close')?.addEventListener('click', ()=>{ document.getElementById('view-plan-overlay')?.remove(); });
+        document.getElementById('view-plan-close-btn')?.addEventListener('click', ()=>{ document.getElementById('view-plan-overlay')?.remove(); });
     }catch(e){console.error(e); alert('Failed to load plan details');}
 }

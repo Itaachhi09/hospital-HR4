@@ -296,9 +296,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Event Listeners for Notification Bell ---
     if (notificationBellButton && notificationDropdown) {
+        // Helper to open with animation
+        function openNotificationDropdown() {
+            notificationDropdown.classList.remove('hidden');
+            // small delay to allow browser to apply the removal before transitioning
+            requestAnimationFrame(() => {
+                notificationDropdown.classList.remove('scale-95', 'opacity-0');
+                notificationDropdown.classList.add('scale-100', 'opacity-100');
+            });
+            onNotificationDropdownOpen();
+        }
+
+        // Helper to close with animation
+        function closeNotificationDropdown() {
+            notificationDropdown.classList.remove('scale-100', 'opacity-100');
+            notificationDropdown.classList.add('scale-95', 'opacity-0');
+            // Wait for transition end to hide element fully
+            const onEnd = (e) => {
+                if (e.target !== notificationDropdown) return;
+                notificationDropdown.classList.add('hidden');
+                notificationDropdown.removeEventListener('transitionend', onEnd);
+            };
+            notificationDropdown.addEventListener('transitionend', onEnd);
+            onNotificationDropdownClose();
+        }
+
         notificationBellButton.addEventListener('click', (event) => {
             event.stopPropagation();
-            const isNowHidden = notificationDropdown.classList.toggle('hidden');
+            const isHidden = notificationDropdown.classList.contains('hidden');
             if (userProfileDropdown && !userProfileDropdown.classList.contains('hidden')) {
                 userProfileDropdown.classList.add('hidden');
                 if(userProfileArrow) {
@@ -306,7 +331,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     userProfileArrow.classList.add('bx-chevron-down');
                 }
             }
-            if (!isNowHidden) { onNotificationDropdownOpen(); } else { onNotificationDropdownClose(); }
+            if (isHidden) {
+                openNotificationDropdown();
+            } else {
+                closeNotificationDropdown();
+            }
         });
     }
 

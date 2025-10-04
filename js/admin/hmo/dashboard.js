@@ -8,10 +8,10 @@ export async function renderHMODashboard(containerId='main-content-area'){
             <div class="p-6">
                 <h2 class="text-2xl font-semibold mb-4">HMO Dashboard</h2>
                 <div class="grid grid-cols-4 gap-4">
-                    <div class="p-4 bg-white rounded shadow">Active Providers<br/><strong>${s.total_active_providers||s.providers||0}</strong></div>
-                    <div class="p-4 bg-white rounded shadow">Active Plans<br/><strong>${s.total_active_plans||s.plans||0}</strong></div>
-                    <div class="p-4 bg-white rounded shadow">Enrolled Employees<br/><strong>${s.total_enrolled_employees||s.active_enrollments||0}</strong></div>
-                    <div class="p-4 bg-white rounded shadow">Pending Claims<br/><strong>${(s.claims&&s.claims.pending)||s.pending_claims||0}</strong></div>
+                    <div id="hmo-active-providers-card" class="p-4 bg-white rounded shadow cursor-pointer" title="View Providers">Active Providers<br/><strong>${s.total_active_providers||s.providers||0}</strong></div>
+                    <div id="hmo-active-plans-card" class="p-4 bg-white rounded shadow cursor-pointer" title="View Plans">Active Plans<br/><strong>${s.total_active_plans||s.plans||0}</strong></div>
+                    <div id="hmo-enrolled-employees-card" class="p-4 bg-white rounded shadow cursor-pointer" title="View Enrollments">Enrolled Employees<br/><strong>${s.total_enrolled_employees||s.active_enrollments||0}</strong></div>
+                    <div id="hmo-pending-claims-card" class="p-4 bg-white rounded shadow cursor-pointer" title="View Pending Claims">Pending Claims<br/><strong>${(s.claims&&s.claims.pending)||s.pending_claims||0}</strong></div>
                 </div>
                 <div class="mt-6 bg-white p-4 rounded shadow"><h3 class="font-semibold">Claims Summary</h3>
                     <div>Approved: ${(s.claims&&s.claims.approved)||s.approved_claims||0} | Pending: ${(s.claims&&s.claims.pending)||s.pending_claims||0} | Denied: ${(s.claims&&s.claims.denied)||s.denied_claims||0}</div>
@@ -146,3 +146,75 @@ async function drawHMOCharts(){
 }
 // Draw charts after DOM updates
 setTimeout(()=>{ if (document.getElementById('hmo-monthly-claims-chart')) drawHMOCharts(); }, 500);
+
+// Provide a generic initializer the dynamic loader can call
+export async function initialize(containerId = 'main-content-area') {
+    return renderHMODashboard(containerId);
+}
+
+// Make the providers card clickable after render
+setTimeout(() => {
+    try {
+        const card = document.getElementById('hmo-active-providers-card');
+        if (card) {
+            card.addEventListener('click', (e) => {
+                e.preventDefault();
+                // Prefer the global display function if available
+                if (typeof window.displayHMOProvidersSection === 'function') {
+                    window.displayHMOProvidersSection();
+                    return;
+                }
+                // Fallback to navigateToSectionById
+                if (typeof window.navigateToSectionById === 'function') {
+                    window.navigateToSectionById('hmo-providers');
+                    return;
+                }
+                // Last resort: dynamic import directly
+                import('../../utils.js').then(mod => {
+                    const { loadModule } = mod;
+                    const main = document.getElementById('main-content-area');
+                    if (typeof loadModule === 'function' && main) loadModule('admin/hmo/providers.js', main, 'HMO Providers');
+                }).catch(err => console.error('Failed to load providers via fallback:', err));
+            });
+        }
+    } catch (err) {
+        console.warn('Could not attach click handler to HMO providers card:', err);
+    }
+}, 300);
+
+// Attach handlers for other dashboard cards
+setTimeout(() => {
+    try {
+        const plansCard = document.getElementById('hmo-active-plans-card');
+        if (plansCard) {
+            plansCard.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (typeof window.displayHMOPlansSection === 'function') { window.displayHMOPlansSection(); return; }
+                if (typeof window.navigateToSectionById === 'function') { window.navigateToSectionById('hmo-plans'); return; }
+                import('../../utils.js').then(mod => { const { loadModule } = mod; const main = document.getElementById('main-content-area'); if (typeof loadModule === 'function' && main) loadModule('admin/hmo/plans.js', main, 'HMO Plans'); }).catch(err => console.error('Failed to load plans via fallback:', err));
+            });
+        }
+
+        const enrollCard = document.getElementById('hmo-enrolled-employees-card');
+        if (enrollCard) {
+            enrollCard.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (typeof window.displayHMOEnrollmentsSection === 'function') { window.displayHMOEnrollmentsSection(); return; }
+                if (typeof window.navigateToSectionById === 'function') { window.navigateToSectionById('hmo-enrollments'); return; }
+                import('../../utils.js').then(mod => { const { loadModule } = mod; const main = document.getElementById('main-content-area'); if (typeof loadModule === 'function' && main) loadModule('admin/hmo/enrollments.js', main, 'HMO Enrollments'); }).catch(err => console.error('Failed to load enrollments via fallback:', err));
+            });
+        }
+
+        const pendingCard = document.getElementById('hmo-pending-claims-card');
+        if (pendingCard) {
+            pendingCard.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (typeof window.displayHMOClaimsApprovalSection === 'function') { window.displayHMOClaimsApprovalSection(); return; }
+                if (typeof window.navigateToSectionById === 'function') { window.navigateToSectionById('hmo-claims-admin'); return; }
+                import('../../utils.js').then(mod => { const { loadModule } = mod; const main = document.getElementById('main-content-area'); if (typeof loadModule === 'function' && main) loadModule('admin/hmo/claims.js', main, 'HMO Claims'); }).catch(err => console.error('Failed to load claims via fallback:', err));
+            });
+        }
+    } catch (err) {
+        console.warn('Could not attach click handlers to HMO dashboard cards:', err);
+    }
+}, 360);

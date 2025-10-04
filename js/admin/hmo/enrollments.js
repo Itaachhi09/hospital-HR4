@@ -58,7 +58,55 @@ export async function renderHMOEnrollments(containerId='main-content-area'){
             const id = ev.target.dataset.id; if (!confirm('Terminate enrollment?')) return; const r = await fetch(`${API_BASE_URL}hmo_enrollments.php?id=${id}`, { method:'PUT', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({status:'Terminated'}) }); const j = await r.json(); if (j.success) renderHMOEnrollments(containerId); else alert(j.error||'Failed');
         }));
         container.querySelectorAll('.delete-enrollment').forEach(b=>b.addEventListener('click', async ev=>{
-            const id = ev.target.dataset.id; if (!confirm('Remove enrollment?')) return; const r = await fetch(`${API_BASE_URL}hmo_enrollments.php?id=${id}`, { method:'DELETE', credentials:'include' }); const j = await r.json(); if (j.success) renderHMOEnrollments(containerId); else alert(j.error||'Failed');
+            const id = ev.target.dataset.id;
+            
+            // Get enrollment details first
+            try {
+                const response = await fetch(`${API_BASE_URL}hmo_enrollments.php?id=${id}`, { 
+                    credentials: 'include' 
+                });
+                const data = await response.json();
+                const enrollment = data.enrollment;
+
+                if (!enrollment) {
+                    alert('Enrollment not found');
+                    return;
+                }
+
+                const employeeName = `${enrollment.FirstName || ''} ${enrollment.LastName || ''}`.trim();
+                const confirmMessage = `Are you sure you want to delete the enrollment for ${employeeName}?\n\nPlan: ${enrollment.PlanName}\nStatus: ${enrollment.Status}\n\nThis action cannot be undone.`;
+
+                if (!confirm(confirmMessage)) {
+                    return;
+                }
+
+                try {
+                    const r = await fetch(`${API_BASE_URL}hmo_enrollments.php?id=${id}`, { 
+                        method: 'DELETE', 
+                        credentials: 'include' 
+                    });
+                    const j = await r.json();
+                    
+                    if (j.success) {
+                        // Force a complete refresh
+                        try {
+                            await renderHMOEnrollments(containerId);
+                            console.log('Enrollment deleted and table refreshed');
+                        } catch(err) {
+                            console.error('Error refreshing enrollments:', err);
+                            alert('Enrollment was deleted but the table refresh failed. Please refresh the page manually.');
+                        }
+                    } else {
+                        alert(j.error || 'Failed to delete enrollment. It may have active claims or be in an invalid state.');
+                    }
+                } catch (error) {
+                    console.error('Error deleting enrollment:', error);
+                    alert('Failed to delete enrollment. Please check your connection and try again.');
+                }
+            } catch (error) {
+                console.error('Error fetching enrollment details:', error);
+                alert('Could not get enrollment details. Please try again.');
+            }
         }));
     }catch(e){console.error(e); container.innerHTML='<div class="p-6">Error loading enrollments</div>'}
 }

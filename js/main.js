@@ -1,82 +1,132 @@
 /**
  * HR Management System - Main JavaScript Entry Point
- * Version: 1.23 (Handles role-based landing pages)
- * Session-based initialization; requires valid server-side session
+ * Centralized app initialization, module loader bindings and sidebar wiring.
+ * Session-based initialization; requires valid server-side session.
  */
 
-// --- Import display functions from module files ---
-import { API_BASE_URL } from './utils.js';
-// Dashboard
-import { displayDashboardSection } from './dashboard/dashboard.js';
-// Core HR
-import { displayEmployeeSection } from './core_hr/employees.js';
-import { displayDocumentsSection } from './core_hr/documents.js';
-import { displayOrgStructureSection } from './core_hr/org_structure.js';
-// Time & Attendance
-import { displayShiftsSection } from './time_attendance/shifts.js';
-import { displaySchedulesSection } from './time_attendance/schedules.js';
-import { displayAttendanceSection } from './time_attendance/attendance.js';
-import { displayTimesheetsSection, closeTimesheetModal } from './time_attendance/timesheets.js';
-// Payroll
-import { displaySalariesSection } from './payroll/salaries.js';
-import { displayBonusesSection } from './payroll/bonuses.js';
-import { displayDeductionsSection } from './payroll/deductions.js';
-import { displayPayrollRunsSection } from './payroll/payroll_runs.js';
-import { displayPayslipsSection } from './payroll/payslips.js';
-// Claims
-import {
-    displaySubmitClaimSection,
-    displayMyClaimsSection,
-    displayClaimsApprovalSection,
-    displayClaimTypesAdminSection
-} from './claims/claims.js';
-// Leave Management
-import {
-    displayLeaveTypesAdminSection,
-    displayLeaveRequestsSection,
-    displayLeaveBalancesSection
- } from './leave/leave.js';
- // Compensation Management
- import {
-    displayCompensationPlansSection,
-    displaySalaryAdjustmentsSection,
-    displayIncentivesSection
- } from './compensation/compensation.js';
-// Analytics functions
-import {
-    displayAnalyticsDashboardsSection,
-    displayAnalyticsReportsSection,
-    displayAnalyticsMetricsSection
- } from './analytics/analytics.js';
-// HMO admin/employee UI
-// New HMO submodule pages
-import { renderHMOProviders, showAddProviderModal } from './admin/hmo/providers.js';
-import { renderHMOPlans, showAddPlanModal } from './admin/hmo/plans.js';
-import { renderHMOEnrollments, showAddEnrollmentModal } from './admin/hmo/enrollments.js';
-import { renderHMOClaims, showAddClaimModal } from './admin/hmo/claims.js';
-import { renderHMODashboard } from './admin/hmo/dashboard.js';
-import { renderEmployeeHMO } from './employee/hmo.js';
-const displayHMOProvidersSection = () => renderHMOProviders('main-content-area');
-const displayHMOPlansSection = () => renderHMOPlans('main-content-area');
-const displayHMOEnrollmentsSection = () => renderHMOEnrollments('main-content-area');
-const displayHMOClaimsApprovalSection = () => renderHMOClaims('main-content-area');
-const displayHMODashboardSection = () => renderHMODashboard('main-content-area');
-const displayEmployeeHMOSection = () => renderEmployeeHMO('main-content-area');
-const displayEmployeeHMOClaimsSection = () => renderHMOClaims('main-content-area');
-const displaySubmitHMOClaimSection = () => showAddClaimModal('main-content-area');
+// Import base configuration
+import { API_BASE_URL, BASE_URL } from './config.js';
 
-// Expose select display functions to the global window so inline/non-module scripts
-// (legacy fallbacks in PHP templates) can call them via window['display...'].
-// This preserves module encapsulation while restoring backward compatibility.
-window.displayHMOProvidersSection = displayHMOProvidersSection;
-window.displayHMOPlansSection = displayHMOPlansSection;
-window.displayHMOEnrollmentsSection = displayHMOEnrollmentsSection;
-window.displayHMOClaimsApprovalSection = displayHMOClaimsApprovalSection;
-window.displayHMODashboardSection = displayHMODashboardSection;
-window.displayEmployeeHMOSection = displayEmployeeHMOSection;
-window.displayEmployeeHMOClaimsSection = displayEmployeeHMOClaimsSection;
-window.displaySubmitHMOClaimSection = displaySubmitHMOClaimSection;
- // Admin
+// Import the module loader from utils
+import { loadModule } from './utils.js';
+
+// Initialize all section display functions
+function initializeSectionDisplayFunctions() {
+    const mainContentArea = document.getElementById('main-content-area');
+    const sectionDisplayFunctions = {
+        displayDashboardSection: async () => {
+            await loadModule('dashboard/dashboard.js', mainContentArea, 'Dashboard');
+        },
+        displayEmployeeSection: async () => {
+            await loadModule('core_hr/employees.js', mainContentArea, 'Employee Management');
+        },
+        displayDocumentsSection: async () => {
+            await loadModule('core_hr/documents.js', mainContentArea, 'Document Management');
+        },
+        displayOrgStructureSection: async () => {
+            await loadModule('core_hr/org_structure.js', mainContentArea, 'Organization Structure');
+        },
+        displayAttendanceSection: async () => {
+            await loadModule('time_attendance/attendance.js', mainContentArea, 'Attendance Records');
+        },
+        displayTimesheetsSection: async () => {
+            await loadModule('time_attendance/timesheets.js', mainContentArea, 'Timesheets');
+        },
+        displaySchedulesSection: async () => {
+            await loadModule('time_attendance/schedules.js', mainContentArea, 'Schedules');
+        },
+        displayShiftsSection: async () => {
+            await loadModule('time_attendance/shifts.js', mainContentArea, 'Shifts');
+        },
+        displayPayrollRunsSection: async () => {
+            await loadModule('payroll/payroll_runs.js', mainContentArea, 'Payroll Runs');
+        },
+        displaySalariesSection: async () => {
+            await loadModule('payroll/salaries.js', mainContentArea, 'Salaries');
+        },
+        displayBonusesSection: async () => {
+            await loadModule('payroll/bonuses.js', mainContentArea, 'Bonuses');
+        },
+        displayDeductionsSection: async () => {
+            await loadModule('payroll/deductions.js', mainContentArea, 'Deductions');
+        },
+        displayPayslipsSection: async () => {
+            await loadModule('payroll/payslips.js', mainContentArea, 'Payslips');
+        },
+        displaySubmitClaimSection: async () => {
+            await loadModule('claims/claims.js', mainContentArea, 'Submit Claim');
+        },
+        displayMyClaimsSection: async () => {
+            await loadModule('claims/claims.js', mainContentArea, 'My Claims');
+        },
+        displayClaimsApprovalSection: async () => {
+            await loadModule('claims/claims.js', mainContentArea, 'Claims Approval');
+        },
+        displayClaimTypesAdminSection: async () => {
+            await loadModule('claims/claims.js', mainContentArea, 'Claim Types');
+        },
+        displayLeaveRequestsSection: async () => {
+            await loadModule('leave/leave.js', mainContentArea, 'Leave Requests');
+        },
+        displayLeaveBalancesSection: async () => {
+            await loadModule('leave/leave.js', mainContentArea, 'Leave Balances');
+        },
+        displayLeaveTypesAdminSection: async () => {
+            await loadModule('leave/leave.js', mainContentArea, 'Leave Types');
+        },
+        displayCompensationPlansSection: async () => {
+            await loadModule('compensation/compensation.js', mainContentArea, 'Compensation Plans');
+        },
+        displaySalaryAdjustmentsSection: async () => {
+            await loadModule('compensation/compensation.js', mainContentArea, 'Salary Adjustments');
+        },
+        displayIncentivesSection: async () => {
+            await loadModule('compensation/compensation.js', mainContentArea, 'Incentives');
+        },
+        displayAnalyticsDashboardsSection: async () => {
+            await loadModule('analytics/analytics.js', mainContentArea, 'Analytics Dashboards');
+        },
+        displayAnalyticsReportsSection: async () => {
+            await loadModule('analytics/analytics.js', mainContentArea, 'Analytics Reports');
+        },
+        displayAnalyticsMetricsSection: async () => {
+            await loadModule('analytics/analytics.js', mainContentArea, 'Analytics Metrics');
+        },
+        displayHMOProvidersSection: async () => {
+            await loadModule('admin/hmo/providers.js', mainContentArea, 'HMO Providers');
+        },
+        displayHMOPlansSection: async () => {
+            await loadModule('admin/hmo/plans.js', mainContentArea, 'HMO Plans');
+        },
+        displayHMOEnrollmentsSection: async () => {
+            await loadModule('admin/hmo/enrollments.js', mainContentArea, 'HMO Enrollments');
+        },
+        displayHMOClaimsApprovalSection: async () => {
+            await loadModule('admin/hmo/claims.js', mainContentArea, 'HMO Claims');
+        },
+        displayHMODashboardSection: async () => {
+            await loadModule('admin/hmo/dashboard.js', mainContentArea, 'HMO Dashboard');
+        },
+        displayEmployeeHMOSection: async () => {
+            await loadModule('employee/hmo.js', mainContentArea, 'My HMO Benefits');
+        },
+        displayEmployeeHMOClaimsSection: async () => {
+            await loadModule('admin/hmo/claims.js', mainContentArea, 'My HMO Claims');
+        },
+        displaySubmitHMOClaimSection: async () => {
+            await loadModule('employee/hmo.js', mainContentArea, 'Submit HMO Claim');
+        }
+    };
+
+    // Attach all functions to window
+    for (const [funcName, func] of Object.entries(sectionDisplayFunctions)) {
+        window[funcName] = func;
+    }
+}
+
+// Export only what's needed
+export { initializeSectionDisplayFunctions };
+// Admin
 import { displayUserManagementSection } from './admin/user_management.js';
 // User Profile
 import { displayUserProfileSection } from './profile/profile.js';
@@ -88,7 +138,12 @@ import { initializeNotificationSystem, stopNotificationFetching, onNotificationD
 window.currentUser = null;
 
 // --- Wait for the DOM to be fully loaded ---
-document.addEventListener('DOMContentLoaded', () => {
+// Initialize the application
+// Function to initialize application
+export async function initializeApp() {
+    console.log("Initializing HR System JS...");
+
+    const runInit = async () => {
     console.log("DOM fully loaded and parsed. Initializing HR System JS (session-based)...");
     
     // Set initial dashboard content immediately
@@ -946,43 +1001,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
 
-    // Make functions globally available
-    window.displayDashboardSection = displayDashboardSection;
-    window.displayEmployeeSection = displayEmployeeSection;
-    window.displayDocumentsSection = displayDocumentsSection;
-    window.displayOrgStructureSection = displayOrgStructureSection;
-    window.displayAttendanceSection = displayAttendanceSection;
-    window.displayTimesheetsSection = displayTimesheetsSection;
-    window.displaySchedulesSection = displaySchedulesSection;
-    window.displayShiftsSection = displayShiftsSection;
-    window.displayPayrollRunsSection = displayPayrollRunsSection;
-    window.displaySalariesSection = displaySalariesSection;
-    window.displayBonusesSection = displayBonusesSection;
-    window.displayDeductionsSection = displayDeductionsSection;
-    window.displayPayslipsSection = displayPayslipsSection;
-    window.displaySubmitClaimSection = displaySubmitClaimSection;
-    window.displayMyClaimsSection = displayMyClaimsSection;
-    window.displayClaimsApprovalSection = displayClaimsApprovalSection;
-    window.displayClaimTypesAdminSection = displayClaimTypesAdminSection;
-    window.displayLeaveRequestsSection = displayLeaveRequestsSection;
-    window.displayLeaveBalancesSection = displayLeaveBalancesSection;
-    window.displayLeaveTypesAdminSection = displayLeaveTypesAdminSection;
-    window.displayCompensationPlansSection = displayCompensationPlansSection;
-    window.displaySalaryAdjustmentsSection = displaySalaryAdjustmentsSection;
-    window.displayIncentivesSection = displayIncentivesSection;
-    window.displayAnalyticsDashboardsSection = displayAnalyticsDashboardsSection;
-    window.displayAnalyticsReportsSection = displayAnalyticsReportsSection;
-    window.displayAnalyticsMetricsSection = displayAnalyticsMetricsSection;
-    window.displayUserManagementSection = displayUserManagementSection;
-    // HMO display functions
-    window.displayHMOProvidersSection = displayHMOProvidersSection;
-    window.displayHMOEnrollmentsSection = displayHMOEnrollmentsSection;
-    window.displayHMOClaimsApprovalSection = displayHMOClaimsApprovalSection;
-    window.displayEmployeeHMOSection = displayEmployeeHMOSection;
-    window.displayEmployeeHMOClaimsSection = displayEmployeeHMOClaimsSection;
-    window.displaySubmitHMOClaimSection = displaySubmitHMOClaimSection;
+    // Make functions globally available through initializeSectionDisplayFunctions
 
     console.log("HR System JS Initialized (Role-Based Landing).");
     console.log("Functions made globally available:", Object.keys(window).filter(key => key.startsWith('display')));
 
-}); // End DOMContentLoaded
+    }; // end runInit
+
+    // Run the initialization routine
+    await runInit();
+
+} // end initializeApp()

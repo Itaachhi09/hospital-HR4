@@ -58,7 +58,8 @@ try {
         api_require_auth(['System Admin','HR Admin']);
         $d = api_read_json();
     // Map API fields to actual columns: EligibilityRequirements, MonthlyPremium, IsActive
-    $sql = "INSERT INTO hmoplans (ProviderID, PlanName, Coverage, AccreditedHospitals, EligibilityRequirements, MaximumBenefitLimit, MonthlyPremium, IsActive) VALUES (:ProviderID,:PlanName,:Coverage,:AccreditedHospitals,:Eligibility,:MaximumBenefitLimit,:PremiumCost,:IsActive)";
+    // Note: database column is CoverageType (varchar) per schema. Use CoverageType for INSERT/UPDATE.
+    $sql = "INSERT INTO hmoplans (ProviderID, PlanName, CoverageType, AccreditedHospitals, EligibilityRequirements, MaximumBenefitLimit, MonthlyPremium, IsActive) VALUES (:ProviderID,:PlanName,:CoverageType,:AccreditedHospitals,:Eligibility,:MaximumBenefitLimit,:PremiumCost,:IsActive)";
         $stmt = $pdo->prepare($sql);
         $coverage = null;
         if (!empty($d['coverage'])) {
@@ -94,7 +95,7 @@ try {
         $stmt->execute([
             ':ProviderID' => (int)($d['provider_id'] ?? 0),
             ':PlanName' => trim($d['plan_name'] ?? ''),
-            ':Coverage' => $coverage,
+            ':CoverageType' => $coverage,
             ':AccreditedHospitals' => $acch,
             ':Eligibility' => trim($d['eligibility'] ?? 'Individual'),
             ':MaximumBenefitLimit' => $d['maximum_benefit_limit'] ?? null,
@@ -109,7 +110,8 @@ try {
         api_require_auth(['System Admin','HR Admin']);
         $id = isset($_GET['id']) ? (int)$_GET['id'] : 0; if ($id<=0){http_response_code(400);echo json_encode(['error'=>'Missing id']);exit;}
         $d = api_read_json();
-    $sql = "UPDATE hmoplans SET ProviderID=:ProviderID, PlanName=:PlanName, Coverage=:Coverage, AccreditedHospitals=:AccreditedHospitals, EligibilityRequirements=:Eligibility, MaximumBenefitLimit=:MaximumBenefitLimit, MonthlyPremium=:PremiumCost, IsActive=:IsActive WHERE PlanID=:id";
+    // Use CoverageType column name per schema
+    $sql = "UPDATE hmoplans SET ProviderID=:ProviderID, PlanName=:PlanName, CoverageType=:CoverageType, AccreditedHospitals=:AccreditedHospitals, EligibilityRequirements=:Eligibility, MaximumBenefitLimit=:MaximumBenefitLimit, MonthlyPremium=:PremiumCost, IsActive=:IsActive WHERE PlanID=:id";
         $stmt = $pdo->prepare($sql);
         $coverage = null;
         if (!empty($d['coverage'])) {
@@ -142,7 +144,7 @@ try {
         $stmt->execute([
             ':ProviderID' => (int)($d['provider_id'] ?? 0),
             ':PlanName' => trim($d['plan_name'] ?? ''),
-            ':Coverage' => $coverage,
+            ':CoverageType' => $coverage,
             ':AccreditedHospitals' => $acch,
             ':Eligibility' => trim($d['eligibility'] ?? 'Individual'),
             ':MaximumBenefitLimit' => $d['maximum_benefit_limit'] ?? null,
@@ -154,12 +156,47 @@ try {
     }
 
     if ($method === 'DELETE') {
-        // Admin only - soft delete via Status
+        // Admin only
         api_require_auth(['System Admin','HR Admin']);
-        $id = isset($_GET['id']) ? (int)$_GET['id'] : 0; if ($id<=0){http_response_code(400);echo json_encode(['error'=>'Missing id']);exit;}
-    $stmt = $pdo->prepare("UPDATE hmoplans SET IsActive=0 WHERE PlanID=:id");
-        $stmt->execute([':id'=>$id]);
-        echo json_encode(['success'=>true]); exit;
+        $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+        if ($id <= 0) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Missing id']);
+            exit;
+        }
+        try {
+            // Start transaction
+            $pdo->beginTransaction();
+
+            // Delete claims associated with enrollments for this plan (if any)
+            // hmoclaims references EnrollmentID, so delete those first via JOIN
+            $delClaims = $pdo->prepare("DELETE hc FROM hmoclaims hc JOIN employeehmoenrollments ehe ON hc.EnrollmentID = ehe.EnrollmentID WHERE ehe.PlanID = :id");
+            $delClaims->execute([':id' => $id]);
+
+            // Delete enrollments for this plan
+            $delEnroll = $pdo->prepare("DELETE FROM employeehmoenrollments WHERE PlanID = :id");
+            $delEnroll->execute([':id' => $id]);
+
+            // Now delete the plan itself
+            $stmt = $pdo->prepare("DELETE FROM hmoplans WHERE PlanID = :id");
+            $stmt->execute([':id' => $id]);
+
+            // Commit the transaction
+            $pdo->commit();
+
+            echo json_encode([
+                'success' => true,
+                'deleted_claims' => $delClaims->rowCount(),
+                'deleted_enrollments' => $delEnroll->rowCount(),
+            ]);
+
+        } catch (PDOException $e) {
+            $pdo->rollBack();
+            error_log('Delete plan error: ' . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['error' => 'Could not delete plan. It may be referenced by other records.']);
+        }
+        exit;
     }
 
     http_response_code(405); echo json_encode(['error'=>'Method not allowed']);

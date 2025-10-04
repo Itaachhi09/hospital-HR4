@@ -153,50 +153,114 @@ try { global $pdo; $method = $_SERVER['REQUEST_METHOD'];
     }
 
     if ($method === 'DELETE') {
-        $id = isset($_GET['id']) ? (int)$_GET['id'] : 0; if ($id<=0){http_response_code(400);echo json_encode(['error'=>'Missing id']);exit;}
-        // Permission check
-    $pre = $pdo->prepare("SELECT EmployeeID, PlanID FROM employeehmoenrollments WHERE EnrollmentID=:id");
-        $pre->execute([':id'=>$id]); $rec = $pre->fetch(PDO::FETCH_ASSOC);
-        $role = $_SESSION['role_name'] ?? '';
-        if ($role !== 'System Admin' && $role !== 'HR Admin') {
-            $userEmpId = (int)($_SESSION['employee_id'] ?? 0);
-            if (!$rec || (int)$rec['EmployeeID'] !== $userEmpId) { http_response_code(403); echo json_encode(['error'=>'Forbidden']); exit; }
+        $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+        if ($id <= 0) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Missing id']);
+            exit;
         }
-    $stmt = $pdo->prepare("DELETE FROM employeehmoenrollments WHERE EnrollmentID=:id");
-        $stmt->execute([':id'=>$id]);
 
         try {
-            if ($rec) {
-                $message = sprintf('Your HMO enrollment (Plan ID %d, Enrollment #%d) has been removed.', (int)$rec['PlanID'], (int)$id);
-                $notifStmt = $pdo->prepare("INSERT INTO hmo_notifications (EmployeeID, Type, Title, Message) VALUES (:EmployeeID, :Type, :Title, :Message)");
-                $notifStmt->execute([':EmployeeID'=>$rec['EmployeeID'], ':Type'=>'UNENROLL', ':Title'=>'HMO Enrollment Removed', ':Message'=>$message]);
+            // Start transaction
+            $pdo->beginTransaction();
 
-                // Map employee to user and insert global notification if found
-                $userIdForEmployee = null;
-                try {
-                    $mapStmt = $pdo->prepare("SELECT UserID FROM Users WHERE EmployeeID = :emp LIMIT 1");
-                    $mapStmt->execute([':emp' => (int)$rec['EmployeeID']]);
-                    $urow = $mapStmt->fetch(PDO::FETCH_ASSOC);
-                    if ($urow && isset($urow['UserID'])) $userIdForEmployee = (int)$urow['UserID'];
-                } catch (Throwable $me) {
-                    // ignore
-                }
-                if ($userIdForEmployee) {
-                    $globalStmt = $pdo->prepare("INSERT INTO Notifications (UserID, SenderUserID, NotificationType, Message, Link, IsRead) VALUES (:UserID, :SenderUserID, :NotificationType, :Message, :Link, 0)");
-                    $globalStmt->execute([
-                        ':UserID' => $userIdForEmployee,
-                        ':SenderUserID' => $_SESSION['user_id'] ?? $userIdForEmployee,
-                        ':NotificationType' => 'HMO_UNENROLLED',
-                        ':Message' => $message,
-                        ':Link' => '#my-hmo-benefits'
-                    ]);
+            // Get enrollment details first
+            $pre = $pdo->prepare("SELECT e.EmployeeID, e.PlanID, e.Status, emp.FirstName, emp.LastName, p.PlanName 
+                                FROM employeehmoenrollments e 
+                                JOIN employees emp ON e.EmployeeID = emp.EmployeeID 
+                                JOIN hmoplans p ON e.PlanID = p.PlanID 
+                                WHERE e.EnrollmentID = :id");
+            $pre->execute([':id' => $id]);
+            $rec = $pre->fetch(PDO::FETCH_ASSOC);
+
+            if (!$rec) {
+                $pdo->rollBack();
+                http_response_code(404);
+                echo json_encode(['error' => 'Enrollment not found']);
+                exit;
+            }
+
+            // Permission check
+            $role = $_SESSION['role_name'] ?? '';
+            if ($role !== 'System Admin' && $role !== 'HR Admin') {
+                $userEmpId = (int)($_SESSION['employee_id'] ?? 0);
+                if ((int)$rec['EmployeeID'] !== $userEmpId) {
+                    $pdo->rollBack();
+                    http_response_code(403);
+                    echo json_encode(['error' => 'Forbidden']);
+                    exit;
                 }
             }
-        } catch (Throwable $ne) {
-            error_log('HMO unenroll notification error: '.$ne->getMessage());
-        }
 
-        echo json_encode(['success'=>true]); exit;
+            // Check for active claims
+            $claimCheck = $pdo->prepare("SELECT COUNT(*) FROM hmoclaims WHERE EnrollmentID = :id AND Status != 'Denied'");
+            $claimCheck->execute([':id' => $id]);
+            if ($claimCheck->fetchColumn() > 0) {
+                $pdo->rollBack();
+                http_response_code(400);
+                echo json_encode(['error' => 'Cannot delete enrollment: It has active or pending claims']);
+                exit;
+            }
+
+            // If enrollment is active, only allow deletion by admins
+            if ($rec['Status'] === 'Active' && $role !== 'System Admin' && $role !== 'HR Admin') {
+                $pdo->rollBack();
+                http_response_code(400);
+                echo json_encode(['error' => 'Cannot delete active enrollment. Please terminate it first.']);
+                exit;
+            }
+
+            // Delete the enrollment
+            $stmt = $pdo->prepare("DELETE FROM employeehmoenrollments WHERE EnrollmentID = :id");
+            $stmt->execute([':id' => $id]);
+
+            // Create notifications
+            $employeeName = trim($rec['FirstName'] . ' ' . $rec['LastName']);
+            $message = sprintf('HMO enrollment for %s (Plan: %s) has been removed.', 
+                             $employeeName,
+                             $rec['PlanName']);
+
+            $notifStmt = $pdo->prepare("INSERT INTO hmo_notifications (EmployeeID, Type, Title, Message) VALUES (:EmployeeID, :Type, :Title, :Message)");
+            $notifStmt->execute([
+                ':EmployeeID' => $rec['EmployeeID'],
+                ':Type' => 'UNENROLL',
+                ':Title' => 'HMO Enrollment Removed',
+                ':Message' => $message
+            ]);
+
+            // Add global notification
+            $mapStmt = $pdo->prepare("SELECT UserID FROM Users WHERE EmployeeID = :emp LIMIT 1");
+            $mapStmt->execute([':emp' => (int)$rec['EmployeeID']]);
+            $urow = $mapStmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($urow && isset($urow['UserID'])) {
+                $globalStmt = $pdo->prepare("INSERT INTO Notifications (UserID, SenderUserID, NotificationType, Message, Link, IsRead) 
+                    VALUES (:UserID, :SenderUserID, :NotificationType, :Message, :Link, 0)");
+                $globalStmt->execute([
+                    ':UserID' => (int)$urow['UserID'],
+                    ':SenderUserID' => $_SESSION['user_id'] ?? (int)$urow['UserID'],
+                    ':NotificationType' => 'HMO_UNENROLLED',
+                    ':Message' => $message,
+                    ':Link' => '#my-hmo-benefits'
+                ]);
+            }
+
+            // Commit all changes
+            $pdo->commit();
+            echo json_encode(['success' => true]);
+            
+        } catch (PDOException $e) {
+            $pdo->rollBack();
+            error_log('Delete enrollment error: ' . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['error' => 'Could not delete enrollment']);
+        } catch (Throwable $e) {
+            $pdo->rollBack();
+            error_log('HMO enrollment error: ' . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['error' => 'Server error']);
+        }
+        exit;
     }
 
     http_response_code(405); echo json_encode(['error'=>'Method not allowed']);

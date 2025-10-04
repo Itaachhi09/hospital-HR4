@@ -93,7 +93,56 @@
         .then(response => response.json())
         .then(data => {
           if (data.two_factor_required) {
-            Swal.fire('2FA Required', data.message, 'info');
+            // Show 2FA code input prompt
+            Swal.fire({
+              title: 'Two-Factor Authentication',
+              text: data.message,
+              input: 'text',
+              inputLabel: 'Enter the 6-digit code sent to your email',
+              inputAttributes: {
+                maxlength: 6,
+                autocapitalize: 'off',
+                autocorrect: 'off'
+              },
+              showCancelButton: true,
+              confirmButtonText: 'Verify',
+              showLoaderOnConfirm: true,
+              preConfirm: (code) => {
+                if (!code || code.length !== 6 || !/^\d{6}$/.test(code)) {
+                  Swal.showValidationMessage('Please enter a valid 6-digit code');
+                  return false;
+                }
+                // Verify 2FA code via API
+                return fetch('php/api/verify_2fa.php', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({ user_id: data.user_id_temp, code: code })
+                })
+                .then(response => {
+                  if (!response.ok) {
+                    throw new Error('Invalid or expired code');
+                  }
+                  return response.json();
+                })
+                .catch(error => {
+                  Swal.showValidationMessage(`Verification failed: ${error.message}`);
+                });
+              },
+              allowOutsideClick: () => !Swal.isLoading()
+            }).then((result) => {
+              if (result.isConfirmed && result.value) {
+                Swal.fire('Success', 'Login successful!', 'success').then(() => {
+                  // Redirect after successful 2FA verification
+                  if (result.value.redirect_url) {
+                    window.location.href = result.value.redirect_url;
+                  } else {
+                    window.location.href = 'index.php';
+                  }
+                });
+              }
+            });
           } else if (data.message === 'Login successful.') {
             Swal.fire('Success', 'Login successful!', 'success').then(() => {
               if (data.redirect_url) {

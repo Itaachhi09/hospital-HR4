@@ -2,8 +2,137 @@
  * Shared Utilities for HR Management System
  */
 
-// Base URL for API calls
-export const API_BASE_URL = 'php/api/'; // Ensure this path is correct relative to index.php
+// Import base URLs from config
+import { API_BASE_URL, JS_BASE_URL } from './config.js';
+
+// Re-export URLs for other modules
+export { API_BASE_URL, JS_BASE_URL };
+
+// Cache for loaded modules
+// Each entry will store an object: { module, initializer }
+const moduleCache = new Map();
+
+/**
+ * Loads and initializes a module dynamically
+ * @param {string} modulePath - The relative path to the module from js/
+ * @param {HTMLElement} container - The container element to render the module in
+ * @param {string} title - The title of the section
+ * @returns {Promise<Object>} - The loaded module instance
+ */
+export async function loadModule(modulePath, container, title = '') {
+    try {
+        // First check if we already have this module in cache
+        if (moduleCache.has(modulePath)) {
+            const cached = moduleCache.get(modulePath);
+            const initializer = cached.initializer;
+            if (typeof initializer === 'function') {
+                await initializer(container);
+                return cached.module;
+            }
+            // If cache exists but initializer missing, continue to re-import
+        }
+
+        // If not in cache, load it
+        const fullPath = `${JS_BASE_URL}${modulePath}`;
+        console.log(`Loading module from: ${fullPath}`);
+        
+
+        const module = await import(fullPath);
+
+
+        // Resolve an initializer function from the module exports.
+        // Support a broad set of common patterns so we don't need to update many module files:
+        // - initialize, init, start
+        // - default
+        // - display*, render*, show*, load*, setup*
+        let initializer = null;
+        const exportKeys = Object.keys(module || {});
+        const tryNames = ['initialize', 'init', 'start'];
+        for (const name of tryNames) {
+            if (module && typeof module[name] === 'function') { initializer = module[name]; break; }
+        }
+        if (!initializer && module && typeof module.default === 'function') {
+            initializer = module.default;
+        }
+        if (!initializer && module) {
+            // Try patterns
+            const patterns = [/^display/i, /^render/i, /^show/i, /^load/i, /^setup/i, /^start/i];
+            for (const key of exportKeys) {
+                for (const pat of patterns) {
+                    if (pat.test(key) && typeof module[key] === 'function') {
+                        initializer = module[key];
+                        break;
+                    }
+                }
+                if (initializer) break;
+            }
+        }
+
+        if (!initializer) {
+            throw new Error(`Module ${modulePath} does not export an initializer (tried: initialize/init/start/default/display*/render*/show*/load*/setup*). Exports: ${JSON.stringify(exportKeys)}`);
+        }
+
+        // Cache the resolved module and its initializer for future use
+        moduleCache.set(modulePath, { module, initializer });
+
+        // Update page title if provided
+        const pageTitleElement = document.getElementById('page-title');
+        if (pageTitleElement && title) {
+            pageTitleElement.textContent = title;
+        }
+
+        // Initialize the module with the container.
+        // Many existing modules expect a container ID string (e.g., 'main-content-area'),
+        // while others accept an HTMLElement. Try both: first call with container.id
+        // when the initializer declares parameters; if that fails, retry with the HTMLElement.
+        try {
+            if (typeof initializer === 'function') {
+                // If initializer expects arguments, prefer sending the container id (string)
+                if (initializer.length >= 1) {
+                    // Call with id first
+                    try {
+                        await initializer(container.id || 'main-content-area');
+                    } catch (errId) {
+                        // Retry with element
+                        await initializer(container);
+                    }
+                } else {
+                    // No args expected
+                    await initializer();
+                }
+            }
+            return module;
+        } catch (err) {
+            console.error(`Initializer for ${modulePath} threw an error:`, err);
+            throw err;
+        }
+    } catch (error) {
+        console.error(`Failed to load module ${modulePath}:`, error);
+        if (container) {
+            container.innerHTML = `
+                <div class="bg-white rounded-lg shadow">
+                    <div class="p-6 border-b">
+                        <h3 class="text-lg font-semibold text-gray-800">${title || 'Error'}</h3>
+                    </div>
+                    <div class="p-6">
+                        <div class="text-center py-8">
+                            <div class="text-6xl text-gray-300 mb-4">⚠️</div>
+                            <h4 class="text-xl font-semibold text-gray-700 mb-2">Module Load Error</h4>
+                            <p class="text-gray-600 mb-4">Failed to load the requested module. Please try refreshing the page.</p>
+                            <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                                <p class="text-red-800 text-sm">
+                                    <strong>Technical Details:</strong><br>
+                                    ${error.message}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        throw error;
+    }
+}
 
 /**
  * Fetches employees and populates a given select element.

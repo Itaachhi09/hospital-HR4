@@ -153,7 +153,32 @@ if (!isset($_SESSION['user_id'])) {
     </style>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="js/main.js" type="module" defer></script>
+  <!-- Module Loading -->
+<script type="module">
+    import { initializeApp, initializeSectionDisplayFunctions } from '/hospital-HR4/js/main.js';
+    
+    // Initialize the application after modules are loaded
+  document.addEventListener('DOMContentLoaded', async () => {
+    try {
+      console.log("Initializing application...");
+      // Ensure section display functions are registered before app initialization
+      await initializeSectionDisplayFunctions();
+      await initializeApp();
+      console.log("Application initialized successfully");
+        } catch (error) {
+            console.error("Failed to initialize application:", error);
+            document.getElementById('main-content-area').innerHTML = 
+                `<div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+                    <p class="font-bold">Error Loading Application</p>
+                    <p>Please try refreshing the page. If the problem persists, contact support.</p>
+                    <div class="mt-2 text-sm">
+                        <strong>Error Details:</strong><br>
+                        ${error.message}
+                    </div>
+                </div>`;
+        }
+    });
+</script>
 </head>
 
 
@@ -655,9 +680,9 @@ if (!isset($_SESSION['user_id'])) {
 
   <!-- JavaScript Modules -->
   <!-- main.js is already included in the head with defer; remove duplicate to avoid double-loading -->
-  <!-- Original functionality restoration script -->
-  <script>
-    console.log("Original functionality restoration script loaded");
+  <!-- Modern module initialization -->
+  <script type="module">
+    function initializeApplication(currentUser) {
     
     // Wait for the main.js to load and then set up proper functionality
     document.addEventListener('DOMContentLoaded', function() {
@@ -683,43 +708,68 @@ if (!isset($_SESSION['user_id'])) {
     });
     
     function setupOriginalFunctionality() {
-      console.log("Setting up original functionality...");
+      console.log("Setting up module functionality...");
       
-      // Dashboard click handler
-      const dashboardLink = document.getElementById('dashboard-link');
-      if (dashboardLink) {
-        console.log("Setting up dashboard click handler");
-        dashboardLink.addEventListener('click', function(e) {
-          e.preventDefault();
-          console.log("Dashboard clicked - calling original function");
-          
-          // Try to call the original dashboard function
-          if (typeof window.displayDashboardSection === 'function') {
-            window.displayDashboardSection();
-          } else {
-            // Fallback to direct call
-            loadDashboardContent();
-          }
+      // Setup module click handlers
+      const setupModuleClickHandler = (elementId, displayFunction) => {
+        const element = document.getElementById(elementId);
+        if (element && typeof displayFunction === 'function') {
+          element.addEventListener('click', (e) => {
+            e.preventDefault();
+            displayFunction();
+          });
+        }
+      };
 
-            // Keep the fixed sidebar width in sync with Alpine's class toggles (w-64 / w-16)
-            try {
-              const sidebarEl = document.getElementById('sidebar');
-              if (sidebarEl) {
-                const mo = new MutationObserver(() => {
-                  const classList = sidebarEl.className;
-                  if (classList.includes('w-64')) {
-                    sidebarEl.style.width = '16rem';
-                  } else if (classList.includes('w-16')) {
-                    sidebarEl.style.width = '4rem';
-                  }
-                });
-                mo.observe(sidebarEl, { attributes: true, attributeFilter: ['class'] });
-                // Initialize
-                if (sidebarEl.className.includes('w-64')) sidebarEl.style.width = '16rem'; else sidebarEl.style.width = '4rem';
-              }
-            } catch (err) { console.warn('Sidebar width observer failed', err); }
-        });
-      }
+      // Set up all module handlers
+      setupModuleClickHandler('dashboard-link', window.displayDashboardSection);
+      setupModuleClickHandler('employees-link', window.displayEmployeeSection);
+      setupModuleClickHandler('documents-link', window.displayDocumentsSection);
+      setupModuleClickHandler('org-structure-link', window.displayOrgStructureSection);
+      setupModuleClickHandler('attendance-link', window.displayAttendanceSection);
+      setupModuleClickHandler('timesheets-link', window.displayTimesheetsSection);
+      setupModuleClickHandler('schedules-link', window.displaySchedulesSection);
+      setupModuleClickHandler('shifts-link', window.displayShiftsSection);
+      setupModuleClickHandler('payroll-runs-link', window.displayPayrollRunsSection);
+      setupModuleClickHandler('salaries-link', window.displaySalariesSection);
+      setupModuleClickHandler('bonuses-link', window.displayBonusesSection);
+      setupModuleClickHandler('deductions-link', window.displayDeductionsSection);
+      setupModuleClickHandler('payslips-link', window.displayPayslipsSection);
+      setupModuleClickHandler('submit-claim-link', window.displaySubmitClaimSection);
+      setupModuleClickHandler('my-claims-link', window.displayMyClaimsSection);
+      setupModuleClickHandler('claims-approval-link', window.displayClaimsApprovalSection);
+      setupModuleClickHandler('claim-types-admin-link', window.displayClaimTypesAdminSection);
+      setupModuleClickHandler('leave-requests-link', window.displayLeaveRequestsSection);
+      setupModuleClickHandler('leave-balances-link', window.displayLeaveBalancesSection);
+      setupModuleClickHandler('leave-types-link', window.displayLeaveTypesAdminSection);
+      setupModuleClickHandler('comp-plans-link', window.displayCompensationPlansSection);
+      setupModuleClickHandler('salary-adjust-link', window.displaySalaryAdjustmentsSection);
+      setupModuleClickHandler('incentives-link', window.displayIncentivesSection);
+      setupModuleClickHandler('analytics-dashboards-link', window.displayAnalyticsDashboardsSection);
+      setupModuleClickHandler('analytics-reports-link', window.displayAnalyticsReportsSection);
+      setupModuleClickHandler('analytics-metrics-link', window.displayAnalyticsMetricsSection);
+      setupModuleClickHandler('user-management-link', window.displayUserManagementSection);
+      setupModuleClickHandler('hmo-providers-link', window.displayHMOProvidersSection);
+      setupModuleClickHandler('hmo-plans-link', window.displayHMOPlansSection);
+      setupModuleClickHandler('hmo-enrollments-link', window.displayHMOEnrollmentsSection);
+      setupModuleClickHandler('hmo-claims-admin-link', window.displayHMOClaimsApprovalSection);
+      setupModuleClickHandler('hmo-dashboard-link', window.displayHMODashboardSection);
+      setupModuleClickHandler('my-hmo-benefits-link', window.displayEmployeeHMOSection);
+      setupModuleClickHandler('my-hmo-claims-link', window.displayEmployeeHMOClaimsSection);
+      setupModuleClickHandler('submit-hmo-claim-link', window.displaySubmitHMOClaimSection);
+
+      // Keep the fixed sidebar width in sync with Alpine's class toggles
+      try {
+        const sidebarEl = document.getElementById('sidebar');
+        if (sidebarEl) {
+          const mo = new MutationObserver(() => {
+            const classList = sidebarEl.className;
+            sidebarEl.style.width = classList.includes('w-64') ? '16rem' : '4rem';
+          });
+          mo.observe(sidebarEl, { attributes: true, attributeFilter: ['class'] });
+          sidebarEl.style.width = sidebarEl.className.includes('w-64') ? '16rem' : '4rem';
+        }
+      } catch (err) { console.warn('Sidebar width observer failed', err); }
       
       // Employees click handler
       const employeesLink = document.getElementById('employees-link');
@@ -792,120 +842,17 @@ if (!isset($_SESSION['user_id'])) {
       });
     }
     
-    // Fallback functions for when original modules aren't available
-    function loadDashboardContent() {
-      const mainContent = document.getElementById('main-content-area');
-      const pageTitle = document.getElementById('page-title');
-      
-      if (pageTitle) pageTitle.textContent = 'Dashboard';
-      if (mainContent) {
-        mainContent.innerHTML = `
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-            <div class="bg-[#4727ff] rounded-lg shadow p-6 border border-[#4727ff]">
-              <h3 class="text-lg font-semibold text-white">Total Employees</h3>
-              <p class="text-3xl font-bold text-white">124</p>
-            </div>
-            <div class="bg-[#4727ff] rounded-lg shadow p-6 border border-[#4727ff]">
-              <h3 class="text-lg font-semibold text-white">Active Leave Requests</h3>
-              <p class="text-3xl font-bold text-white">8</p>
-            </div>
-            <div class="bg-[#4727ff] rounded-lg shadow p-6 border border-[#4727ff]">
-              <h3 class="text-lg font-semibold text-white">Pending Approvals</h3>
-              <p class="text-3xl font-bold text-white">3</p>
-            </div>
-            <div class="bg-[#4727ff] rounded-lg shadow p-6 border border-[#4727ff]">
-              <h3 class="text-lg font-semibold text-white">This Month's Hires</h3>
-              <p class="text-3xl font-bold text-white">5</p>
-            </div>
-          </div>
-          <div class="bg-white rounded-lg shadow p-6">
-            <h3 class="text-lg font-semibold text-gray-800 mb-4">Recent Activity</h3>
-            <p class="text-gray-600">Dashboard loaded successfully with original functionality.</p>
-          </div>
-        `;
-      }
-    }
-    
-    function loadEmployeesContent() {
-      const mainContent = document.getElementById('main-content-area');
-      const pageTitle = document.getElementById('page-title');
-      
-      if (pageTitle) pageTitle.textContent = 'Employees';
-      if (mainContent) {
-        mainContent.innerHTML = `
-          <div class="bg-white rounded-lg shadow">
-            <div class="p-6 border-b">
-              <div class="flex justify-between items-center">
-                <h3 class="text-lg font-semibold text-gray-800">Employee Management</h3>
-                <button class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-                  Add New Employee
-                </button>
-              </div>
-            </div>
-            <div class="p-6">
-              <div class="overflow-x-auto">
-                <table class="min-w-full table-auto">
-                  <thead class="bg-gray-50">
-                    <tr>
-                      <th class="px-4 py-2 text-left">ID</th>
-                      <th class="px-4 py-2 text-left">Name</th>
-                      <th class="px-4 py-2 text-left">Department</th>
-                      <th class="px-4 py-2 text-left">Position</th>
-                      <th class="px-4 py-2 text-left">Status</th>
-                      <th class="px-4 py-2 text-left">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr class="border-b">
-                      <td class="px-4 py-2">001</td>
-                      <td class="px-4 py-2">John Doe</td>
-                      <td class="px-4 py-2">IT</td>
-                      <td class="px-4 py-2">Developer</td>
-                      <td class="px-4 py-2"><span class="bg-green-100 text-green-800 px-2 py-1 rounded text-sm">Active</span></td>
-                      <td class="px-4 py-2">
-                        <button class="text-blue-600 hover:text-blue-800 mr-2">View</button>
-                        <button class="text-green-600 hover:text-green-800 mr-2">Edit</button>
-                        <button class="text-red-600 hover:text-red-800">Deactivate</button>
-                      </td>
-                    </tr>
-                    <tr class="border-b">
-                      <td class="px-4 py-2">002</td>
-                      <td class="px-4 py-2">Jane Smith</td>
-                      <td class="px-4 py-2">HR</td>
-                      <td class="px-4 py-2">Manager</td>
-                      <td class="px-4 py-2"><span class="bg-green-100 text-green-800 px-2 py-1 rounded text-sm">Active</span></td>
-                      <td class="px-4 py-2">
-                        <button class="text-blue-600 hover:text-blue-800 mr-2">View</button>
-                        <button class="text-green-600 hover:text-green-800 mr-2">Edit</button>
-                        <button class="text-red-600 hover:text-red-800">Deactivate</button>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-              <p class="mt-4 text-gray-600">Employee module loaded with original functionality.</p>
-            </div>
-          </div>
-        `;
-      }
-    }
-    
-    function loadModuleContent(linkId, functionName) {
-      const mainContent = document.getElementById('main-content-area');
-      const pageTitle = document.getElementById('page-title');
-      const moduleName = linkId.replace('-link', '').replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-      
-      if (pageTitle) pageTitle.textContent = moduleName;
+    // Handle errors gracefully if a module fails to load
+    function showModuleError(mainContent, moduleName, error) {
       if (mainContent) {
         mainContent.innerHTML = `
           <div class="bg-white rounded-lg shadow p-6">
             <h3 class="text-xl font-bold text-gray-800 mb-4">${moduleName}</h3>
-            <p class="text-gray-600 mb-4">Loading ${moduleName} functionality...</p>
-            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <p class="text-blue-800 text-sm">
-                <strong>Status:</strong> Module loaded successfully<br>
-                <strong>Function:</strong> ${functionName}<br>
-                <strong>UI:</strong> New design integrated with original functionality
+            <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+              <p class="text-red-800 text-sm">
+                <strong>Error:</strong> Failed to load module.<br>
+                <strong>Details:</strong> ${error?.message || 'Unknown error'}<br>
+                Please refresh the page or contact support if the issue persists.
               </p>
             </div>
           </div>

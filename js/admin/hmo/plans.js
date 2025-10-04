@@ -81,14 +81,52 @@ function populatePlansTbody(plans){
         <td class="p-3">${p.PremiumCost||''}</td>
         <td class="p-3">${p.Status||''}</td>
         <td class="p-3">
-            <button class="hmo-btn hmo-btn-secondary" data-id="${p.PlanID}">View</button>
-            <button class="hmo-btn hmo-btn-secondary" data-id="${p.PlanID}">Edit</button>
-            <button class="hmo-btn hmo-btn-danger" data-id="${p.PlanID}">Delete</button>
+            <button class="hmo-btn hmo-btn-secondary view-plan" data-id="${p.PlanID}">View</button>
+            <button class="hmo-btn hmo-btn-secondary edit-plan" data-id="${p.PlanID}">Edit</button>
+            <button class="hmo-btn hmo-btn-danger delete-plan" data-id="${p.PlanID}">Delete</button>
         </td>
     </tr>`).join('');
     tbody.querySelectorAll('.view-plan').forEach(b=>b.addEventListener('click', ev=>{ const id = ev.target.dataset.id; if (!id) return; showPlanDetailsModal(id); }));
     tbody.querySelectorAll('.edit-plan').forEach(b=>b.addEventListener('click', ev=>{ const id = ev.target.dataset.id; if (!id) return; showEditPlanModal(id); }));
-    tbody.querySelectorAll('.delete-plan').forEach(b=>b.addEventListener('click', async ev=>{ const id = ev.target.dataset.id; if (!confirm('Delete plan?')) return; const r = await fetch(`${API_BASE_URL}hmo_plans.php?id=${id}`, { method:'DELETE', credentials:'include' }); const j = await r.json(); if (j.success) renderHMOPlans(); else alert(j.error||'Failed'); }));
+    tbody.querySelectorAll('.delete-plan').forEach(b=>b.addEventListener('click', async ev=>{ 
+        const id = ev.target.dataset.id;
+        const plan = window._hmoPlansCache.find(p => Number(p.PlanID) === Number(id));
+        if (!plan) {
+            alert('Plan not found');
+            return;
+        }
+        if (!confirm(`Are you sure you want to delete the plan "${plan.PlanName}"? This action cannot be undone.`)) {
+            return;
+        }
+        try {
+            const r = await fetch(`${API_BASE_URL}hmo_plans.php?id=${id}`, { 
+                method: 'DELETE', 
+                credentials: 'include' 
+            }); 
+            const j = await r.json(); 
+            if (j.success) {
+                // Force a complete refresh
+                try {
+                    const res = await fetch(`${API_BASE_URL}hmo_plans.php`, { 
+                        credentials: 'include',
+                        cache: 'no-cache' // Prevent browser caching
+                    });
+                    const data = await res.json();
+                    window._hmoPlansCache = data.plans || [];
+                    await renderHMOPlans(containerId);
+                    console.log('Plan deleted and table refreshed');
+                } catch(err) {
+                    console.error('Error refreshing plans:', err);
+                    alert('Plan was deleted but the table refresh failed. Please refresh the page manually.');
+                }
+            } else {
+                alert(j.error || 'Failed to delete plan. It may have enrollments or claims.');
+            }
+        } catch (error) {
+            console.error('Error deleting plan:', error);
+            alert('Failed to delete plan. Please check your connection and try again.');
+        }
+    }));
 }
 
 export async function showAddPlanModal(containerId='main-content-area'){

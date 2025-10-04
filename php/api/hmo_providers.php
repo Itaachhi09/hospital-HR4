@@ -69,13 +69,39 @@ try {
     }
 
     if ($method === 'DELETE') {
-        // Only admins can delete (soft-delete by status)
+        // Only admins can delete
         api_require_auth(['System Admin','HR Admin']);
         $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
         if ($id <= 0) { http_response_code(400); echo json_encode(['error' => 'Missing id']); exit; }
-    $stmt = $pdo->prepare("UPDATE hmoproviders SET IsActive=0 WHERE ProviderID=:id");
-        $stmt->execute([':id' => $id]);
-        echo json_encode(['success' => true]);
+        
+        try {
+            // Start transaction
+            $pdo->beginTransaction();
+            
+            // Check if provider is referenced in other tables
+            $check = $pdo->prepare("SELECT COUNT(*) FROM hmoplans WHERE ProviderID = :id");
+            $check->execute([':id' => $id]);
+            if ($check->fetchColumn() > 0) {
+                $pdo->rollBack();
+                http_response_code(400);
+                echo json_encode(['error' => 'Cannot delete provider: It has associated plans']);
+                exit;
+            }
+            
+            // If no references exist, perform the actual delete
+            $stmt = $pdo->prepare("DELETE FROM hmoproviders WHERE ProviderID = :id");
+            $stmt->execute([':id' => $id]);
+            
+            // Commit the transaction
+            $pdo->commit();
+            echo json_encode(['success' => true]);
+            
+        } catch (PDOException $e) {
+            $pdo->rollBack();
+            error_log('Delete provider error: ' . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['error' => 'Could not delete provider. It may be referenced by other records.']);
+        }
         exit;
     }
 

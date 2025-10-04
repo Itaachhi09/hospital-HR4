@@ -164,12 +164,64 @@ try { global $pdo; $method = $_SERVER['REQUEST_METHOD'];
     }
 
     if ($method === 'DELETE') {
-        $id = isset($_GET['id']) ? (int)$_GET['id'] : 0; if ($id<=0){http_response_code(400);echo json_encode(['error'=>'Missing id']);exit;}
+        $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+        if ($id <= 0) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Missing id']);
+            exit;
+        }
+
         // Only admins can delete
         $role = $_SESSION['role_name'] ?? '';
-        if ($role !== 'System Admin' && $role !== 'HR Admin') { http_response_code(403); echo json_encode(['error'=>'Forbidden']); exit; }
-    $stmt = $pdo->prepare("DELETE FROM hmoclaims WHERE ClaimID=:id");
-        $stmt->execute([':id'=>$id]); echo json_encode(['success'=>true]); exit;
+        if ($role !== 'System Admin' && $role !== 'HR Admin') {
+            http_response_code(403);
+            echo json_encode(['error' => 'Forbidden']);
+            exit;
+        }
+
+        try {
+            // Start transaction
+            $pdo->beginTransaction();
+            
+            // Check if claim exists and get its status
+            $check = $pdo->prepare("SELECT Status, ApprovedDate FROM hmoclaims WHERE ClaimID = :id");
+            $check->execute([':id' => $id]);
+            $claim = $check->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$claim) {
+                $pdo->rollBack();
+                http_response_code(404);
+                echo json_encode(['error' => 'Claim not found']);
+                exit;
+            }
+            
+            // Don't allow deletion of approved claims
+            if ($claim['Status'] === 'Approved' && !empty($claim['ApprovedDate'])) {
+                $pdo->rollBack();
+                http_response_code(400);
+                echo json_encode(['error' => 'Cannot delete an approved claim']);
+                exit;
+            }
+
+            // Delete any attachments first
+            $stmt = $pdo->prepare("UPDATE hmoclaims SET Attachments = NULL WHERE ClaimID = :id");
+            $stmt->execute([':id' => $id]);
+            
+            // Then delete the claim
+            $stmt = $pdo->prepare("DELETE FROM hmoclaims WHERE ClaimID = :id");
+            $stmt->execute([':id' => $id]);
+            
+            // Commit the transaction
+            $pdo->commit();
+            echo json_encode(['success' => true]);
+            
+        } catch (PDOException $e) {
+            $pdo->rollBack();
+            error_log('Delete claim error: ' . $e->getMessage());
+            http_response_code(500);
+            echo json_encode(['error' => 'Could not delete claim']);
+        }
+        exit;
     }
 
     http_response_code(405); echo json_encode(['error'=>'Method not allowed']);

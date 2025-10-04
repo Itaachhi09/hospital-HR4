@@ -1,0 +1,8 @@
+AddType application/javascript .js
+AddType application/json .json
+
+<FilesMatch "\.(js|json)$">
+    Header set Access-Control-Allow-Origin "*"
+    Header set Access-Control-Allow-Methods "GET, OPTIONS"
+    Header set Access-Control-Allow-Headers "Content-Type"
+</FilesMatch>

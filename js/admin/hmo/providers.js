@@ -85,11 +85,45 @@ function populateProvidersTbody(providers, containerId='main-content-area'){
     tbody.querySelectorAll('.edit-provider').forEach(b=>b.addEventListener('click', ev=>{ const id = ev.target.dataset.id; if (!id) return; showEditProviderModal(id, containerId); }));
     tbody.querySelectorAll('.delete-provider').forEach(async b=>{
         b.addEventListener('click', async ev=>{
-            const id = ev.target.dataset.id; if (!confirm('Delete provider?')) return;
-            try{
-                const r = await fetch(`${API_BASE_URL}hmo_providers.php?id=${id}`, { method:'DELETE', credentials:'include' });
-                const j = await r.json(); if (j.success) renderHMOProviders(containerId); else alert(j.error||'Failed');
-            }catch(err){console.error(err); alert('Delete failed');}
+            const id = ev.target.dataset.id;
+            console.log('Deleting provider with ID:', id);
+            // Convert ID to number since it comes from dataset as string
+            const provider = window._hmoProvidersCache.find(p => p.ProviderID === Number(id));
+            if (!provider) {
+                alert('Provider not found');
+                return;
+            }
+            if (!confirm(`Are you sure you want to delete the provider "${provider.ProviderName}"? This action cannot be undone.`)) {
+                return;
+            }
+            try {
+                const r = await fetch(`${API_BASE_URL}hmo_providers.php?id=${id}`, { 
+                    method: 'DELETE', 
+                    credentials: 'include' 
+                });
+                const j = await r.json();
+                if (j.success) {
+                    // Force a complete refresh
+                    try {
+                        const res = await fetch(`${API_BASE_URL}hmo_providers.php`, { 
+                            credentials: 'include',
+                            cache: 'no-cache' // Prevent browser caching
+                        });
+                        const data = await res.json();
+                        window._hmoProvidersCache = data.providers || [];
+                        await renderHMOProviders(containerId);
+                        console.log('Provider deleted and table refreshed');
+                    } catch(err) {
+                        console.error('Error refreshing providers:', err);
+                        alert('Provider was deleted but the table refresh failed. Please refresh the page manually.');
+                    }
+                } else {
+                    alert(j.error || 'Failed to delete provider. The provider may be in use by other records.');
+                }
+            } catch(err) {
+                console.error('Error deleting provider:', err);
+                alert('Failed to delete provider. Please check your connection and try again.');
+            }
         });
     });
     // empty-add-provider button wiring (if present)

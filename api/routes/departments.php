@@ -36,6 +36,7 @@ class DepartmentsController {
                 }
                 break;
             case 'POST':
+                if ($id === 'reorder') { $this->reorderDepartments(); break; }
                 $this->createDepartment();
                 break;
             case 'PUT':
@@ -55,6 +56,41 @@ class DepartmentsController {
                 break;
             default:
                 Response::methodNotAllowed();
+        }
+    }
+
+    /**
+     * Reorder departments (drag-drop): update ParentDepartmentID for moved nodes
+     * Body: { moves: [{ department_id, new_parent_id }] }
+     */
+    private function reorderDepartments() {
+        if (!$this->authMiddleware->hasAnyRole(['System Admin','HR Manager'])) {
+            Response::forbidden('Insufficient permissions');
+        }
+        $request = new Request();
+        $data = $request->getData();
+        $moves = $data['moves'] ?? [];
+        if (!is_array($moves) || empty($moves)) {
+            Response::validationError(['moves' => 'Moves array is required']);
+        }
+        try{
+            $this->pdo->beginTransaction();
+            $stmt = $this->pdo->prepare("UPDATE OrganizationalStructure SET ParentDepartmentID = :pid WHERE DepartmentID = :did");
+            foreach ($moves as $m){
+                $did = (int)($m['department_id'] ?? 0);
+                $pid = ($m['new_parent_id'] === null || $m['new_parent_id'] === '') ? null : (int)$m['new_parent_id'];
+                if ($did <= 0) continue;
+                if ($pid === null) { $stmt->bindValue(':pid', null, PDO::PARAM_NULL); }
+                else { $stmt->bindValue(':pid', $pid, PDO::PARAM_INT); }
+                $stmt->bindValue(':did', $did, PDO::PARAM_INT);
+                $stmt->execute();
+            }
+            $this->pdo->commit();
+            Response::success(null, 'Reordered successfully');
+        } catch (\Throwable $e) {
+            if ($this->pdo->inTransaction()) $this->pdo->rollBack();
+            error_log('Reorder failed: '.$e->getMessage());
+            Response::error('Failed to reorder departments', 500);
         }
     }
 

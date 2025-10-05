@@ -211,6 +211,9 @@ function renderHospitalHierarchy() {
         }
     });
 
+    // Drag-drop to reorder (admins only – assume server enforces RBAC)
+    enableDragDropReorder();
+
     // export handler
     document.getElementById('org-export')?.addEventListener('click', exportOrgToPDF);
 }
@@ -359,7 +362,7 @@ function renderDepartmentTree(departments, level = 0) {
     return `
         <div class="space-y-2">
             ${departments.map(dept => `
-                <div class="department-node bg-white rounded-lg border border-gray-200 p-4 relative" data-dept-id="${dept.DepartmentID}" style="margin-left: ${level * 20}px;">
+                <div class="department-node bg-white rounded-lg border border-gray-200 p-4 relative" draggable="true" data-dept-id="${dept.DepartmentID}" style="margin-left: ${level * 20}px;">
                     <div class="flex justify-between items-center">
                         <div class="flex items-center space-x-3">
                             <div class="w-10 h-10 rounded-full bg-${getDepartmentTypeColor(dept.DepartmentType)}-100 flex items-center justify-center">
@@ -466,6 +469,43 @@ async function exportOrgToPDF(){
         printWin.print();
         printWin.close();
     }catch(err){ console.error('Export failed', err); Swal.fire('Export Failed','Could not export to PDF/print','error'); }
+}
+
+function enableDragDropReorder(){
+    const container = document.getElementById('org-tree-root'); if (!container) return;
+    let draggedId = null;
+    container.addEventListener('dragstart', e=>{
+        const node = e.target.closest('.department-node');
+        if (!node) return;
+        draggedId = node.dataset.deptId;
+        e.dataTransfer.setData('text/plain', draggedId);
+        e.dataTransfer.dropEffect = 'move';
+    });
+    container.addEventListener('dragover', e=>{
+        const node = e.target.closest('.department-node');
+        if (!node) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+    });
+    container.addEventListener('drop', async e=>{
+        const target = e.target.closest('.department-node');
+        if (!target) return;
+        e.preventDefault();
+        const newParentId = target.dataset.deptId;
+        if (!draggedId || draggedId === newParentId) return;
+        // Confirm and send reorder
+        const res = await Swal.fire({ title: 'Move Department', text: 'Set new parent for this department?', icon: 'question', showCancelButton: true });
+        if (!res.isConfirmed) return;
+        try{
+            const payload = { moves: [{ department_id: Number(draggedId), new_parent_id: Number(newParentId) }] };
+            const resp = await fetch(`${API_BASE_URL.replace(/php\/api\/$/, 'api/')}departments/reorder`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            const data = await resp.json();
+            if (!resp.ok || data.success === false) throw new Error(data.message || 'Failed');
+            await loadHospitalOrgData();
+            renderHierarchyView();
+            Swal.fire('Updated','Department moved','success');
+        }catch(err){ console.error(err); Swal.fire('Error', String(err.message||err), 'error'); }
+    });
 }
 
 window.setupHospitalStructure = function() {

@@ -348,10 +348,49 @@ async function renderFunctionalView(){
         if (!Array.isArray(rows)) throw new Error('Unexpected response');
         const grouped = rows.reduce((acc, r)=>{ const k = r.DepartmentName || 'Unassigned'; acc[k] = acc[k] || []; acc[k].push(r); return acc; }, {});
         const html = Object.entries(grouped).map(([dept, list])=>{
-            const items = list.map(r=>`<tr><td class="px-3 py-1 text-sm">${r.RoleTitle}</td><td class="px-3 py-1 text-sm">${r.HeadcountBudget??'-'}</td><td class="px-3 py-1 text-sm">${r.FilledCount}</td><td class="px-3 py-1 text-sm">${r.VacantCount}</td></tr>`).join('');
-            return `<div class="mb-6"><h4 class="font-semibold mb-2">${dept}</h4><div class="overflow-x-auto"><table class="min-w-full divide-y divide-gray-200 border"><thead class="bg-gray-50"><tr><th class="px-3 py-2 text-left text-xs text-gray-500">Position</th><th class="px-3 py-2 text-left text-xs text-gray-500">Headcount</th><th class="px-3 py-2 text-left text-xs text-gray-500">Filled</th><th class="px-3 py-2 text-left text-xs text-gray-500">Vacant</th></tr></thead><tbody>${items}</tbody></table></div></div>`;
+            const totals = list.reduce((a,r)=>{ a.head+=Number(r.HeadcountBudget||0); a.filled+=Number(r.FilledCount||0); a.vac+=Number(r.VacantCount||0); a.cost+=Number(r.FilledCost||0); return a; }, {head:0,filled:0,vac:0,cost:0});
+            const items = list.map(r=>`<tr>
+                <td class="px-3 py-1 text-sm">${r.RoleTitle}</td>
+                <td class="px-3 py-1 text-sm">${r.HeadcountBudget??'-'}</td>
+                <td class="px-3 py-1 text-sm">${r.FilledCount}</td>
+                <td class="px-3 py-1 text-sm">${r.VacantCount}</td>
+                <td class="px-3 py-1 text-sm">${formatRange(r.PayGradeMin, r.PayGradeMax)}</td>
+                <td class="px-3 py-1 text-sm">${formatCurrency(r.Midpoint)}</td>
+                <td class="px-3 py-1 text-sm">${formatCurrency(r.FilledCost)}</td>
+                <td class="px-3 py-1 text-sm">${Number(r.VacantCount)>0? `<button class='px-2 py-1 border rounded text-xs text-blue-700 requisition-btn' data-title='${encodeURIComponent(r.RoleTitle)}' data-dept='${encodeURIComponent(dept)}'>Requisition</button>`:''}</td>
+            </tr>`).join('');
+            return `<div class="mb-6"><h4 class="font-semibold mb-2">${dept}</h4>
+                <div class="overflow-x-auto"><table class="min-w-full divide-y divide-gray-200 border">
+                <thead class="bg-gray-50"><tr>
+                    <th class="px-3 py-2 text-left text-xs text-gray-500">Position</th>
+                    <th class="px-3 py-2 text-left text-xs text-gray-500">Headcount</th>
+                    <th class="px-3 py-2 text-left text-xs text-gray-500">Filled</th>
+                    <th class="px-3 py-2 text-left text-xs text-gray-500">Vacant</th>
+                    <th class="px-3 py-2 text-left text-xs text-gray-500">Salary Range</th>
+                    <th class="px-3 py-2 text-left text-xs text-gray-500">Midpoint</th>
+                    <th class="px-3 py-2 text-left text-xs text-gray-500">Filled Cost</th>
+                    <th class="px-3 py-2 text-left text-xs text-gray-500">Actions</th>
+                </tr></thead>
+                <tbody>${items}</tbody>
+                <tfoot class="bg-gray-50"><tr>
+                    <td class="px-3 py-2 text-sm font-semibold">Totals</td>
+                    <td class="px-3 py-2 text-sm font-semibold">${totals.head}</td>
+                    <td class="px-3 py-2 text-sm font-semibold">${totals.filled}</td>
+                    <td class="px-3 py-2 text-sm font-semibold">${totals.vac}</td>
+                    <td></td><td></td>
+                    <td class="px-3 py-2 text-sm font-semibold">${formatCurrency(totals.cost)}</td>
+                    <td></td>
+                </tr></tfoot>
+                </table></div></div>`;
         }).join('');
         contentArea.innerHTML = html || '<div class="text-gray-500">No data</div>';
+        contentArea.addEventListener('click', (e)=>{
+            const btn = e.target.closest('.requisition-btn');
+            if (!btn) return;
+            const role = decodeURIComponent(btn.dataset.title||'');
+            const dept = decodeURIComponent(btn.dataset.dept||'');
+            Swal.fire('Requisition', `Create HR1 requisition for ${role} in ${dept}.`, 'info');
+        });
     }catch(err){ console.error(err); contentArea.innerHTML = '<div class="text-red-600">Failed to load functional view</div>'; }
 }
 
@@ -372,6 +411,7 @@ function formatRange(min, max){
     const f = v=> (v==null?'-': `₱${Number(v).toLocaleString('en-PH',{maximumFractionDigits:2})}`);
     return `${f(min)} – ${f(max)}`;
 }
+function formatCurrency(v){ if (v==null) return '-'; return `₱${Number(v).toLocaleString('en-PH',{maximumFractionDigits:2})}`; }
 
 // Expose renderers for inline onclick usage
 window.renderDivisionsView = renderDivisionsView;

@@ -11,8 +11,17 @@ class Position {
         $sql = "SELECT dept.DepartmentID, dept.DepartmentName,
                        hjr.JobRoleID, hjr.RoleTitle, hjr.JobLevel, hjr.SalaryGrade,
                        hjr.HeadcountBudget,
+                       hjr.PayGradeMin, hjr.PayGradeMax,
                        COUNT(e.EmployeeID) AS FilledCount,
-                       GREATEST(COALESCE(hjr.HeadcountBudget,0) - COUNT(e.EmployeeID), 0) AS VacantCount
+                       GREATEST(COALESCE(hjr.HeadcountBudget,0) - COUNT(e.EmployeeID), 0) AS VacantCount,
+                       COALESCE((CASE WHEN hjr.PayGradeMin IS NOT NULL AND hjr.PayGradeMax IS NOT NULL THEN (hjr.PayGradeMin + hjr.PayGradeMax)/2
+                                      WHEN hjr.PayGradeMin IS NOT NULL THEN hjr.PayGradeMin
+                                      WHEN hjr.PayGradeMax IS NOT NULL THEN hjr.PayGradeMax
+                                      ELSE 0 END),0) AS Midpoint,
+                       COUNT(e.EmployeeID) * COALESCE((CASE WHEN hjr.PayGradeMin IS NOT NULL AND hjr.PayGradeMax IS NOT NULL THEN (hjr.PayGradeMin + hjr.PayGradeMax)/2
+                                                           WHEN hjr.PayGradeMin IS NOT NULL THEN hjr.PayGradeMin
+                                                           WHEN hjr.PayGradeMax IS NOT NULL THEN hjr.PayGradeMax
+                                                           ELSE 0 END),0) AS FilledCost
                 FROM hospital_job_roles hjr
                 LEFT JOIN Employees e ON hjr.JobRoleID = e.JobRoleID AND e.IsActive = 1
                 LEFT JOIN OrganizationalStructure dept ON hjr.DepartmentID = dept.DepartmentID
@@ -35,5 +44,20 @@ class Position {
                 WHERE hjr.IsActive = 1
                 ORDER BY hjr.SalaryGrade, hjr.RoleTitle";
         return $this->pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function getReportsGraph($departmentId = null){
+        $sql = "SELECT hjr.JobRoleID, hjr.RoleTitle, hjr.DepartmentID, hjr.ReportsTo,
+                       dept.DepartmentName
+                FROM hospital_job_roles hjr
+                LEFT JOIN OrganizationalStructure dept ON hjr.DepartmentID = dept.DepartmentID
+                WHERE hjr.IsActive = 1";
+        $params = [];
+        if ($departmentId) { $sql .= " AND hjr.DepartmentID = :dept"; $params[':dept'] = (int)$departmentId; }
+        $sql .= " ORDER BY hjr.RoleTitle";
+        $stmt = $this->pdo->prepare($sql);
+        foreach ($params as $k=>$v) $stmt->bindValue($k, $v);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 }

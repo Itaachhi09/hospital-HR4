@@ -26,6 +26,11 @@ class PositionsController {
             $rows = $this->positionModel->getPayGradeMapping();
             Response::success($rows);
         }
+        if ($id === 'reports-graph') {
+            $dept = $request->getData('department_id');
+            $rows = $this->positionModel->getReportsGraph($dept ? (int)$dept : null);
+            Response::success($rows);
+        }
         Response::notFound();
     }
 }

@@ -44,6 +44,14 @@ export async function displayOrgStructureSection() {
                                 data-view="coordinators" onclick="switchOrgView('coordinators')">
                             <i class="fas fa-user-tie mr-2"></i>HR Coordinators
                         </button>
+                        <button class="nav-tab-btn py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap" 
+                                data-view="functional" onclick="switchOrgView('functional')">
+                            <i class="fas fa-project-diagram mr-2"></i>Functional View
+                        </button>
+                        <button class="nav-tab-btn py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap" 
+                                data-view="paygrade" onclick="switchOrgView('paygrade')">
+                            <i class="fas fa-layer-group mr-2"></i>Pay Grade View
+                        </button>
                     </nav>
                 </div>
 
@@ -140,8 +148,18 @@ function renderHierarchyView() {
                 </button>
             </div>
 
-            <!-- Hierarchy Display -->
-            <div id="hierarchy-display" class="bg-gray-50 rounded-lg p-6">
+            <!-- Hierarchy Display with controls -->
+            <div class="flex items-center justify-between">
+                <div class="space-x-2">
+                    <button id="org-zoom-in" class="px-2 py-1 border rounded text-sm" title="Zoom In"><i class="fas fa-search-plus"></i></button>
+                    <button id="org-zoom-out" class="px-2 py-1 border rounded text-sm" title="Zoom Out"><i class="fas fa-search-minus"></i></button>
+                    <button id="org-reset" class="px-2 py-1 border rounded text-sm" title="Reset"><i class="fas fa-compress-arrows-alt"></i></button>
+                </div>
+                <div>
+                    <button id="org-export" class="px-3 py-1 border rounded text-sm" title="Export to PDF"><i class="fas fa-file-pdf"></i> Export</button>
+                </div>
+            </div>
+            <div id="hierarchy-display" class="bg-gray-50 rounded-lg p-6 overflow-hidden">
                 <div class="text-center py-8">
                     <div class="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
                     <p class="text-gray-500 mt-2">Loading hierarchy...</p>
@@ -174,7 +192,8 @@ function renderHospitalHierarchy() {
 
     // Build hierarchy tree
     const hierarchy = buildDepartmentHierarchy(departments);
-    hierarchyDisplay.innerHTML = renderDepartmentTree(hierarchy);
+    hierarchyDisplay.innerHTML = `<div id="org-panzoom-container" class="cursor-grab"><div id="org-tree-root">${renderDepartmentTree(hierarchy)}</div></div>`;
+    setupPanZoom();
 
     // Attach event delegation for edit/view buttons so clicks reliably call handlers
     hierarchyDisplay.querySelectorAll && hierarchyDisplay.addEventListener('click', function(evt){
@@ -186,7 +205,14 @@ function renderHospitalHierarchy() {
         if (viewBtn) {
             const id = viewBtn.getAttribute('data-id'); if (id) return viewDepartmentDetails(id);
         }
+        const node = evt.target.closest && evt.target.closest('.department-node');
+        if (node && node.dataset && node.dataset.deptId) {
+            showDepartmentEmployees(node.dataset.deptId);
+        }
     });
+
+    // export handler
+    document.getElementById('org-export')?.addEventListener('click', exportOrgToPDF);
 }
 
 // ===================== DIVISIONS VIEW =====================
@@ -333,7 +359,7 @@ function renderDepartmentTree(departments, level = 0) {
     return `
         <div class="space-y-2">
             ${departments.map(dept => `
-                <div class="department-node bg-white rounded-lg border border-gray-200 p-4" style="margin-left: ${level * 20}px;">
+                <div class="department-node bg-white rounded-lg border border-gray-200 p-4 relative" data-dept-id="${dept.DepartmentID}" style="margin-left: ${level * 20}px;">
                     <div class="flex justify-between items-center">
                         <div class="flex items-center space-x-3">
                             <div class="w-10 h-10 rounded-full bg-${getDepartmentTypeColor(dept.DepartmentType)}-100 flex items-center justify-center">
@@ -341,7 +367,7 @@ function renderDepartmentTree(departments, level = 0) {
                             </div>
                             <div>
                                 <h4 class="font-semibold text-gray-900">${dept.DepartmentName}</h4>
-                                <div class="flex items-center space-x-4 text-sm text-gray-600">
+                                <div class="flex items-center space-x-4 text-sm text-gray-600" title="${tooltipText(dept)}">
                                     <span class="px-2 py-1 bg-${getDepartmentTypeColor(dept.DepartmentType)}-100 text-${getDepartmentTypeColor(dept.DepartmentType)}-800 rounded-full text-xs">
                                         ${dept.DepartmentType}
                                     </span>
@@ -390,6 +416,56 @@ function getDepartmentTypeIcon(type) {
         'Ancillary': 'fa-cogs'
     };
     return icons[type] || 'fa-building';
+}
+
+function tooltipText(dept){
+    const mgr = dept.ManagerName ? `Manager: ${dept.ManagerName}` : 'Manager: N/A';
+    const code = dept.DepartmentCode ? `Code: ${dept.DepartmentCode}` : 'Code: N/A';
+    const count = `Employees: ${dept.EmployeeCount || 0}`;
+    return `${mgr} | ${code} | ${count}`;
+}
+
+function setupPanZoom(){
+    const container = document.getElementById('org-panzoom-container');
+    const tree = document.getElementById('org-tree-root');
+    if (!container || !tree) return;
+    let scale = 1, min=0.5, max=2.0;
+    const apply = ()=>{ tree.style.transform = `scale(${scale})`; tree.style.transformOrigin = '0 0'; };
+    document.getElementById('org-zoom-in')?.addEventListener('click', ()=>{ scale = Math.min(max, scale+0.1); apply(); });
+    document.getElementById('org-zoom-out')?.addEventListener('click', ()=>{ scale = Math.min(max, Math.max(min, scale-0.1)); apply(); });
+    document.getElementById('org-reset')?.addEventListener('click', ()=>{ scale = 1; apply(); container.scrollTo({left:0, top:0}); });
+    // pan with drag
+    let isDown=false, startX=0, startY=0, scrollLeft=0, scrollTop=0;
+    container.style.overflow = 'auto';
+    container.addEventListener('mousedown', (e)=>{ isDown=true; container.classList.add('cursor-grabbing'); startX=e.pageX; startY=e.pageY; scrollLeft=container.scrollLeft; scrollTop=container.scrollTop; });
+    container.addEventListener('mouseleave', ()=>{ isDown=false; container.classList.remove('cursor-grabbing'); });
+    container.addEventListener('mouseup', ()=>{ isDown=false; container.classList.remove('cursor-grabbing'); });
+    container.addEventListener('mousemove', (e)=>{ if (!isDown) return; const dx=e.pageX-startX, dy=e.pageY-startY; container.scrollLeft = scrollLeft - dx; container.scrollTop = scrollTop - dy; });
+}
+
+async function showDepartmentEmployees(deptId){
+    try{
+        const res = await fetch(`${API_BASE_URL}get_employees.php?department_id=${encodeURIComponent(deptId)}`);
+        const list = await res.json();
+        if (!Array.isArray(list)) throw new Error('Unexpected response');
+        const rows = list.map(e=> `<tr><td class="px-3 py-1 text-sm">${e.EmployeeID}</td><td class="px-3 py-1 text-sm">${e.FirstName||''} ${e.LastName||''}</td><td class="px-3 py-1 text-sm">${e.JobTitle||''}</td><td class="px-3 py-1 text-sm">${e.Email||''}</td></tr>`).join('');
+        const html = `<div class="overflow-x-auto"><table class="min-w-full divide-y divide-gray-200 border"><thead class="bg-gray-50"><tr><th class="px-3 py-2 text-left text-xs text-gray-500">ID</th><th class="px-3 py-2 text-left text-xs text-gray-500">Name</th><th class="px-3 py-2 text-left text-xs text-gray-500">Title</th><th class="px-3 py-2 text-left text-xs text-gray-500">Email</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+        await Swal.fire({ title: 'Department Employees', html, width: '800px', showCloseButton: true, confirmButtonText: 'Close' });
+    }catch(err){ console.error(err); Swal.fire('Error','Failed to load employee list','error'); }
+}
+
+async function exportOrgToPDF(){
+    try{
+        // Lightweight client-side export using print dialog
+        const el = document.getElementById('org-tree-root'); if (!el) return;
+        const printWin = window.open('', 'PRINT', 'height=800,width=1000');
+        if (!printWin) return;
+        printWin.document.write(`<html><head><title>Org Chart</title><style>body{font-family:Arial} .department-node{border:1px solid #ddd; margin:6px; padding:6px; border-radius:6px}</style></head><body>${el.innerHTML}</body></html>`);
+        printWin.document.close();
+        printWin.focus();
+        printWin.print();
+        printWin.close();
+    }catch(err){ console.error('Export failed', err); Swal.fire('Export Failed','Could not export to PDF/print','error'); }
 }
 
 window.setupHospitalStructure = function() {

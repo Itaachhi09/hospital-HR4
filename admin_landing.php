@@ -196,7 +196,8 @@ if (!isset($_SESSION['user_id'])) {
     <div class="flex items-center justify-between px-4 py-4 bg-gradient-to-r from-[#0b1b3b] to-[#102650]">
       <div class="flex items-center gap-3" x-show="sidebarOpen" x-transition>
         <div class="h-10 w-10 rounded-full grid place-items-center border-2 border-[#d4af37] bg-white">
-          <span class="text-sm font-extrabold text-[#0b1b3b]">HM</span>
+         <img src="logo-removebg-preview (1).png" alt="Logo" class=" object-contain">
+
         </div>
         <p class="font-semibold">H VILL</p>
       </div>

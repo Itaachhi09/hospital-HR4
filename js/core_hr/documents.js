@@ -38,6 +38,14 @@ export async function displayDocumentsSection() {
                             <input type="text" id="doc-type" name="document_type" required placeholder="e.g., Contract, ID, Certificate" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#4E3B2A] focus:border-[#4E3B2A]">
                         </div>
                         <div>
+                            <label for="doc-category" class="block text-sm font-medium text-gray-700 mb-1">Category/Tag:</label>
+                            <input type="text" id="doc-category" name="category" placeholder="Contract, Certificate, License, ID" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#4E3B2A] focus:border-[#4E3B2A]">
+                        </div>
+                        <div>
+                            <label for="doc-expiry" class="block text-sm font-medium text-gray-700 mb-1">Expiry Date (optional):</label>
+                            <input type="date" id="doc-expiry" name="expires_on" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#4E3B2A] focus:border-[#4E3B2A]">
+                        </div>
+                        <div>
                             <label for="doc-file" class="block text-sm font-medium text-gray-700 mb-1">File:</label>
                             <input type="file" id="doc-file" name="document_file" required class="w-full p-1.5 border border-gray-300 rounded-md shadow-sm text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-[#F7E6CA] file:text-[#4E3B2A] hover:file:bg-[#EADDCB]">
                             <p class="mt-1 text-xs text-gray-500">Allowed: PDF, DOC, DOCX, JPG, PNG (Max 5MB)</p>
@@ -54,11 +62,23 @@ export async function displayDocumentsSection() {
             <div>
                 <h3 class="text-lg font-semibold text-[#4E3B2A] mb-3 font-header">Existing Documents</h3>
                 <div class="flex flex-wrap gap-4 mb-4 items-end">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Search:</label>
+                        <input id="doc-search" type="text" placeholder="Search name or doc" class="w-full sm:w-64 p-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#4E3B2A] focus:border-[#4E3B2A]">
+                    </div>
                      <div>
                        <label for="filter-doc-employee" class="block text-sm font-medium text-gray-700 mb-1">Filter by Employee:</label>
                        <select id="filter-doc-employee" class="w-full sm:w-auto p-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#4E3B2A] focus:border-[#4E3B2A]">
                            <option value="">All Employees</option>
                            </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Category:</label>
+                        <input id="filter-doc-category" type="text" placeholder="Contract, License, ..." class="w-full sm:w-48 p-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#4E3B2A] focus:border-[#4E3B2A]">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Expiring Within (days):</label>
+                        <input id="filter-doc-expiring" type="number" min="1" class="w-24 p-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#4E3B2A] focus:border-[#4E3B2A]" placeholder="30">
                     </div>
                     <div>
                        <button id="filter-doc-btn" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150 ease-in-out">
@@ -104,13 +124,16 @@ export async function displayDocumentsSection() {
  */
 function applyDocumentFilter() {
     const employeeId = document.getElementById('filter-doc-employee')?.value;
-    loadDocuments(employeeId); 
+    const q = document.getElementById('doc-search')?.value?.trim();
+    const cat = document.getElementById('filter-doc-category')?.value?.trim();
+    const days = document.getElementById('filter-doc-expiring')?.value?.trim();
+    loadDocuments(employeeId, { search: q, category: cat, expiring_within_days: days }); 
 }
 
 /**
  * Fetches documents from the API based on the optional employee filter.
  */
-async function loadDocuments(employeeId = null) {
+async function loadDocuments(employeeId = null, extra = {}) {
     console.log(`[Load] Loading Documents... (Employee ID: ${employeeId || 'All'})`);
     const container = document.getElementById('documents-list-container');
     if (!container) return;
@@ -118,9 +141,13 @@ async function loadDocuments(employeeId = null) {
 
     // Use REST endpoint; employees see only their own via server-side auth
     let url = `${API_BASE_URL.replace(/php\/api\/$/, 'api/') }documents`;
-    if (employeeId) {
-        url += `?employee_id=${encodeURIComponent(employeeId)}`;
-    }
+    const params = new URLSearchParams();
+    if (employeeId) params.set('employee_id', String(employeeId));
+    if (extra && extra.search) params.set('search', extra.search);
+    if (extra && extra.category) params.set('category', extra.category);
+    if (extra && extra.expiring_within_days) params.set('expiring_within_days', extra.expiring_within_days);
+    const qs = params.toString();
+    if (qs) url += `?${qs}`;
 
     try {
         const response = await fetch(url);
@@ -162,7 +189,7 @@ function renderDocumentsTable(documents) {
     const thead = table.createTHead();
     thead.className = 'bg-gray-50';
     const headerRow = thead.insertRow();
-    const headers = ['Employee', 'Type', 'Filename', 'Uploaded', 'Actions'];
+    const headers = ['Employee', 'Type', 'Category', 'Filename', 'Uploaded', 'Expiry', 'Actions'];
     headers.forEach(text => {
         const th = document.createElement('th');
         th.scope = 'col';
@@ -194,6 +221,17 @@ function renderDocumentsTable(documents) {
             typeCell.classList.add('text-gray-700');
         }
 
+        const categoryCell = row.insertCell();
+        categoryCell.className = 'px-4 py-3 whitespace-nowrap text-xs';
+        if (doc.Category) {
+            const chip = document.createElement('span');
+            chip.textContent = doc.Category;
+            chip.className = 'inline-block px-2 py-1 rounded-full text-white text-xs ' + mapCategoryToChip(doc.Category);
+            categoryCell.appendChild(chip);
+        } else {
+            categoryCell.innerHTML = '<span class="text-gray-400 italic">N/A</span>';
+        }
+
         const filenameCell = row.insertCell();
         filenameCell.className = 'px-4 py-3 whitespace-nowrap text-sm text-gray-700';
         const webRootPath = '/hr4/hospital-HR4/';
@@ -210,8 +248,21 @@ function renderDocumentsTable(documents) {
         }
         filenameCell.appendChild(link);
 
-        const uploadDate = doc.UploadDate ? new Date(doc.UploadDate).toLocaleDateString() : 'N/A';
+        const uploadDate = doc.UploadedAt ? new Date(doc.UploadedAt).toLocaleDateString() : (doc.UploadDate ? new Date(doc.UploadDate).toLocaleDateString() : 'N/A');
         createCell(uploadDate).classList.add('text-gray-500');
+
+        const expiryCell = row.insertCell();
+        expiryCell.className = 'px-4 py-3 whitespace-nowrap text-sm';
+        if (doc.ExpiresOn) {
+            const dt = new Date(doc.ExpiresOn);
+            const daysLeft = Math.ceil((dt - new Date()) / (1000*60*60*24));
+            const badge = document.createElement('span');
+            badge.textContent = dt.toLocaleDateString();
+            badge.className = 'inline-block px-2 py-1 rounded text-xs ' + (daysLeft <= 30 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700');
+            expiryCell.appendChild(badge);
+        } else {
+            expiryCell.innerHTML = '<span class="text-gray-400 italic">—</span>';
+        }
 
         const actionsCell = row.insertCell();
         actionsCell.className = 'px-4 py-3 whitespace-nowrap text-sm font-medium';
@@ -224,6 +275,15 @@ function renderDocumentsTable(documents) {
     });
     container.appendChild(table);
     attachDeleteListeners();
+}
+
+function mapCategoryToChip(category){
+    const c = (category||'').toLowerCase();
+    if (c.includes('license')) return 'bg-purple-600';
+    if (c.includes('contract')) return 'bg-blue-600';
+    if (c.includes('certificate')) return 'bg-green-600';
+    if (c.includes('id')) return 'bg-yellow-600';
+    return 'bg-gray-600';
 }
 
 /**

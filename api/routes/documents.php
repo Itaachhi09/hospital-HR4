@@ -87,6 +87,8 @@ class DocumentsController {
 
         // Expect multipart form-data
         $documentType = $_POST['document_type'] ?? '';
+        $category = $_POST['category'] ?? null; // auto-tagging category
+        $expiresOn = $_POST['expires_on'] ?? null; // optional expiry date (YYYY-MM-DD)
         if (empty($documentType)) {
             Response::validationError(['document_type' => 'Document type is required']);
         }
@@ -108,7 +110,8 @@ class DocumentsController {
             Response::validationError(['document_file' => 'File too large (max 5MB)']);
         }
 
-        $storageDir = __DIR__ . '/../../storage/documents/';
+        // Store under per-employee directory
+        $storageDir = __DIR__ . '/../../storage/documents/employees/' . $employeeId . '/docs/';
         if (!is_dir($storageDir)) {
             if (!mkdir($storageDir, 0775, true)) {
                 Response::error('Failed to create storage directory', 500);
@@ -125,9 +128,13 @@ class DocumentsController {
         }
 
         // Store relative path (non-web root); serve via download endpoint only
-        $dbPath = 'storage/documents/' . $finalName;
-        $newId = $this->docModel->create($employeeId, $documentType, $originalName, $dbPath);
-        Response::created(['document_id' => $newId, 'file_path' => $dbPath], 'Document uploaded successfully');
+        $dbPath = 'storage/documents/employees/' . $employeeId . '/docs/' . $finalName;
+        $checksum = hash_file('sha256', $absoluteTarget);
+        $uploaderUserId = ($this->auth->getCurrentUser()['user_id'] ?? null);
+        $version = $this->docModel->nextVersion($employeeId, $documentType, $category);
+        $newId = $this->docModel->create($employeeId, $documentType, $originalName, $dbPath, $category, $expiresOn, $uploaderUserId, $checksum, $version);
+        $this->docModel->createAudit($newId, $uploaderUserId, 'Upload', json_encode(['file'=>$originalName,'version'=>$version]));
+        Response::created(['document_id' => $newId, 'file_path' => $dbPath, 'version' => $version], 'Document uploaded successfully');
     }
 
     private function deleteDocument($documentId) {
@@ -146,6 +153,7 @@ class DocumentsController {
         $absolute = __DIR__ . '/../../' . $doc['FilePath'];
         if (is_file($absolute)) { @unlink($absolute); }
         $this->docModel->delete($documentId);
+        $this->docModel->createAudit($documentId, $current['user_id'] ?? null, 'Delete');
         Response::success(null, 'Document deleted');
     }
 
@@ -153,6 +161,20 @@ class DocumentsController {
         if (!$this->auth->authenticate()) {
             Response::unauthorized('Authentication required');
         }
+        $token = $_GET['token'] ?? null;
+        if ($token) {
+            $resolved = $this->docModel->resolveAccessToken($token);
+            if (!$resolved) { Response::forbidden('Invalid or expired token'); }
+            $absolute = __DIR__ . '/../../' . $resolved['FilePath'];
+            if (!is_file($absolute)) { Response::notFound('File missing on server'); }
+            header('Content-Description: File Transfer');
+            header('Content-Type: application/octet-stream');
+            header('Content-Disposition: attachment; filename="' . basename($resolved['DocumentName']) . '"');
+            header('Content-Length: ' . filesize($absolute));
+            readfile($absolute);
+            exit;
+        }
+
         $doc = $this->docModel->getById($documentId);
         if (!$doc) {
             Response::notFound('Document not found');
@@ -172,6 +194,19 @@ class DocumentsController {
         header('Content-Length: ' . filesize($absolute));
         readfile($absolute);
         exit;
+    }
+
+    // Optional: issue a short-lived tokenized URL for secure sharing
+    private function issueDownloadToken($documentId, $ttlSeconds = 600) {
+        if (!$this->auth->authenticate()) {
+            Response::unauthorized('Authentication required');
+        }
+        $current = $this->auth->getCurrentUser();
+        if (!$this->auth->hasAnyRole(['System Admin','HR Manager','HR Admin']) && !$current['employee_id']) {
+            Response::forbidden('Insufficient permissions');
+        }
+        $tokenInfo = $this->docModel->createAccessToken($documentId, $ttlSeconds, $current['user_id'] ?? null);
+        Response::success($tokenInfo, 'Access token created');
     }
 
     private function getPathSegments() {

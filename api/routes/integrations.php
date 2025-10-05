@@ -158,8 +158,9 @@ class IntegrationsController {
         }
         $request = new Request();
         $updatedSince = $request->getData('updated_since');
-        // Simple implementation: reuse employees list; in a real impl, join by UpdatedAt
+        // Simple implementation: reuse employees list; in a real impl, filter by UpdatedAt
         $filters = [];
+        if ($request->getData('department_id')) $filters['department_id'] = (int)$request->getData('department_id');
         $page = 1; $limit = 1000;
         $items = $this->employeeModel->getEmployees($page, $limit, $filters);
         Response::success(['items' => $items, 'updated_since' => $updatedSince]);

@@ -134,6 +134,11 @@ try {
                 $controller = new OrgStructureController();
                 $controller->handleRequest($method, $id, $subResource);
                 break;
+            case 'positions':
+                require_once __DIR__ . '/routes/positions.php';
+                $controller = new PositionsController();
+                $controller->handleRequest($method, $id, $subResource);
+                break;
             case 'departments':
                 require_once __DIR__ . '/routes/departments.php';
                 $controller = new DepartmentsController();

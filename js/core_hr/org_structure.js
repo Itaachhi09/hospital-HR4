@@ -128,6 +128,12 @@ window.switchOrgView = function(view) {
         case 'coordinators':
             renderCoordinatorsView();
             break;
+        case 'functional':
+            renderFunctionalView();
+            break;
+        case 'paygrade':
+            renderPayGradeView();
+            break;
     }
 };
 
@@ -330,6 +336,41 @@ function renderCoordinatorsView() {
             `}
         </div>
     `;
+}
+
+// ===================== FUNCTIONAL VIEW =====================
+async function renderFunctionalView(){
+    const contentArea = document.getElementById('org-view-content');
+    contentArea.innerHTML = '<div class="text-gray-500">Loading functional view...</div>';
+    try{
+        const res = await fetch(`${API_BASE_URL.replace(/php\/api\/$/, 'api/')}positions/summary`);
+        const rows = await res.json();
+        if (!Array.isArray(rows)) throw new Error('Unexpected response');
+        const grouped = rows.reduce((acc, r)=>{ const k = r.DepartmentName || 'Unassigned'; acc[k] = acc[k] || []; acc[k].push(r); return acc; }, {});
+        const html = Object.entries(grouped).map(([dept, list])=>{
+            const items = list.map(r=>`<tr><td class="px-3 py-1 text-sm">${r.RoleTitle}</td><td class="px-3 py-1 text-sm">${r.HeadcountBudget??'-'}</td><td class="px-3 py-1 text-sm">${r.FilledCount}</td><td class="px-3 py-1 text-sm">${r.VacantCount}</td></tr>`).join('');
+            return `<div class="mb-6"><h4 class="font-semibold mb-2">${dept}</h4><div class="overflow-x-auto"><table class="min-w-full divide-y divide-gray-200 border"><thead class="bg-gray-50"><tr><th class="px-3 py-2 text-left text-xs text-gray-500">Position</th><th class="px-3 py-2 text-left text-xs text-gray-500">Headcount</th><th class="px-3 py-2 text-left text-xs text-gray-500">Filled</th><th class="px-3 py-2 text-left text-xs text-gray-500">Vacant</th></tr></thead><tbody>${items}</tbody></table></div></div>`;
+        }).join('');
+        contentArea.innerHTML = html || '<div class="text-gray-500">No data</div>';
+    }catch(err){ console.error(err); contentArea.innerHTML = '<div class="text-red-600">Failed to load functional view</div>'; }
+}
+
+// ===================== PAY GRADE VIEW =====================
+async function renderPayGradeView(){
+    const contentArea = document.getElementById('org-view-content');
+    contentArea.innerHTML = '<div class="text-gray-500">Loading pay grade view...</div>';
+    try{
+        const res = await fetch(`${API_BASE_URL.replace(/php\/api\/$/, 'api/')}positions/paygrades`);
+        const rows = await res.json();
+        if (!Array.isArray(rows)) throw new Error('Unexpected response');
+        const html = `<div class="overflow-x-auto"><table class="min-w-full divide-y divide-gray-200 border"><thead class="bg-gray-50"><tr><th class="px-3 py-2 text-left text-xs text-gray-500">Salary Grade</th><th class="px-3 py-2 text-left text-xs text-gray-500">Role</th><th class="px-3 py-2 text-left text-xs text-gray-500">Department</th><th class="px-3 py-2 text-left text-xs text-gray-500">Range</th></tr></thead><tbody>${rows.map(r=>`<tr><td class="px-3 py-1 text-sm">${r.SalaryGrade||'-'}</td><td class="px-3 py-1 text-sm">${r.RoleTitle||''}</td><td class="px-3 py-1 text-sm">${r.DepartmentName||''}</td><td class="px-3 py-1 text-sm">${formatRange(r.PayGradeMin, r.PayGradeMax)}</td></tr>`).join('')}</tbody></table></div>`;
+        contentArea.innerHTML = html;
+    }catch(err){ console.error(err); contentArea.innerHTML = '<div class="text-red-600">Failed to load pay grade view</div>'; }
+}
+
+function formatRange(min, max){
+    const f = v=> (v==null?'-': `₱${Number(v).toLocaleString('en-PH',{maximumFractionDigits:2})}`);
+    return `${f(min)} – ${f(max)}`;
 }
 
 // Expose renderers for inline onclick usage

@@ -3,7 +3,7 @@
  * v4.0 - Enhanced for Philippine hospital-specific HR management
  * Supports HR divisions, job roles, department coordinators, and comprehensive org hierarchy
  */
-import { API_BASE_URL, populateEmployeeDropdown } from '../utils.js';
+import { API_BASE_URL, populateEmployeeDropdown, isReadOnlyMode } from '../utils.js';
 
 let hospitalOrgData = {}; // Store comprehensive hospital organizational data
 let currentView = 'hierarchy'; // Current view: hierarchy, divisions, roles, coordinators
@@ -28,21 +28,29 @@ export async function displayOrgStructureSection() {
             <div class="bg-white rounded-lg shadow-md border border-gray-200">
                 <div class="border-b border-gray-200">
                     <nav class="flex space-x-8 px-6" aria-label="Tabs">
-                        <button class="nav-tab-btn py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap" 
+                <button class="nav-tab-btn py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap" 
                                 data-view="hierarchy" onclick="switchOrgView('hierarchy')">
                             <i class="fas fa-sitemap mr-2"></i>Hospital Hierarchy
                         </button>
-                        <button class="nav-tab-btn py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap" 
+                <button class="nav-tab-btn py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap" 
                                 data-view="divisions" onclick="switchOrgView('divisions')">
                             <i class="fas fa-building mr-2"></i>HR Divisions
                         </button>
-                        <button class="nav-tab-btn py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap" 
+                <button class="nav-tab-btn py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap" 
                                 data-view="roles" onclick="switchOrgView('roles')">
                             <i class="fas fa-users-cog mr-2"></i>Job Roles
                         </button>
-                        <button class="nav-tab-btn py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap" 
+                <button class="nav-tab-btn py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap" 
                                 data-view="coordinators" onclick="switchOrgView('coordinators')">
                             <i class="fas fa-user-tie mr-2"></i>HR Coordinators
+                        </button>
+                <button class="nav-tab-btn py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap" 
+                                data-view="functional" onclick="switchOrgView('functional')">
+                            <i class="fas fa-project-diagram mr-2"></i>Functional View
+                        </button>
+                <button class="nav-tab-btn py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap" 
+                                data-view="paygrade" onclick="switchOrgView('paygrade')">
+                            <i class="fas fa-layer-group mr-2"></i>Pay Grade View
                         </button>
                     </nav>
                 </div>
@@ -60,6 +68,7 @@ export async function displayOrgStructureSection() {
     
     // Initialize view
     await loadHospitalOrgData();
+    try { const ro = await isReadOnlyMode(); if (ro) { const b=document.getElementById('btn-add-dept'); b?.classList.add('hidden'); } } catch(e){}
     switchOrgView('hierarchy');
 }
 
@@ -120,6 +129,12 @@ window.switchOrgView = function(view) {
         case 'coordinators':
             renderCoordinatorsView();
             break;
+        case 'functional':
+            renderFunctionalView();
+            break;
+        case 'paygrade':
+            renderPayGradeView();
+            break;
     }
 };
 
@@ -135,13 +150,23 @@ function renderHierarchyView() {
                     <h3 class="text-lg font-semibold text-gray-900">Hospital Organizational Hierarchy</h3>
                     <p class="text-sm text-gray-600">Complete hospital departmental structure</p>
                 </div>
-                <button onclick="showAddDepartmentModal()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                <button id="btn-add-dept" onclick="showAddDepartmentModal()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
                     <i class="fas fa-plus mr-2"></i>Add Department
                 </button>
             </div>
 
-            <!-- Hierarchy Display -->
-            <div id="hierarchy-display" class="bg-gray-50 rounded-lg p-6">
+            <!-- Hierarchy Display with controls -->
+            <div class="flex items-center justify-between">
+                <div class="space-x-2">
+                    <button id="org-zoom-in" class="px-2 py-1 border rounded text-sm" title="Zoom In"><i class="fas fa-search-plus"></i></button>
+                    <button id="org-zoom-out" class="px-2 py-1 border rounded text-sm" title="Zoom Out"><i class="fas fa-search-minus"></i></button>
+                    <button id="org-reset" class="px-2 py-1 border rounded text-sm" title="Reset"><i class="fas fa-compress-arrows-alt"></i></button>
+                </div>
+                <div>
+                    <button id="org-export" class="px-3 py-1 border rounded text-sm" title="Export to PDF"><i class="fas fa-file-pdf"></i> Export</button>
+                </div>
+            </div>
+            <div id="hierarchy-display" class="bg-gray-50 rounded-lg p-6 overflow-hidden">
                 <div class="text-center py-8">
                     <div class="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
                     <p class="text-gray-500 mt-2">Loading hierarchy...</p>
@@ -174,7 +199,8 @@ function renderHospitalHierarchy() {
 
     // Build hierarchy tree
     const hierarchy = buildDepartmentHierarchy(departments);
-    hierarchyDisplay.innerHTML = renderDepartmentTree(hierarchy);
+    hierarchyDisplay.innerHTML = `<div id="org-panzoom-container" class="cursor-grab"><div id="org-tree-root">${renderDepartmentTree(hierarchy)}</div></div>`;
+    setupPanZoom();
 
     // Attach event delegation for edit/view buttons so clicks reliably call handlers
     hierarchyDisplay.querySelectorAll && hierarchyDisplay.addEventListener('click', function(evt){
@@ -186,7 +212,17 @@ function renderHospitalHierarchy() {
         if (viewBtn) {
             const id = viewBtn.getAttribute('data-id'); if (id) return viewDepartmentDetails(id);
         }
+        const node = evt.target.closest && evt.target.closest('.department-node');
+        if (node && node.dataset && node.dataset.deptId) {
+            showDepartmentEmployees(node.dataset.deptId);
+        }
     });
+
+    // Drag-drop to reorder (admins only). Disabled in read-only mode.
+    (async ()=>{ try { const ro = await isReadOnlyMode(); if (!ro) enableDragDropReorder(); } catch(e){ /* ignore */ } })();
+
+    // export handler
+    document.getElementById('org-export')?.addEventListener('click', exportOrgToPDF);
 }
 
 // ===================== DIVISIONS VIEW =====================
@@ -303,6 +339,81 @@ function renderCoordinatorsView() {
     `;
 }
 
+// ===================== FUNCTIONAL VIEW =====================
+async function renderFunctionalView(){
+    const contentArea = document.getElementById('org-view-content');
+    contentArea.innerHTML = '<div class="text-gray-500">Loading functional view...</div>';
+    try{
+        const res = await fetch(`${API_BASE_URL.replace(/php\/api\/$/, 'api/')}positions/summary`);
+        const rows = await res.json();
+        if (!Array.isArray(rows)) throw new Error('Unexpected response');
+        const grouped = rows.reduce((acc, r)=>{ const k = r.DepartmentName || 'Unassigned'; acc[k] = acc[k] || []; acc[k].push(r); return acc; }, {});
+        const html = Object.entries(grouped).map(([dept, list])=>{
+            const totals = list.reduce((a,r)=>{ a.head+=Number(r.HeadcountBudget||0); a.filled+=Number(r.FilledCount||0); a.vac+=Number(r.VacantCount||0); a.cost+=Number(r.FilledCost||0); return a; }, {head:0,filled:0,vac:0,cost:0});
+            const items = list.map(r=>`<tr>
+                <td class="px-3 py-1 text-sm">${r.RoleTitle}</td>
+                <td class="px-3 py-1 text-sm">${r.HeadcountBudget??'-'}</td>
+                <td class="px-3 py-1 text-sm">${r.FilledCount}</td>
+                <td class="px-3 py-1 text-sm">${r.VacantCount}</td>
+                <td class="px-3 py-1 text-sm">${formatRange(r.PayGradeMin, r.PayGradeMax)}</td>
+                <td class="px-3 py-1 text-sm">${formatCurrency(r.Midpoint)}</td>
+                <td class="px-3 py-1 text-sm">${formatCurrency(r.FilledCost)}</td>
+                <td class="px-3 py-1 text-sm">${Number(r.VacantCount)>0? `<button class='px-2 py-1 border rounded text-xs text-blue-700 requisition-btn' data-title='${encodeURIComponent(r.RoleTitle)}' data-dept='${encodeURIComponent(dept)}'>Requisition</button>`:''}</td>
+            </tr>`).join('');
+            return `<div class="mb-6"><h4 class="font-semibold mb-2">${dept}</h4>
+                <div class="overflow-x-auto"><table class="min-w-full divide-y divide-gray-200 border">
+                <thead class="bg-gray-50"><tr>
+                    <th class="px-3 py-2 text-left text-xs text-gray-500">Position</th>
+                    <th class="px-3 py-2 text-left text-xs text-gray-500">Headcount</th>
+                    <th class="px-3 py-2 text-left text-xs text-gray-500">Filled</th>
+                    <th class="px-3 py-2 text-left text-xs text-gray-500">Vacant</th>
+                    <th class="px-3 py-2 text-left text-xs text-gray-500">Salary Range</th>
+                    <th class="px-3 py-2 text-left text-xs text-gray-500">Midpoint</th>
+                    <th class="px-3 py-2 text-left text-xs text-gray-500">Filled Cost</th>
+                    <th class="px-3 py-2 text-left text-xs text-gray-500">Actions</th>
+                </tr></thead>
+                <tbody>${items}</tbody>
+                <tfoot class="bg-gray-50"><tr>
+                    <td class="px-3 py-2 text-sm font-semibold">Totals</td>
+                    <td class="px-3 py-2 text-sm font-semibold">${totals.head}</td>
+                    <td class="px-3 py-2 text-sm font-semibold">${totals.filled}</td>
+                    <td class="px-3 py-2 text-sm font-semibold">${totals.vac}</td>
+                    <td></td><td></td>
+                    <td class="px-3 py-2 text-sm font-semibold">${formatCurrency(totals.cost)}</td>
+                    <td></td>
+                </tr></tfoot>
+                </table></div></div>`;
+        }).join('');
+        contentArea.innerHTML = html || '<div class="text-gray-500">No data</div>';
+        contentArea.addEventListener('click', (e)=>{
+            const btn = e.target.closest('.requisition-btn');
+            if (!btn) return;
+            const role = decodeURIComponent(btn.dataset.title||'');
+            const dept = decodeURIComponent(btn.dataset.dept||'');
+            Swal.fire('Requisition', `Create HR1 requisition for ${role} in ${dept}.`, 'info');
+        });
+    }catch(err){ console.error(err); contentArea.innerHTML = '<div class="text-red-600">Failed to load functional view</div>'; }
+}
+
+// ===================== PAY GRADE VIEW =====================
+async function renderPayGradeView(){
+    const contentArea = document.getElementById('org-view-content');
+    contentArea.innerHTML = '<div class="text-gray-500">Loading pay grade view...</div>';
+    try{
+        const res = await fetch(`${API_BASE_URL.replace(/php\/api\/$/, 'api/')}positions/paygrades`);
+        const rows = await res.json();
+        if (!Array.isArray(rows)) throw new Error('Unexpected response');
+        const html = `<div class="overflow-x-auto"><table class="min-w-full divide-y divide-gray-200 border"><thead class="bg-gray-50"><tr><th class="px-3 py-2 text-left text-xs text-gray-500">Salary Grade</th><th class="px-3 py-2 text-left text-xs text-gray-500">Role</th><th class="px-3 py-2 text-left text-xs text-gray-500">Department</th><th class="px-3 py-2 text-left text-xs text-gray-500">Range</th></tr></thead><tbody>${rows.map(r=>`<tr><td class="px-3 py-1 text-sm">${r.SalaryGrade||'-'}</td><td class="px-3 py-1 text-sm">${r.RoleTitle||''}</td><td class="px-3 py-1 text-sm">${r.DepartmentName||''}</td><td class="px-3 py-1 text-sm">${formatRange(r.PayGradeMin, r.PayGradeMax)}</td></tr>`).join('')}</tbody></table></div>`;
+        contentArea.innerHTML = html;
+    }catch(err){ console.error(err); contentArea.innerHTML = '<div class="text-red-600">Failed to load pay grade view</div>'; }
+}
+
+function formatRange(min, max){
+    const f = v=> (v==null?'-': `₱${Number(v).toLocaleString('en-PH',{maximumFractionDigits:2})}`);
+    return `${f(min)} – ${f(max)}`;
+}
+function formatCurrency(v){ if (v==null) return '-'; return `₱${Number(v).toLocaleString('en-PH',{maximumFractionDigits:2})}`; }
+
 // Expose renderers for inline onclick usage
 window.renderDivisionsView = renderDivisionsView;
 window.renderRolesView = renderRolesView;
@@ -333,7 +444,7 @@ function renderDepartmentTree(departments, level = 0) {
     return `
         <div class="space-y-2">
             ${departments.map(dept => `
-                <div class="department-node bg-white rounded-lg border border-gray-200 p-4" style="margin-left: ${level * 20}px;">
+                <div class="department-node bg-white rounded-lg border border-gray-200 p-4 relative" draggable="true" data-dept-id="${dept.DepartmentID}" style="margin-left: ${level * 20}px;">
                     <div class="flex justify-between items-center">
                         <div class="flex items-center space-x-3">
                             <div class="w-10 h-10 rounded-full bg-${getDepartmentTypeColor(dept.DepartmentType)}-100 flex items-center justify-center">
@@ -341,7 +452,7 @@ function renderDepartmentTree(departments, level = 0) {
                             </div>
                             <div>
                                 <h4 class="font-semibold text-gray-900">${dept.DepartmentName}</h4>
-                                <div class="flex items-center space-x-4 text-sm text-gray-600">
+                                <div class="flex items-center space-x-4 text-sm text-gray-600" title="${tooltipText(dept)}">
                                     <span class="px-2 py-1 bg-${getDepartmentTypeColor(dept.DepartmentType)}-100 text-${getDepartmentTypeColor(dept.DepartmentType)}-800 rounded-full text-xs">
                                         ${dept.DepartmentType}
                                     </span>
@@ -390,6 +501,93 @@ function getDepartmentTypeIcon(type) {
         'Ancillary': 'fa-cogs'
     };
     return icons[type] || 'fa-building';
+}
+
+function tooltipText(dept){
+    const mgr = dept.ManagerName ? `Manager: ${dept.ManagerName}` : 'Manager: N/A';
+    const code = dept.DepartmentCode ? `Code: ${dept.DepartmentCode}` : 'Code: N/A';
+    const count = `Employees: ${dept.EmployeeCount || 0}`;
+    return `${mgr} | ${code} | ${count}`;
+}
+
+function setupPanZoom(){
+    const container = document.getElementById('org-panzoom-container');
+    const tree = document.getElementById('org-tree-root');
+    if (!container || !tree) return;
+    let scale = 1, min=0.5, max=2.0;
+    const apply = ()=>{ tree.style.transform = `scale(${scale})`; tree.style.transformOrigin = '0 0'; };
+    document.getElementById('org-zoom-in')?.addEventListener('click', ()=>{ scale = Math.min(max, scale+0.1); apply(); });
+    document.getElementById('org-zoom-out')?.addEventListener('click', ()=>{ scale = Math.min(max, Math.max(min, scale-0.1)); apply(); });
+    document.getElementById('org-reset')?.addEventListener('click', ()=>{ scale = 1; apply(); container.scrollTo({left:0, top:0}); });
+    // pan with drag
+    let isDown=false, startX=0, startY=0, scrollLeft=0, scrollTop=0;
+    container.style.overflow = 'auto';
+    container.addEventListener('mousedown', (e)=>{ isDown=true; container.classList.add('cursor-grabbing'); startX=e.pageX; startY=e.pageY; scrollLeft=container.scrollLeft; scrollTop=container.scrollTop; });
+    container.addEventListener('mouseleave', ()=>{ isDown=false; container.classList.remove('cursor-grabbing'); });
+    container.addEventListener('mouseup', ()=>{ isDown=false; container.classList.remove('cursor-grabbing'); });
+    container.addEventListener('mousemove', (e)=>{ if (!isDown) return; const dx=e.pageX-startX, dy=e.pageY-startY; container.scrollLeft = scrollLeft - dx; container.scrollTop = scrollTop - dy; });
+}
+
+async function showDepartmentEmployees(deptId){
+    try{
+        const res = await fetch(`${API_BASE_URL}get_employees.php?department_id=${encodeURIComponent(deptId)}`);
+        const list = await res.json();
+        if (!Array.isArray(list)) throw new Error('Unexpected response');
+        const rows = list.map(e=> `<tr><td class="px-3 py-1 text-sm">${e.EmployeeID}</td><td class="px-3 py-1 text-sm">${e.FirstName||''} ${e.LastName||''}</td><td class="px-3 py-1 text-sm">${e.JobTitle||''}</td><td class="px-3 py-1 text-sm">${e.Email||''}</td></tr>`).join('');
+        const html = `<div class="overflow-x-auto"><table class="min-w-full divide-y divide-gray-200 border"><thead class="bg-gray-50"><tr><th class="px-3 py-2 text-left text-xs text-gray-500">ID</th><th class="px-3 py-2 text-left text-xs text-gray-500">Name</th><th class="px-3 py-2 text-left text-xs text-gray-500">Title</th><th class="px-3 py-2 text-left text-xs text-gray-500">Email</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+        await Swal.fire({ title: 'Department Employees', html, width: '800px', showCloseButton: true, confirmButtonText: 'Close' });
+    }catch(err){ console.error(err); Swal.fire('Error','Failed to load employee list','error'); }
+}
+
+async function exportOrgToPDF(){
+    try{
+        // Lightweight client-side export using print dialog
+        const el = document.getElementById('org-tree-root'); if (!el) return;
+        const printWin = window.open('', 'PRINT', 'height=800,width=1000');
+        if (!printWin) return;
+        printWin.document.write(`<html><head><title>Org Chart</title><style>body{font-family:Arial} .department-node{border:1px solid #ddd; margin:6px; padding:6px; border-radius:6px}</style></head><body>${el.innerHTML}</body></html>`);
+        printWin.document.close();
+        printWin.focus();
+        printWin.print();
+        printWin.close();
+    }catch(err){ console.error('Export failed', err); Swal.fire('Export Failed','Could not export to PDF/print','error'); }
+}
+
+function enableDragDropReorder(){
+    const container = document.getElementById('org-tree-root'); if (!container) return;
+    let draggedId = null;
+    container.addEventListener('dragstart', e=>{
+        const node = e.target.closest('.department-node');
+        if (!node) return;
+        draggedId = node.dataset.deptId;
+        e.dataTransfer.setData('text/plain', draggedId);
+        e.dataTransfer.dropEffect = 'move';
+    });
+    container.addEventListener('dragover', e=>{
+        const node = e.target.closest('.department-node');
+        if (!node) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+    });
+    container.addEventListener('drop', async e=>{
+        const target = e.target.closest('.department-node');
+        if (!target) return;
+        e.preventDefault();
+        const newParentId = target.dataset.deptId;
+        if (!draggedId || draggedId === newParentId) return;
+        // Confirm and send reorder
+        const res = await Swal.fire({ title: 'Move Department', text: 'Set new parent for this department?', icon: 'question', showCancelButton: true });
+        if (!res.isConfirmed) return;
+        try{
+            const payload = { moves: [{ department_id: Number(draggedId), new_parent_id: Number(newParentId) }] };
+            const resp = await fetch(`${API_BASE_URL.replace(/php\/api\/$/, 'api/')}departments/reorder`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            const data = await resp.json();
+            if (!resp.ok || data.success === false) throw new Error(data.message || 'Failed');
+            await loadHospitalOrgData();
+            renderHierarchyView();
+            Swal.fire('Updated','Department moved','success');
+        }catch(err){ console.error(err); Swal.fire('Error', String(err.message||err), 'error'); }
+    });
 }
 
 window.setupHospitalStructure = function() {

@@ -12,6 +12,37 @@ export { API_BASE_URL, JS_BASE_URL };
 // Each entry will store an object: { module, initializer }
 const moduleCache = new Map();
 
+// Cache for read-only mode detection
+let __readOnlyCache = null;
+let __readOnlyFetchedAt = 0;
+const __READONLY_TTL_MS = 30 * 1000; // 30s cache
+
+/**
+ * Returns whether the backend is configured to run in read-only mode.
+ * Caches the result briefly to avoid repeated network calls across modules.
+ */
+export async function isReadOnlyMode() {
+    const now = Date.now();
+    if (__readOnlyCache !== null && (now - __readOnlyFetchedAt) < __READONLY_TTL_MS) {
+        return __readOnlyCache;
+    }
+    try {
+        const url = `${API_BASE_URL.replace(/php\/api\/$/, 'api/')}hr-core/config`;
+        const res = await fetch(url, { credentials: 'include' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const j = await res.json();
+        const ro = !!(j && (j.data?.read_only ?? j.read_only));
+        __readOnlyCache = ro;
+        __readOnlyFetchedAt = now;
+        return ro;
+    } catch (err) {
+        console.warn('[utils.isReadOnlyMode] failed to fetch, assuming false', err);
+        __readOnlyCache = false;
+        __readOnlyFetchedAt = now;
+        return false;
+    }
+}
+
 /**
  * Loads and initializes a module dynamically
  * @param {string} modulePath - The relative path to the module from js/
@@ -53,9 +84,8 @@ export async function loadModule(modulePath, container, title = '') {
         // For employee-facing modules, append a cache-busting query param to avoid stale module code in browser cache.
         // We still cache the resolved module in moduleCache after a successful load so subsequent navigations in the same session are fast.
         let importPath = fullPath;
-        if (modulePath.indexOf('employee/') !== -1) {
-            importPath = `${fullPath}${fullPath.includes('?') ? '&' : '?'}_=${Date.now()}`;
-        }
+        // Cache-bust all feature modules to avoid stale UI after deployments
+        importPath = `${fullPath}${fullPath.includes('?') ? '&' : '?'}_=${Date.now()}`;
         console.log(`Loading module from: ${importPath}`);
 
         const module = await import(importPath);

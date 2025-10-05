@@ -119,9 +119,24 @@ try {
                 $controller = new UsersController();
                 $controller->handleRequest($method, $id, $subResource);
                 break;
+            case 'documents':
+                require_once __DIR__ . '/routes/documents.php';
+                $controller = new DocumentsController();
+                $controller->handleRequest($method, $id, $subResource);
+                break;
             case 'employees':
                 require_once __DIR__ . '/routes/employees.php';
                 $controller = new EmployeesController();
+                $controller->handleRequest($method, $id, $subResource);
+                break;
+            case 'org-structure':
+                require_once __DIR__ . '/routes/org_structure.php';
+                $controller = new OrgStructureController();
+                $controller->handleRequest($method, $id, $subResource);
+                break;
+            case 'positions':
+                require_once __DIR__ . '/routes/positions.php';
+                $controller = new PositionsController();
                 $controller->handleRequest($method, $id, $subResource);
                 break;
             case 'departments':
@@ -157,6 +172,16 @@ try {
             case 'reports':
                 require_once __DIR__ . '/routes/reports.php';
                 $controller = new ReportsController();
+                $controller->handleRequest($method, $id, $subResource);
+                break;
+            case 'integrations':
+                require_once __DIR__ . '/routes/integrations.php';
+                $controller = new IntegrationsController();
+                $controller->handleRequest($method, $id, $subResource);
+                break;
+            case 'hr-core':
+                require_once __DIR__ . '/routes/hr_core.php';
+                $controller = new HRCoreController();
                 $controller->handleRequest($method, $id, $subResource);
                 break;
             case 'dashboard':

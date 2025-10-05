@@ -25,6 +25,9 @@ A RESTful API for the Hospital HR Management System built with PHP and MySQL.
 │   ├── auth.php           # Authentication routes
 │   ├── users.php          # User management
 │   ├── employees.php      # Employee management
+│   ├── documents.php      # Document management (REST)
+│   ├── org_structure.php  # Org structure (REST)
+│   ├── integrations.php   # Integrations (HR1/HR2/HR3 + outbound)
 │   ├── departments.php    # Department management
 │   ├── dashboard.php      # Dashboard data
 │   ├── benefits.php       # Benefits management
@@ -36,6 +39,7 @@ A RESTful API for the Hospital HR Management System built with PHP and MySQL.
 ├── /models                # Data models
 │   ├── User.php           # User model
 │   ├── Employee.php       # Employee model
+│   ├── Document.php       # Document model
 │   └── Department.php     # Department model
 ├── /middlewares           # Middleware components
 │   ├── AuthMiddleware.php # Authentication middleware

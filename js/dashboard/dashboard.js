@@ -136,6 +136,12 @@ function renderDashboardSummary(summaryData, userRole) {
         cardsHtml += createSummaryCard('My Pending Claims', summaryData.pending_claims || 0, 'fa-file-invoice-dollar', cardBgColor, textColor, iconColor, valueColor);
         cardsHtml += createSummaryCard('Upcoming Payslip', summaryData.upcoming_payslip_date || 'N/A', 'fa-money-bill-wave', cardBgColor, textColor, iconColor, valueColor);
         cardsHtml += createSummaryCard('My Documents', summaryData.my_documents_count || 0, 'fa-folder-open', cardBgColor, textColor, iconColor, valueColor);
+    } else if (userRole === 'Department Head' || userRole === 'Department Manager') {
+        // Alias department leadership to Manager view (uses same summary for now)
+        cardsHtml += createSummaryCard('Team Members', summaryData.team_members || 0, 'fa-users-cog', cardBgColor, textColor, iconColor, valueColor);
+        cardsHtml += createSummaryCard('Pending Team Leave', summaryData.pending_team_leave || 0, 'fa-calendar-day', cardBgColor, textColor, iconColor, valueColor);
+        cardsHtml += createSummaryCard('Pending Timesheets', summaryData.pending_timesheets || 0, 'fa-clock', cardBgColor, textColor, iconColor, valueColor);
+        cardsHtml += createSummaryCard('Open Team Tasks', summaryData.open_tasks || 0, 'fa-tasks', cardBgColor, textColor, iconColor, valueColor);
     } else {
         cardsHtml += '<p class="col-span-full text-center text-gray-500">No specific dashboard summary for this role.</p>';
     }
@@ -157,6 +163,10 @@ function renderEmployeeQuickActions() {
         <div class="bg-white p-6 rounded-lg shadow-md border border-[#F7E6CA]">
             <h3 class="text-lg font-semibold text-[#4E3B2A] mb-4 font-header">Quick Actions</h3>
             <div class="flex flex-wrap gap-4">
+                <button id="quick-action-view-profile" class="px-4 py-2 bg-[#594423] text-white rounded-md hover:bg-[#4E3B2A] transition duration-150 ease-in-out flex items-center space-x-2">
+                    <i class="fas fa-user"></i>
+                    <span>View Profile</span>
+                </button>
                 <button id="quick-action-submit-leave" class="px-4 py-2 bg-[#594423] text-white rounded-md hover:bg-[#4E3B2A] transition duration-150 ease-in-out flex items-center space-x-2">
                     <i class="fas fa-calendar-plus"></i>
                     <span>Submit Leave</span>
@@ -174,6 +184,15 @@ function renderEmployeeQuickActions() {
     `;
 
     // Add event listeners for the new buttons
+    document.getElementById('quick-action-view-profile')?.addEventListener('click', () => {
+        const viewProfileLink = document.getElementById('view-profile-link');
+        if (viewProfileLink) {
+            viewProfileLink.click();
+        } else {
+            console.warn("Quick Action: View Profile link not found.");
+        }
+    });
+
     document.getElementById('quick-action-submit-leave')?.addEventListener('click', () => {
         const leaveLink = document.getElementById('leave-requests-link'); 
         if (leaveLink) {

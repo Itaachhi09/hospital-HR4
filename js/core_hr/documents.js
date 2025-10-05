@@ -3,7 +3,7 @@
  * v2.1 - Integrated SweetAlert for notifications and confirmations.
  * v2.0 - Refined rendering functions for XSS protection.
  */
-import { API_BASE_URL, populateEmployeeDropdown } from '../utils.js'; // Import shared functions/constants
+import { API_BASE_URL, populateEmployeeDropdown, isReadOnlyMode } from '../utils.js'; // Import shared functions/constants
 
 /**
  * Displays the Employee Documents section.
@@ -38,9 +38,21 @@ export async function displayDocumentsSection() {
                             <input type="text" id="doc-type" name="document_type" required placeholder="e.g., Contract, ID, Certificate" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#4E3B2A] focus:border-[#4E3B2A]">
                         </div>
                         <div>
+                            <label for="doc-category" class="block text-sm font-medium text-gray-700 mb-1">Category/Tag:</label>
+                            <input type="text" id="doc-category" name="category" placeholder="Contract, Certificate, License, ID" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#4E3B2A] focus:border-[#4E3B2A]">
+                        </div>
+                        <div>
+                            <label for="doc-expiry" class="block text-sm font-medium text-gray-700 mb-1">Expiry Date (optional):</label>
+                            <input type="date" id="doc-expiry" name="expires_on" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#4E3B2A] focus:border-[#4E3B2A]">
+                        </div>
+                        <div>
                             <label for="doc-file" class="block text-sm font-medium text-gray-700 mb-1">File:</label>
                             <input type="file" id="doc-file" name="document_file" required class="w-full p-1.5 border border-gray-300 rounded-md shadow-sm text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-[#F7E6CA] file:text-[#4E3B2A] hover:file:bg-[#EADDCB]">
                             <p class="mt-1 text-xs text-gray-500">Allowed: PDF, DOC, DOCX, JPG, PNG (Max 5MB)</p>
+                            <div id="doc-dropzone" class="mt-2 border-2 border-dashed border-gray-300 rounded-md p-4 text-center text-sm text-gray-600 hover:border-[#4E3B2A] cursor-pointer">
+                                Drag & drop file here or click above
+                            </div>
+                            <div id="doc-upload-preview" class="mt-2"></div>
                         </div>
                     </div>
                     <div class="pt-2">
@@ -54,11 +66,23 @@ export async function displayDocumentsSection() {
             <div>
                 <h3 class="text-lg font-semibold text-[#4E3B2A] mb-3 font-header">Existing Documents</h3>
                 <div class="flex flex-wrap gap-4 mb-4 items-end">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Search:</label>
+                        <input id="doc-search" type="text" placeholder="Search name or doc" class="w-full sm:w-64 p-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#4E3B2A] focus:border-[#4E3B2A]">
+                    </div>
                      <div>
                        <label for="filter-doc-employee" class="block text-sm font-medium text-gray-700 mb-1">Filter by Employee:</label>
                        <select id="filter-doc-employee" class="w-full sm:w-auto p-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#4E3B2A] focus:border-[#4E3B2A]">
                            <option value="">All Employees</option>
                            </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Category:</label>
+                        <input id="filter-doc-category" type="text" placeholder="Contract, License, ..." class="w-full sm:w-48 p-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#4E3B2A] focus:border-[#4E3B2A]">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Expiring Within (days):</label>
+                        <input id="filter-doc-expiring" type="number" min="1" class="w-24 p-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#4E3B2A] focus:border-[#4E3B2A]" placeholder="30">
                     </div>
                     <div>
                        <button id="filter-doc-btn" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150 ease-in-out">
@@ -73,6 +97,14 @@ export async function displayDocumentsSection() {
         </div>`;
 
     requestAnimationFrame(async () => {
+        // Hide upload form and destructive actions in read-only mode
+        try {
+            const ro = await isReadOnlyMode();
+            if (ro) {
+                const uploadBlock = document.getElementById('upload-document-form');
+                if (uploadBlock) uploadBlock.closest('.border-b')?.classList.add('hidden');
+            }
+        } catch (e) { /* ignore */ }
         await populateEmployeeDropdown('doc-employee-select'); 
         await populateEmployeeDropdown('filter-doc-employee', true); 
 
@@ -82,6 +114,12 @@ export async function displayDocumentsSection() {
                 uploadForm.addEventListener('submit', handleUploadDocument);
                 uploadForm.setAttribute('data-listener-attached', 'true');
             }
+            setupDragAndDrop();
+            const fileInput = document.getElementById('doc-file');
+            fileInput?.addEventListener('change', (e)=>{
+                const f = e.target.files && e.target.files[0];
+                if (f) renderUploadPreview(f);
+            });
         } else {
             console.error("Upload Document form not found after injecting HTML.");
         }
@@ -104,34 +142,39 @@ export async function displayDocumentsSection() {
  */
 function applyDocumentFilter() {
     const employeeId = document.getElementById('filter-doc-employee')?.value;
-    loadDocuments(employeeId); 
+    const q = document.getElementById('doc-search')?.value?.trim();
+    const cat = document.getElementById('filter-doc-category')?.value?.trim();
+    const days = document.getElementById('filter-doc-expiring')?.value?.trim();
+    loadDocuments(employeeId, { search: q, category: cat, expiring_within_days: days }); 
 }
 
 /**
  * Fetches documents from the API based on the optional employee filter.
  */
-async function loadDocuments(employeeId = null) {
+async function loadDocuments(employeeId = null, extra = {}) {
     console.log(`[Load] Loading Documents... (Employee ID: ${employeeId || 'All'})`);
     const container = document.getElementById('documents-list-container');
     if (!container) return;
     container.innerHTML = '<p class="text-center py-4">Loading documents...</p>'; 
 
-    let url = `${API_BASE_URL}get_documents.php`;
-    if (employeeId) {
-        url += `?employee_id=${encodeURIComponent(employeeId)}`;
-    }
+    // Use read-only aggregator endpoint; employees see only their own via server-side auth
+    let url = `${API_BASE_URL.replace(/php\/api\/$/, 'api/') }hr-core/documents`;
+    const params = new URLSearchParams();
+    if (employeeId) params.set('employee_id', String(employeeId));
+    if (extra && extra.search) params.set('search', extra.search);
+    if (extra && extra.category) params.set('category', extra.category);
+    if (extra && extra.expiring_within_days) params.set('expiring_within_days', extra.expiring_within_days);
+    const qs = params.toString();
+    if (qs) url += `?${qs}`;
 
     try {
-        const response = await fetch(url);
+        const response = await fetch(url, { credentials: 'include' });
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        const documents = await response.json();
-
-        if (documents.error) {
-            console.error("Error fetching documents:", documents.error);
-            container.innerHTML = `<p class="text-red-500 text-center py-4">Error: ${documents.error}</p>`;
-        } else {
-            renderDocumentsTable(documents); 
-        }
+        const result = await response.json();
+        const documents = Array.isArray(result) ? result
+            : (Array.isArray(result?.data?.items) ? result.data.items
+            : (Array.isArray(result?.data) ? result.data : []));
+        renderDocumentsTable(documents); 
     } catch (error) {
         console.error('Error loading documents:', error);
         container.innerHTML = `<p class="text-red-500 text-center py-4">Could not load documents. ${error.message}</p>`;
@@ -161,7 +204,7 @@ function renderDocumentsTable(documents) {
     const thead = table.createTHead();
     thead.className = 'bg-gray-50';
     const headerRow = thead.insertRow();
-    const headers = ['Employee', 'Type', 'Filename', 'Uploaded', 'Actions'];
+    const headers = ['Employee', 'Type', 'Category', 'Filename', 'Uploaded', 'Expiry', 'Actions'];
     headers.forEach(text => {
         const th = document.createElement('th');
         th.scope = 'col';
@@ -193,10 +236,21 @@ function renderDocumentsTable(documents) {
             typeCell.classList.add('text-gray-700');
         }
 
+        const categoryCell = row.insertCell();
+        categoryCell.className = 'px-4 py-3 whitespace-nowrap text-xs';
+        if (doc.Category) {
+            const chip = document.createElement('span');
+            chip.textContent = doc.Category;
+            chip.className = 'inline-block px-2 py-1 rounded-full text-white text-xs ' + mapCategoryToChip(doc.Category);
+            categoryCell.appendChild(chip);
+        } else {
+            categoryCell.innerHTML = '<span class="text-gray-400 italic">N/A</span>';
+        }
+
         const filenameCell = row.insertCell();
         filenameCell.className = 'px-4 py-3 whitespace-nowrap text-sm text-gray-700';
-        const webRootPath = '/hr4/hospital-HR4/';
-        const filePath = doc.FilePath ? `${webRootPath}${doc.FilePath}` : '#';
+        // Use secure download endpoint within app (session-based)
+        const filePath = `${API_BASE_URL.replace(/php\/api\/$/, 'api/')}documents/${encodeURIComponent(doc.DocumentID)}/download`;
         const link = document.createElement('a');
         link.href = filePath;
         link.target = '_blank';
@@ -209,20 +263,67 @@ function renderDocumentsTable(documents) {
         }
         filenameCell.appendChild(link);
 
-        const uploadDate = doc.UploadDate ? new Date(doc.UploadDate).toLocaleDateString() : 'N/A';
+        const uploadDate = doc.UploadedAt ? new Date(doc.UploadedAt).toLocaleDateString() : (doc.UploadDate ? new Date(doc.UploadDate).toLocaleDateString() : 'N/A');
         createCell(uploadDate).classList.add('text-gray-500');
 
+        const expiryCell = row.insertCell();
+        expiryCell.className = 'px-4 py-3 whitespace-nowrap text-sm';
+        if (doc.ExpiresOn) {
+            const dt = new Date(doc.ExpiresOn);
+            const daysLeft = Math.ceil((dt - new Date()) / (1000*60*60*24));
+            const badge = document.createElement('span');
+            badge.textContent = dt.toLocaleDateString();
+            badge.className = 'inline-block px-2 py-1 rounded text-xs ' + (daysLeft <= 30 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700');
+            expiryCell.appendChild(badge);
+        } else {
+            expiryCell.innerHTML = '<span class="text-gray-400 italic">—</span>';
+        }
+
         const actionsCell = row.insertCell();
-        actionsCell.className = 'px-4 py-3 whitespace-nowrap text-sm font-medium';
-        const deleteButton = document.createElement('button');
-        deleteButton.className = 'text-red-600 hover:text-red-800 delete-doc-btn';
-        deleteButton.dataset.docId = doc.DocumentID;
-        deleteButton.title = 'Delete Document';
-        deleteButton.innerHTML = '<i class="fas fa-trash-alt"></i> Delete';
-        actionsCell.appendChild(deleteButton);
+        actionsCell.className = 'px-4 py-3 whitespace-nowrap text-sm font-medium space-x-3';
+        const previewBtn = document.createElement('button');
+        previewBtn.className = 'text-blue-600 hover:text-blue-800 preview-doc-btn';
+        previewBtn.dataset.docId = doc.DocumentID;
+        previewBtn.dataset.docName = doc.DocumentName || '';
+        previewBtn.title = 'Preview';
+        previewBtn.innerHTML = '<i class="fas fa-eye"></i> Preview';
+        actionsCell.appendChild(previewBtn);
+
+        (async ()=>{
+            const ro = await isReadOnlyMode();
+            if (!ro) {
+                const tokenBtn = document.createElement('button');
+                tokenBtn.className = 'text-green-600 hover:text-green-800 token-doc-btn';
+                tokenBtn.dataset.docId = doc.DocumentID;
+                tokenBtn.title = 'Create secure link';
+                tokenBtn.innerHTML = '<i class="fas fa-link"></i> Link';
+                actionsCell.appendChild(tokenBtn);
+            }
+        })();
+
+        (async ()=>{
+            const ro = await isReadOnlyMode();
+            if (!ro) {
+                const deleteButton = document.createElement('button');
+                deleteButton.className = 'text-red-600 hover:text-red-800 delete-doc-btn';
+                deleteButton.dataset.docId = doc.DocumentID;
+                deleteButton.title = 'Delete Document';
+                deleteButton.innerHTML = '<i class="fas fa-trash-alt"></i> Delete';
+                actionsCell.appendChild(deleteButton);
+            }
+        })();
     });
     container.appendChild(table);
     attachDeleteListeners();
+}
+
+function mapCategoryToChip(category){
+    const c = (category||'').toLowerCase();
+    if (c.includes('license')) return 'bg-purple-600';
+    if (c.includes('contract')) return 'bg-blue-600';
+    if (c.includes('certificate')) return 'bg-green-600';
+    if (c.includes('id')) return 'bg-yellow-600';
+    return 'bg-gray-600';
 }
 
 /**
@@ -231,8 +332,8 @@ function renderDocumentsTable(documents) {
 function attachDeleteListeners() {
     const container = document.querySelector('.document-action-container'); 
     if (container) {
-        container.removeEventListener('click', handleDeleteDocumentClick);
-        container.addEventListener('click', handleDeleteDocumentClick);
+        container.removeEventListener('click', handleDocumentActionClick);
+        container.addEventListener('click', handleDocumentActionClick);
     }
 }
 
@@ -240,29 +341,140 @@ function attachDeleteListeners() {
  * Handles the click event for a delete document button.
  * Prompts for confirmation using SweetAlert.
  */
-async function handleDeleteDocumentClick(event) {
-    const button = event.target.closest('.delete-doc-btn'); 
-    if (!button) return; 
+async function handleDocumentActionClick(event) {
+    const delBtn = event.target.closest('.delete-doc-btn');
+    const previewBtn = event.target.closest('.preview-doc-btn');
+    const tokenBtn = event.target.closest('.token-doc-btn');
+    if (!delBtn && !previewBtn && !tokenBtn) return;
 
-    const documentId = button.dataset.docId;
-    if (!documentId) {
-        console.error("Could not find document ID on delete button.");
-        Swal.fire('Error', 'Could not identify the document to delete.', 'error');
+    if (previewBtn) {
+        const documentId = previewBtn.dataset.docId;
+        const name = previewBtn.dataset.docName || '';
+        if (!documentId) return;
+        previewDocument(documentId, name);
         return;
     }
 
-    const result = await Swal.fire({
-        title: 'Are you sure?',
-        text: `Do you want to delete document ID ${documentId}? This action cannot be undone.`,
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#d33',
-        cancelButtonColor: '#3085d6',
-        confirmButtonText: 'Yes, delete it!'
-    });
+    if (tokenBtn) {
+        const documentId = tokenBtn.dataset.docId;
+        if (!documentId) return;
+        issueSecureLink(documentId);
+        return;
+    }
 
-    if (result.isConfirmed) {
-        deleteDocument(documentId);
+    if (delBtn) {
+        const documentId = delBtn.dataset.docId;
+        if (!documentId) {
+            console.error("Could not find document ID on delete button.");
+            Swal.fire('Error', 'Could not identify the document to delete.', 'error');
+            return;
+        }
+        const result = await Swal.fire({
+            title: 'Are you sure?',
+            text: `Do you want to delete document ID ${documentId}? This action cannot be undone.`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Yes, delete it!'
+        });
+        if (result.isConfirmed) deleteDocument(documentId);
+    }
+}
+
+function setupDragAndDrop(){
+    const dz = document.getElementById('doc-dropzone');
+    const fileInput = document.getElementById('doc-file');
+    if (!dz || !fileInput) return;
+    const highlight = (on)=>{ dz.classList.toggle('border-[#4E3B2A]', on); dz.classList.toggle('bg-gray-50', on); };
+    dz.addEventListener('dragover', (e)=>{ e.preventDefault(); highlight(true); });
+    dz.addEventListener('dragleave', (e)=>{ e.preventDefault(); highlight(false); });
+    dz.addEventListener('drop', (e)=>{
+        e.preventDefault(); highlight(false);
+        const files = e.dataTransfer?.files;
+        if (files && files.length){
+            fileInput.files = files;
+            renderUploadPreview(files[0]);
+        }
+    });
+    dz.addEventListener('click', ()=> fileInput.click());
+}
+
+function renderUploadPreview(file){
+    const cont = document.getElementById('doc-upload-preview');
+    if (!cont) return;
+    cont.innerHTML = '';
+    const info = document.createElement('div');
+    info.className = 'text-xs text-gray-600 mb-2';
+    info.textContent = `${file.name} (${Math.round(file.size/1024)} KB)`;
+    cont.appendChild(info);
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    if (['png','jpg','jpeg'].includes(ext)){
+        const img = document.createElement('img');
+        img.className = 'h-24 rounded border';
+        img.src = URL.createObjectURL(file);
+        cont.appendChild(img);
+    } else if (ext === 'pdf') {
+        const badge = document.createElement('span');
+        badge.className = 'inline-block px-2 py-1 bg-gray-200 text-gray-700 rounded text-xs';
+        badge.textContent = 'PDF selected';
+        cont.appendChild(badge);
+    }
+}
+
+async function previewDocument(documentId, documentName){
+    try{
+        const url = `${API_BASE_URL.replace(/php\/api\/$/, 'api/')}documents/${encodeURIComponent(documentId)}/download`;
+        const res = await fetch(url, { credentials: 'include' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const blob = await res.blob();
+        const ext = (documentName?.split('.').pop() || '').toLowerCase();
+        const objUrl = URL.createObjectURL(blob);
+        let html = '';
+        if (['png','jpg','jpeg','gif','webp'].includes(ext)){
+            html = `<img src="${objUrl}" alt="${documentName}" class="max-h-[70vh] mx-auto rounded border" />`;
+        } else if (ext === 'pdf'){
+            html = `<iframe src="${objUrl}" class="w-full min-h-[70vh]" style="border:0;"></iframe>`;
+        } else {
+            html = `<p class="text-gray-700 text-sm">Preview not available for this file type. You can download it instead.</p>`;
+        }
+        await Swal.fire({
+            title: documentName || 'Preview',
+            html,
+            width: '80%',
+            showCloseButton: true,
+            showConfirmButton: false
+        });
+        URL.revokeObjectURL(objUrl);
+    }catch(err){
+        console.error('Preview failed', err);
+        Swal.fire('Preview Failed', String(err.message || err), 'error');
+    }
+}
+
+async function issueSecureLink(documentId){
+    try{
+        const ttl = 600;
+        const res = await fetch(`${API_BASE_URL.replace(/php\/api\/$/, 'api/')}documents/${encodeURIComponent(documentId)}/token`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ttl }), credentials: 'include' });
+        const data = await res.json();
+        if (!res.ok || !data || data.success === false) throw new Error(data?.message || `HTTP ${res.status}`);
+        const token = data.data?.token || data.token;
+        const expiresAt = data.data?.expires_at || data.expires_at;
+        const downloadUrl = `${window.location.origin}${API_BASE_URL.replace(/php\/api\/$/, 'api/')}documents/${encodeURIComponent(documentId)}/download?token=${encodeURIComponent(token)}`;
+        await Swal.fire({
+            icon: 'success',
+            title: 'Secure Link Created',
+            html: `<div class="text-left text-sm"><div class="mb-2"><strong>Expires:</strong> ${expiresAt}</div><div class="bg-gray-50 border rounded p-2 break-all">${downloadUrl}</div></div>`,
+            confirmButtonText: 'Copy',
+            showCancelButton: true
+        }).then(res=>{
+            if (res.isConfirmed) {
+                navigator.clipboard?.writeText(downloadUrl);
+            }
+        });
+    }catch(err){
+        console.error('Token link failed', err);
+        Swal.fire('Failed to create link', String(err.message||err), 'error');
     }
 }
 
@@ -284,10 +496,9 @@ async function deleteDocument(documentId) {
     });
 
     try {
-        const response = await fetch(`${API_BASE_URL}delete_document.php`, {
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ document_id: parseInt(documentId) }) 
+        const response = await fetch(`${API_BASE_URL.replace(/php\/api\/$/, 'api/')}documents/${encodeURIComponent(documentId)}`, {
+            method: 'DELETE',
+            credentials: 'include'
         });
 
         const result = await response.json();
@@ -356,9 +567,11 @@ async function handleUploadDocument(event) {
     submitButton.disabled = true;
 
     try {
-        const response = await fetch(`${API_BASE_URL}upload_document.php`, {
+        const empId = form.elements['employee_id']?.value;
+        const response = await fetch(`${API_BASE_URL.replace(/php\/api\/$/, 'api/')}employees/${encodeURIComponent(empId)}/documents`, {
             method: 'POST',
-            body: formData 
+            body: formData,
+            credentials: 'include'
         });
 
         const result = await response.json();

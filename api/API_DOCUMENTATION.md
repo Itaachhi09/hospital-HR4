@@ -117,6 +117,7 @@ All API responses follow this standardized format:
 #### Get All Employees
 - **GET** `/api/employees`
 - **Query Parameters**: `page`, `limit`, `department_id`, `is_active`, `search`
+  - Additional filters: `employment_status`, `employment_type`, `job_title`
 - **Response**: Paginated list of employees
 
 #### Get Employee by ID
@@ -156,6 +157,28 @@ All API responses follow this standardized format:
 - **Description**: Soft delete employee
 
 ### Departments (`/api/departments`)
+### Org Structure (`/api/org-structure`)
+
+- **GET** `/api/org-structure` - Get hierarchical organizational structure
+
+### Documents (`/api/documents`)
+
+- **GET** `/api/documents?employee_id=` - List documents (Employees: own only)
+- **DELETE** `/api/documents/{id}` - Delete a document (RBAC)
+- **GET** `/api/documents/{id}/download` - Secure download
+- **POST/GET** `/api/documents/{id}/token` - Create short-lived download token (param `ttl` seconds)
+- **GET** `/api/employees/{id}/documents` - List documents for employee
+- **POST** `/api/employees/{id}/documents` - Upload document (multipart: `document_type`, `document_file`)
+- **GET** `/api/documents/expiring?within_days=30&department_id=` - List expiring docs
+- **GET** `/api/documents/missing?category=License&department_id=` - List employees missing category/doc type
+- **GET** `/api/documents/analytics?category=License&within_days=30` - Compliance metrics
+
+### Integrations (`/api/integrations/*`)
+
+- **POST** `/api/integrations/hr1/applicant-hired` - Create employee from recruitment
+- **POST** `/api/integrations/hr2/career-event` - Promotion/transfer/status change
+- **POST** `/api/integrations/hr3/attendance-batch` - Attendance/leave batch ingest
+- **GET** `/api/integrations/{payroll|hmo|analytics}/employees?updated_since=` - Delta employee export
 
 #### Get All Departments
 - **GET** `/api/departments`

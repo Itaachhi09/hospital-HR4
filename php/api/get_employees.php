@@ -30,7 +30,7 @@ try {
 }
 
 try {
-    // Prepare SQL statement to select detailed employee data
+    // Build SQL with optional filters
     $sql = "SELECT
                 e.EmployeeID,
                 e.FirstName,
@@ -55,6 +55,8 @@ try {
                 e.EmergencyContactPhone,
                 e.HireDate,
                 e.JobTitle,
+                e.EmploymentType,
+                e.EmploymentStatus,
                 e.DepartmentID,
                 d.DepartmentName,
                 e.ManagerID,
@@ -63,7 +65,7 @@ try {
                 e.TerminationDate,
                 e.TerminationReason,
                 e.EmployeePhotoPath,
-                u.UserID -- Added UserID
+                u.UserID
             FROM
                 Employees e
             LEFT JOIN
@@ -71,11 +73,56 @@ try {
             LEFT JOIN
                 Employees m ON e.ManagerID = m.EmployeeID
             LEFT JOIN 
-                Users u ON e.EmployeeID = u.EmployeeID -- Join with Users table
-            ORDER BY
-                e.LastName, e.FirstName";
+                Users u ON e.EmployeeID = u.EmployeeID
+            WHERE 1=1";
 
-    $stmt = $pdo->query($sql);
+    $params = [];
+
+    // Optional filters from query string
+    $departmentId = isset($_GET['department_id']) ? filter_var($_GET['department_id'], FILTER_VALIDATE_INT) : null;
+    if (!empty($departmentId)) {
+        $sql .= " AND e.DepartmentID = :department_id";
+        $params[':department_id'] = $departmentId;
+    }
+
+    // is_active filter (0/1)
+    if (isset($_GET['is_active']) && $_GET['is_active'] !== '') {
+        $isActive = ($_GET['is_active'] === '1' || $_GET['is_active'] === 1) ? 1 : 0;
+        $sql .= " AND e.IsActive = :is_active";
+        $params[':is_active'] = $isActive;
+    }
+
+    // employment_status exact match
+    if (!empty($_GET['employment_status'])) {
+        $sql .= " AND e.EmploymentStatus = :employment_status";
+        $params[':employment_status'] = $_GET['employment_status'];
+    }
+
+    // employment_type exact match
+    if (!empty($_GET['employment_type'])) {
+        $sql .= " AND e.EmploymentType = :employment_type";
+        $params[':employment_type'] = $_GET['employment_type'];
+    }
+
+    // job_title partial match
+    if (!empty($_GET['job_title'])) {
+        $sql .= " AND e.JobTitle LIKE :job_title";
+        $params[':job_title'] = '%' . $_GET['job_title'] . '%';
+    }
+
+    // smart text search across name/email/job title
+    if (!empty($_GET['search'])) {
+        $sql .= " AND (e.FirstName LIKE :search OR e.LastName LIKE :search OR e.Email LIKE :search OR e.JobTitle LIKE :search)";
+        $params[':search'] = '%' . $_GET['search'] . '%';
+    }
+
+    $sql .= " ORDER BY e.LastName, e.FirstName";
+
+    $stmt = $pdo->prepare($sql);
+    foreach ($params as $key => $value) {
+        $stmt->bindValue($key, $value);
+    }
+    $stmt->execute();
     $employees = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     // Format dates and other fields as needed

@@ -284,6 +284,13 @@ function renderDocumentsTable(documents) {
         previewBtn.innerHTML = '<i class="fas fa-eye"></i> Preview';
         actionsCell.appendChild(previewBtn);
 
+        const tokenBtn = document.createElement('button');
+        tokenBtn.className = 'text-green-600 hover:text-green-800 token-doc-btn';
+        tokenBtn.dataset.docId = doc.DocumentID;
+        tokenBtn.title = 'Create secure link';
+        tokenBtn.innerHTML = '<i class="fas fa-link"></i> Link';
+        actionsCell.appendChild(tokenBtn);
+
         const deleteButton = document.createElement('button');
         deleteButton.className = 'text-red-600 hover:text-red-800 delete-doc-btn';
         deleteButton.dataset.docId = doc.DocumentID;
@@ -322,13 +329,21 @@ function attachDeleteListeners() {
 async function handleDocumentActionClick(event) {
     const delBtn = event.target.closest('.delete-doc-btn');
     const previewBtn = event.target.closest('.preview-doc-btn');
-    if (!delBtn && !previewBtn) return;
+    const tokenBtn = event.target.closest('.token-doc-btn');
+    if (!delBtn && !previewBtn && !tokenBtn) return;
 
     if (previewBtn) {
         const documentId = previewBtn.dataset.docId;
         const name = previewBtn.dataset.docName || '';
         if (!documentId) return;
         previewDocument(documentId, name);
+        return;
+    }
+
+    if (tokenBtn) {
+        const documentId = tokenBtn.dataset.docId;
+        if (!documentId) return;
+        issueSecureLink(documentId);
         return;
     }
 
@@ -419,6 +434,32 @@ async function previewDocument(documentId, documentName){
     }catch(err){
         console.error('Preview failed', err);
         Swal.fire('Preview Failed', String(err.message || err), 'error');
+    }
+}
+
+async function issueSecureLink(documentId){
+    try{
+        const ttl = 600;
+        const res = await fetch(`${API_BASE_URL.replace(/php\/api\/$/, 'api/')}documents/${encodeURIComponent(documentId)}/token`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ttl }) });
+        const data = await res.json();
+        if (!res.ok || !data || data.success === false) throw new Error(data?.message || `HTTP ${res.status}`);
+        const token = data.data?.token || data.token;
+        const expiresAt = data.data?.expires_at || data.expires_at;
+        const downloadUrl = `${window.location.origin}${API_BASE_URL.replace(/php\/api\/$/, 'api/')}documents/${encodeURIComponent(documentId)}/download?token=${encodeURIComponent(token)}`;
+        await Swal.fire({
+            icon: 'success',
+            title: 'Secure Link Created',
+            html: `<div class="text-left text-sm"><div class="mb-2"><strong>Expires:</strong> ${expiresAt}</div><div class="bg-gray-50 border rounded p-2 break-all">${downloadUrl}</div></div>`,
+            confirmButtonText: 'Copy',
+            showCancelButton: true
+        }).then(res=>{
+            if (res.isConfirmed) {
+                navigator.clipboard?.writeText(downloadUrl);
+            }
+        });
+    }catch(err){
+        console.error('Token link failed', err);
+        Swal.fire('Failed to create link', String(err.message||err), 'error');
     }
 }
 

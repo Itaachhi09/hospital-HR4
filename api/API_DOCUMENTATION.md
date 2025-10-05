@@ -166,8 +166,12 @@ All API responses follow this standardized format:
 - **GET** `/api/documents?employee_id=` - List documents (Employees: own only)
 - **DELETE** `/api/documents/{id}` - Delete a document (RBAC)
 - **GET** `/api/documents/{id}/download` - Secure download
+- **POST/GET** `/api/documents/{id}/token` - Create short-lived download token (param `ttl` seconds)
 - **GET** `/api/employees/{id}/documents` - List documents for employee
 - **POST** `/api/employees/{id}/documents` - Upload document (multipart: `document_type`, `document_file`)
+- **GET** `/api/documents/expiring?within_days=30&department_id=` - List expiring docs
+- **GET** `/api/documents/missing?category=License&department_id=` - List employees missing category/doc type
+- **GET** `/api/documents/analytics?category=License&within_days=30` - Compliance metrics
 
 ### Integrations (`/api/integrations/*`)
 

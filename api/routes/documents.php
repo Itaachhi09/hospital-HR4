@@ -35,15 +35,39 @@ class DocumentsController {
             return Response::methodNotAllowed();
         }
 
+        // Special collection/report endpoints under /api/documents
+        if ($id === 'expiring' && $method === 'GET') {
+            return $this->listExpiringDocuments();
+        }
+        if ($id === 'missing' && $method === 'GET') {
+            return $this->listMissingDocuments();
+        }
+        if ($id === 'analytics' && $method === 'GET') {
+            return $this->documentsAnalytics();
+        }
+
         switch ($method) {
             case 'GET':
                 if ($id && $subResource === 'download') {
                     return $this->downloadDocument((int)$id);
                 }
+                if ($id && $subResource === 'token') {
+                    // Allow POST primarily; GET fallback for simplicity
+                    return $this->issueDownloadToken((int)$id, isset($_GET['ttl']) ? (int)$_GET['ttl'] : 600);
+                }
                 return $this->listDocuments();
             case 'DELETE':
                 if (!$id) return Response::methodNotAllowed();
                 return $this->deleteDocument((int)$id);
+            case 'POST':
+                if ($id && $subResource === 'token') {
+                    $ttl = 600;
+                    $request = new Request();
+                    $data = $request->getData();
+                    if (!empty($data['ttl'])) { $ttl = max(60, (int)$data['ttl']); }
+                    return $this->issueDownloadToken((int)$id, $ttl);
+                }
+                return Response::methodNotAllowed();
             default:
                 return Response::methodNotAllowed();
         }
@@ -207,6 +231,96 @@ class DocumentsController {
         }
         $tokenInfo = $this->docModel->createAccessToken($documentId, $ttlSeconds, $current['user_id'] ?? null);
         Response::success($tokenInfo, 'Access token created');
+    }
+
+    private function listExpiringDocuments() {
+        if (!$this->auth->authenticate() || !$this->auth->hasAnyRole(['System Admin','HR Manager','HR Admin'])) {
+            Response::forbidden('Insufficient permissions');
+        }
+        $request = new Request();
+        $within = (int)($request->getData('within_days') ?? 30);
+        $deptId = $request->getData('department_id');
+        $sql = "SELECT d.DocumentID, d.EmployeeID, CONCAT(e.FirstName,' ',e.LastName) AS EmployeeName, e.DepartmentID, os.DepartmentName,
+                       d.DocumentType, d.Category, d.DocumentName, d.ExpiresOn
+                FROM EmployeeDocuments d
+                JOIN Employees e ON d.EmployeeID = e.EmployeeID
+                LEFT JOIN OrganizationalStructure os ON e.DepartmentID = os.DepartmentID
+                WHERE d.ExpiresOn IS NOT NULL AND d.ExpiresOn <= DATE_ADD(CURDATE(), INTERVAL :days DAY) AND e.IsActive = 1";
+        $params = [':days' => $within];
+        if (!empty($deptId)) { $sql .= " AND e.DepartmentID = :dept"; $params[':dept'] = (int)$deptId; }
+        $sql .= " ORDER BY d.ExpiresOn ASC";
+        $stmt = $this->pdo->prepare($sql);
+        foreach ($params as $k=>$v) { $stmt->bindValue($k, $v); }
+        $stmt->execute();
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        Response::success($rows);
+    }
+
+    private function listMissingDocuments() {
+        if (!$this->auth->authenticate() || !$this->auth->hasAnyRole(['System Admin','HR Manager','HR Admin'])) {
+            Response::forbidden('Insufficient permissions');
+        }
+        $request = new Request();
+        $category = $request->getData('category');
+        if (empty($category)) {
+            Response::validationError(['category' => 'Category is required']);
+        }
+        $deptId = $request->getData('department_id');
+        $sql = "SELECT e.EmployeeID, CONCAT(e.FirstName,' ',e.LastName) AS EmployeeName, e.DepartmentID, os.DepartmentName
+                FROM Employees e
+                LEFT JOIN OrganizationalStructure os ON e.DepartmentID = os.DepartmentID
+                WHERE e.IsActive = 1
+                  AND NOT EXISTS (
+                    SELECT 1 FROM EmployeeDocuments d
+                    WHERE d.EmployeeID = e.EmployeeID AND (d.Category = :cat OR d.DocumentType = :cat)
+                  )";
+        $params = [':cat' => $category];
+        if (!empty($deptId)) { $sql .= " AND e.DepartmentID = :dept"; $params[':dept'] = (int)$deptId; }
+        $sql .= " ORDER BY os.DepartmentName, e.LastName, e.FirstName";
+        $stmt = $this->pdo->prepare($sql);
+        foreach ($params as $k=>$v) { $stmt->bindValue($k, $v); }
+        $stmt->execute();
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        Response::success($rows);
+    }
+
+    private function documentsAnalytics() {
+        if (!$this->auth->authenticate() || !$this->auth->hasAnyRole(['System Admin','HR Manager','HR Admin'])) {
+            Response::forbidden('Insufficient permissions');
+        }
+        $request = new Request();
+        $category = $request->getData('category');
+        $within = (int)($request->getData('within_days') ?? 30);
+        if (empty($category)) { Response::validationError(['category' => 'Category is required']); }
+
+        $total = (int)$this->pdo->query("SELECT COUNT(*) FROM Employees WHERE IsActive = 1")->fetchColumn();
+        $withDocStmt = $this->pdo->prepare("SELECT COUNT(DISTINCT e.EmployeeID)
+            FROM Employees e JOIN EmployeeDocuments d ON e.EmployeeID = d.EmployeeID
+            WHERE e.IsActive = 1 AND (d.Category = :cat OR d.DocumentType = :cat)");
+        $withDocStmt->execute([':cat' => $category]);
+        $withDoc = (int)$withDocStmt->fetchColumn();
+
+        $expiringStmt = $this->pdo->prepare("SELECT COUNT(DISTINCT e.EmployeeID)
+            FROM Employees e JOIN EmployeeDocuments d ON e.EmployeeID = d.EmployeeID
+            WHERE e.IsActive = 1 AND (d.Category = :cat OR d.DocumentType = :cat)
+              AND d.ExpiresOn IS NOT NULL AND d.ExpiresOn <= DATE_ADD(CURDATE(), INTERVAL :days DAY)");
+        $expiringStmt->bindValue(':cat', $category);
+        $expiringStmt->bindValue(':days', $within, PDO::PARAM_INT);
+        $expiringStmt->execute();
+        $expiring = (int)$expiringStmt->fetchColumn();
+
+        $missing = max(0, $total - $withDoc);
+        $percentCompliant = $total > 0 ? round(($withDoc / $total) * 100, 2) : 0.0;
+
+        Response::success([
+            'total_employees' => $total,
+            'with_document' => $withDoc,
+            'missing_document' => $missing,
+            'expiring_within_days' => $expiring,
+            'percent_compliant' => $percentCompliant,
+            'category' => $category,
+            'window_days' => $within
+        ]);
     }
 
     private function getPathSegments() {

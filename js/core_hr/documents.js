@@ -160,7 +160,7 @@ async function loadDocuments(employeeId = null, extra = {}) {
     if (qs) url += `?${qs}`;
 
     try {
-        const response = await fetch(url);
+        const response = await fetch(url, { credentials: 'include' });
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         const documents = await response.json();
 
@@ -244,8 +244,8 @@ function renderDocumentsTable(documents) {
 
         const filenameCell = row.insertCell();
         filenameCell.className = 'px-4 py-3 whitespace-nowrap text-sm text-gray-700';
-        const webRootPath = '/hr4/hospital-HR4/';
-        const filePath = doc.FilePath ? `${webRootPath}${doc.FilePath}` : '#';
+        // Use secure download endpoint within app (session-based)
+        const filePath = `${API_BASE_URL.replace(/php\/api\/$/, 'api/')}documents/${encodeURIComponent(doc.DocumentID)}/download`;
         const link = document.createElement('a');
         link.href = filePath;
         link.target = '_blank';
@@ -482,7 +482,8 @@ async function deleteDocument(documentId) {
 
     try {
         const response = await fetch(`${API_BASE_URL.replace(/php\/api\/$/, 'api/')}documents/${encodeURIComponent(documentId)}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            credentials: 'include'
         });
 
         const result = await response.json();
@@ -554,7 +555,8 @@ async function handleUploadDocument(event) {
         const empId = form.elements['employee_id']?.value;
         const response = await fetch(`${API_BASE_URL.replace(/php\/api\/$/, 'api/')}employees/${encodeURIComponent(empId)}/documents`, {
             method: 'POST',
-            body: formData
+            body: formData,
+            credentials: 'include'
         });
 
         const result = await response.json();

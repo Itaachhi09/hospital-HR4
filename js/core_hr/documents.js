@@ -116,7 +116,8 @@ async function loadDocuments(employeeId = null) {
     if (!container) return;
     container.innerHTML = '<p class="text-center py-4">Loading documents...</p>'; 
 
-    let url = `${API_BASE_URL}get_documents.php`;
+    // Use REST endpoint; employees see only their own via server-side auth
+    let url = `${API_BASE_URL.replace(/php\/api\/$/, 'api/') }documents`;
     if (employeeId) {
         url += `?employee_id=${encodeURIComponent(employeeId)}`;
     }
@@ -284,10 +285,8 @@ async function deleteDocument(documentId) {
     });
 
     try {
-        const response = await fetch(`${API_BASE_URL}delete_document.php`, {
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ document_id: parseInt(documentId) }) 
+        const response = await fetch(`${API_BASE_URL.replace(/php\/api\/$/, 'api/')}documents/${encodeURIComponent(documentId)}`, {
+            method: 'DELETE'
         });
 
         const result = await response.json();
@@ -356,9 +355,10 @@ async function handleUploadDocument(event) {
     submitButton.disabled = true;
 
     try {
-        const response = await fetch(`${API_BASE_URL}upload_document.php`, {
+        const empId = form.elements['employee_id']?.value;
+        const response = await fetch(`${API_BASE_URL.replace(/php\/api\/$/, 'api/')}employees/${encodeURIComponent(empId)}/documents`, {
             method: 'POST',
-            body: formData 
+            body: formData
         });
 
         const result = await response.json();

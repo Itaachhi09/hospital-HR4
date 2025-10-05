@@ -119,9 +119,19 @@ try {
                 $controller = new UsersController();
                 $controller->handleRequest($method, $id, $subResource);
                 break;
+            case 'documents':
+                require_once __DIR__ . '/routes/documents.php';
+                $controller = new DocumentsController();
+                $controller->handleRequest($method, $id, $subResource);
+                break;
             case 'employees':
                 require_once __DIR__ . '/routes/employees.php';
                 $controller = new EmployeesController();
+                $controller->handleRequest($method, $id, $subResource);
+                break;
+            case 'org-structure':
+                require_once __DIR__ . '/routes/org_structure.php';
+                $controller = new OrgStructureController();
                 $controller->handleRequest($method, $id, $subResource);
                 break;
             case 'departments':

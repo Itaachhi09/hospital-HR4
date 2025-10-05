@@ -49,6 +49,10 @@ export async function displayDocumentsSection() {
                             <label for="doc-file" class="block text-sm font-medium text-gray-700 mb-1">File:</label>
                             <input type="file" id="doc-file" name="document_file" required class="w-full p-1.5 border border-gray-300 rounded-md shadow-sm text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-[#F7E6CA] file:text-[#4E3B2A] hover:file:bg-[#EADDCB]">
                             <p class="mt-1 text-xs text-gray-500">Allowed: PDF, DOC, DOCX, JPG, PNG (Max 5MB)</p>
+                            <div id="doc-dropzone" class="mt-2 border-2 border-dashed border-gray-300 rounded-md p-4 text-center text-sm text-gray-600 hover:border-[#4E3B2A] cursor-pointer">
+                                Drag & drop file here or click above
+                            </div>
+                            <div id="doc-upload-preview" class="mt-2"></div>
                         </div>
                     </div>
                     <div class="pt-2">
@@ -102,6 +106,12 @@ export async function displayDocumentsSection() {
                 uploadForm.addEventListener('submit', handleUploadDocument);
                 uploadForm.setAttribute('data-listener-attached', 'true');
             }
+            setupDragAndDrop();
+            const fileInput = document.getElementById('doc-file');
+            fileInput?.addEventListener('change', (e)=>{
+                const f = e.target.files && e.target.files[0];
+                if (f) renderUploadPreview(f);
+            });
         } else {
             console.error("Upload Document form not found after injecting HTML.");
         }
@@ -265,7 +275,15 @@ function renderDocumentsTable(documents) {
         }
 
         const actionsCell = row.insertCell();
-        actionsCell.className = 'px-4 py-3 whitespace-nowrap text-sm font-medium';
+        actionsCell.className = 'px-4 py-3 whitespace-nowrap text-sm font-medium space-x-3';
+        const previewBtn = document.createElement('button');
+        previewBtn.className = 'text-blue-600 hover:text-blue-800 preview-doc-btn';
+        previewBtn.dataset.docId = doc.DocumentID;
+        previewBtn.dataset.docName = doc.DocumentName || '';
+        previewBtn.title = 'Preview';
+        previewBtn.innerHTML = '<i class="fas fa-eye"></i> Preview';
+        actionsCell.appendChild(previewBtn);
+
         const deleteButton = document.createElement('button');
         deleteButton.className = 'text-red-600 hover:text-red-800 delete-doc-btn';
         deleteButton.dataset.docId = doc.DocumentID;
@@ -292,8 +310,8 @@ function mapCategoryToChip(category){
 function attachDeleteListeners() {
     const container = document.querySelector('.document-action-container'); 
     if (container) {
-        container.removeEventListener('click', handleDeleteDocumentClick);
-        container.addEventListener('click', handleDeleteDocumentClick);
+        container.removeEventListener('click', handleDocumentActionClick);
+        container.addEventListener('click', handleDocumentActionClick);
     }
 }
 
@@ -301,29 +319,106 @@ function attachDeleteListeners() {
  * Handles the click event for a delete document button.
  * Prompts for confirmation using SweetAlert.
  */
-async function handleDeleteDocumentClick(event) {
-    const button = event.target.closest('.delete-doc-btn'); 
-    if (!button) return; 
+async function handleDocumentActionClick(event) {
+    const delBtn = event.target.closest('.delete-doc-btn');
+    const previewBtn = event.target.closest('.preview-doc-btn');
+    if (!delBtn && !previewBtn) return;
 
-    const documentId = button.dataset.docId;
-    if (!documentId) {
-        console.error("Could not find document ID on delete button.");
-        Swal.fire('Error', 'Could not identify the document to delete.', 'error');
+    if (previewBtn) {
+        const documentId = previewBtn.dataset.docId;
+        const name = previewBtn.dataset.docName || '';
+        if (!documentId) return;
+        previewDocument(documentId, name);
         return;
     }
 
-    const result = await Swal.fire({
-        title: 'Are you sure?',
-        text: `Do you want to delete document ID ${documentId}? This action cannot be undone.`,
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#d33',
-        cancelButtonColor: '#3085d6',
-        confirmButtonText: 'Yes, delete it!'
-    });
+    if (delBtn) {
+        const documentId = delBtn.dataset.docId;
+        if (!documentId) {
+            console.error("Could not find document ID on delete button.");
+            Swal.fire('Error', 'Could not identify the document to delete.', 'error');
+            return;
+        }
+        const result = await Swal.fire({
+            title: 'Are you sure?',
+            text: `Do you want to delete document ID ${documentId}? This action cannot be undone.`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Yes, delete it!'
+        });
+        if (result.isConfirmed) deleteDocument(documentId);
+    }
+}
 
-    if (result.isConfirmed) {
-        deleteDocument(documentId);
+function setupDragAndDrop(){
+    const dz = document.getElementById('doc-dropzone');
+    const fileInput = document.getElementById('doc-file');
+    if (!dz || !fileInput) return;
+    const highlight = (on)=>{ dz.classList.toggle('border-[#4E3B2A]', on); dz.classList.toggle('bg-gray-50', on); };
+    dz.addEventListener('dragover', (e)=>{ e.preventDefault(); highlight(true); });
+    dz.addEventListener('dragleave', (e)=>{ e.preventDefault(); highlight(false); });
+    dz.addEventListener('drop', (e)=>{
+        e.preventDefault(); highlight(false);
+        const files = e.dataTransfer?.files;
+        if (files && files.length){
+            fileInput.files = files;
+            renderUploadPreview(files[0]);
+        }
+    });
+    dz.addEventListener('click', ()=> fileInput.click());
+}
+
+function renderUploadPreview(file){
+    const cont = document.getElementById('doc-upload-preview');
+    if (!cont) return;
+    cont.innerHTML = '';
+    const info = document.createElement('div');
+    info.className = 'text-xs text-gray-600 mb-2';
+    info.textContent = `${file.name} (${Math.round(file.size/1024)} KB)`;
+    cont.appendChild(info);
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    if (['png','jpg','jpeg'].includes(ext)){
+        const img = document.createElement('img');
+        img.className = 'h-24 rounded border';
+        img.src = URL.createObjectURL(file);
+        cont.appendChild(img);
+    } else if (ext === 'pdf') {
+        const badge = document.createElement('span');
+        badge.className = 'inline-block px-2 py-1 bg-gray-200 text-gray-700 rounded text-xs';
+        badge.textContent = 'PDF selected';
+        cont.appendChild(badge);
+    }
+}
+
+async function previewDocument(documentId, documentName){
+    try{
+        const url = `${API_BASE_URL.replace(/php\/api\/$/, 'api/')}documents/${encodeURIComponent(documentId)}/download`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const blob = await res.blob();
+        const ext = (documentName?.split('.').pop() || '').toLowerCase();
+        const objUrl = URL.createObjectURL(blob);
+        let html = '';
+        if (['png','jpg','jpeg','gif','webp'].includes(ext)){
+            html = `<img src="${objUrl}" alt="${documentName}" class="max-h-[70vh] mx-auto rounded border" />`;
+        } else if (ext === 'pdf'){
+            html = `<iframe src="${objUrl}" class="w-full min-h-[70vh]" style="border:0;"></iframe>`;
+        } else {
+            html = `<p class="text-gray-700 text-sm">Preview not available for this file type. You can download it instead.</p>`;
+        }
+        await Swal.fire({
+            title: documentName || 'Preview',
+            html,
+            width: '80%',
+            showCloseButton: true,
+            showConfirmButton: false
+        });
+        URL.revokeObjectURL(objUrl);
+    }catch(err){
+        console.error('Preview failed', err);
+        Swal.fire('Preview Failed', String(err.message || err), 'error');
     }
 }
 

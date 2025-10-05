@@ -3,7 +3,7 @@
  * v4.0 - Enhanced for Philippine hospital-specific HR management
  * Supports HR divisions, job roles, department coordinators, and comprehensive org hierarchy
  */
-import { API_BASE_URL, populateEmployeeDropdown } from '../utils.js';
+import { API_BASE_URL, populateEmployeeDropdown, isReadOnlyMode } from '../utils.js';
 
 let hospitalOrgData = {}; // Store comprehensive hospital organizational data
 let currentView = 'hierarchy'; // Current view: hierarchy, divisions, roles, coordinators
@@ -28,27 +28,27 @@ export async function displayOrgStructureSection() {
             <div class="bg-white rounded-lg shadow-md border border-gray-200">
                 <div class="border-b border-gray-200">
                     <nav class="flex space-x-8 px-6" aria-label="Tabs">
-                        <button class="nav-tab-btn py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap" 
+                <button class="nav-tab-btn py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap" 
                                 data-view="hierarchy" onclick="switchOrgView('hierarchy')">
                             <i class="fas fa-sitemap mr-2"></i>Hospital Hierarchy
                         </button>
-                        <button class="nav-tab-btn py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap" 
+                <button class="nav-tab-btn py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap" 
                                 data-view="divisions" onclick="switchOrgView('divisions')">
                             <i class="fas fa-building mr-2"></i>HR Divisions
                         </button>
-                        <button class="nav-tab-btn py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap" 
+                <button class="nav-tab-btn py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap" 
                                 data-view="roles" onclick="switchOrgView('roles')">
                             <i class="fas fa-users-cog mr-2"></i>Job Roles
                         </button>
-                        <button class="nav-tab-btn py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap" 
+                <button class="nav-tab-btn py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap" 
                                 data-view="coordinators" onclick="switchOrgView('coordinators')">
                             <i class="fas fa-user-tie mr-2"></i>HR Coordinators
                         </button>
-                        <button class="nav-tab-btn py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap" 
+                <button class="nav-tab-btn py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap" 
                                 data-view="functional" onclick="switchOrgView('functional')">
                             <i class="fas fa-project-diagram mr-2"></i>Functional View
                         </button>
-                        <button class="nav-tab-btn py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap" 
+                <button class="nav-tab-btn py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap" 
                                 data-view="paygrade" onclick="switchOrgView('paygrade')">
                             <i class="fas fa-layer-group mr-2"></i>Pay Grade View
                         </button>
@@ -68,6 +68,7 @@ export async function displayOrgStructureSection() {
     
     // Initialize view
     await loadHospitalOrgData();
+    try { const ro = await isReadOnlyMode(); if (ro) { const b=document.getElementById('btn-add-dept'); b?.classList.add('hidden'); } } catch(e){}
     switchOrgView('hierarchy');
 }
 
@@ -149,7 +150,7 @@ function renderHierarchyView() {
                     <h3 class="text-lg font-semibold text-gray-900">Hospital Organizational Hierarchy</h3>
                     <p class="text-sm text-gray-600">Complete hospital departmental structure</p>
                 </div>
-                <button onclick="showAddDepartmentModal()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                <button id="btn-add-dept" onclick="showAddDepartmentModal()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
                     <i class="fas fa-plus mr-2"></i>Add Department
                 </button>
             </div>
@@ -217,8 +218,8 @@ function renderHospitalHierarchy() {
         }
     });
 
-    // Drag-drop to reorder (admins only – assume server enforces RBAC)
-    enableDragDropReorder();
+    // Drag-drop to reorder (admins only). Disabled in read-only mode.
+    (async ()=>{ try { const ro = await isReadOnlyMode(); if (!ro) enableDragDropReorder(); } catch(e){ /* ignore */ } })();
 
     // export handler
     document.getElementById('org-export')?.addEventListener('click', exportOrgToPDF);

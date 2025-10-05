@@ -3,7 +3,7 @@
  * v2.1 - Integrated SweetAlert for notifications and confirmations.
  * v2.0 - Refined rendering functions for XSS protection.
  */
-import { API_BASE_URL, populateEmployeeDropdown } from '../utils.js'; // Import shared functions/constants
+import { API_BASE_URL, populateEmployeeDropdown, isReadOnlyMode } from '../utils.js'; // Import shared functions/constants
 
 /**
  * Displays the Employee Documents section.
@@ -97,6 +97,14 @@ export async function displayDocumentsSection() {
         </div>`;
 
     requestAnimationFrame(async () => {
+        // Hide upload form and destructive actions in read-only mode
+        try {
+            const ro = await isReadOnlyMode();
+            if (ro) {
+                const uploadBlock = document.getElementById('upload-document-form');
+                if (uploadBlock) uploadBlock.closest('.border-b')?.classList.add('hidden');
+            }
+        } catch (e) { /* ignore */ }
         await populateEmployeeDropdown('doc-employee-select'); 
         await populateEmployeeDropdown('filter-doc-employee', true); 
 
@@ -149,8 +157,8 @@ async function loadDocuments(employeeId = null, extra = {}) {
     if (!container) return;
     container.innerHTML = '<p class="text-center py-4">Loading documents...</p>'; 
 
-    // Use REST endpoint; employees see only their own via server-side auth
-    let url = `${API_BASE_URL.replace(/php\/api\/$/, 'api/') }documents`;
+    // Use read-only aggregator endpoint; employees see only their own via server-side auth
+    let url = `${API_BASE_URL.replace(/php\/api\/$/, 'api/') }hr-core/documents`;
     const params = new URLSearchParams();
     if (employeeId) params.set('employee_id', String(employeeId));
     if (extra && extra.search) params.set('search', extra.search);
@@ -162,14 +170,11 @@ async function loadDocuments(employeeId = null, extra = {}) {
     try {
         const response = await fetch(url, { credentials: 'include' });
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        const documents = await response.json();
-
-        if (documents.error) {
-            console.error("Error fetching documents:", documents.error);
-            container.innerHTML = `<p class="text-red-500 text-center py-4">Error: ${documents.error}</p>`;
-        } else {
-            renderDocumentsTable(documents); 
-        }
+        const result = await response.json();
+        const documents = Array.isArray(result) ? result
+            : (Array.isArray(result?.data?.items) ? result.data.items
+            : (Array.isArray(result?.data) ? result.data : []));
+        renderDocumentsTable(documents); 
     } catch (error) {
         console.error('Error loading documents:', error);
         container.innerHTML = `<p class="text-red-500 text-center py-4">Could not load documents. ${error.message}</p>`;
@@ -284,19 +289,29 @@ function renderDocumentsTable(documents) {
         previewBtn.innerHTML = '<i class="fas fa-eye"></i> Preview';
         actionsCell.appendChild(previewBtn);
 
-        const tokenBtn = document.createElement('button');
-        tokenBtn.className = 'text-green-600 hover:text-green-800 token-doc-btn';
-        tokenBtn.dataset.docId = doc.DocumentID;
-        tokenBtn.title = 'Create secure link';
-        tokenBtn.innerHTML = '<i class="fas fa-link"></i> Link';
-        actionsCell.appendChild(tokenBtn);
+        (async ()=>{
+            const ro = await isReadOnlyMode();
+            if (!ro) {
+                const tokenBtn = document.createElement('button');
+                tokenBtn.className = 'text-green-600 hover:text-green-800 token-doc-btn';
+                tokenBtn.dataset.docId = doc.DocumentID;
+                tokenBtn.title = 'Create secure link';
+                tokenBtn.innerHTML = '<i class="fas fa-link"></i> Link';
+                actionsCell.appendChild(tokenBtn);
+            }
+        })();
 
-        const deleteButton = document.createElement('button');
-        deleteButton.className = 'text-red-600 hover:text-red-800 delete-doc-btn';
-        deleteButton.dataset.docId = doc.DocumentID;
-        deleteButton.title = 'Delete Document';
-        deleteButton.innerHTML = '<i class="fas fa-trash-alt"></i> Delete';
-        actionsCell.appendChild(deleteButton);
+        (async ()=>{
+            const ro = await isReadOnlyMode();
+            if (!ro) {
+                const deleteButton = document.createElement('button');
+                deleteButton.className = 'text-red-600 hover:text-red-800 delete-doc-btn';
+                deleteButton.dataset.docId = doc.DocumentID;
+                deleteButton.title = 'Delete Document';
+                deleteButton.innerHTML = '<i class="fas fa-trash-alt"></i> Delete';
+                actionsCell.appendChild(deleteButton);
+            }
+        })();
     });
     container.appendChild(table);
     attachDeleteListeners();

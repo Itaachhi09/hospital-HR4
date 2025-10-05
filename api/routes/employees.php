@@ -25,6 +25,11 @@ class EmployeesController {
      * Handle employee requests
      */
     public function handleRequest($method, $id = null, $subResource = null) {
+        // Read-only guard: disable writes
+        $isReadOnly = method_exists($this->authMiddleware, 'isReadOnly') ? $this->authMiddleware->isReadOnly() : false;
+        if ($isReadOnly && in_array($method, ['POST','PUT','PATCH','DELETE'], true)) {
+            return Response::forbidden('Read-only mode: employee modifications disabled');
+        }
         switch ($method) {
             case 'GET':
                 if ($id === null) {

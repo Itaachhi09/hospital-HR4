@@ -179,6 +179,11 @@ try {
                 $controller = new IntegrationsController();
                 $controller->handleRequest($method, $id, $subResource);
                 break;
+            case 'hr-core':
+                require_once __DIR__ . '/routes/hr_core.php';
+                $controller = new HRCoreController();
+                $controller->handleRequest($method, $id, $subResource);
+                break;
             case 'dashboard':
                 require_once __DIR__ . '/routes/dashboard.php';
                 $controller = new DashboardController();

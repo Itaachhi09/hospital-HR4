@@ -26,12 +26,21 @@ class DocumentsController {
     }
 
     public function handleRequest($method, $id = null, $subResource = null) {
+        // Enforce read-only mode: block any write operations when enabled
+        $isReadOnly = method_exists($this->auth, 'isReadOnly') ? $this->auth->isReadOnly() : false;
+        if ($isReadOnly && in_array($method, ['POST','PUT','PATCH','DELETE'], true)) {
+            // Exception: allow GET /token for viewing token details if implemented; block POST token issuance
+            if ($method === 'POST') {
+                return Response::forbidden('Read-only mode: write operations are disabled');
+            }
+            return Response::forbidden('Read-only mode: write operations are disabled');
+        }
         // Support subresource mapping when called under /api/employees/{id}/documents
         $path = $this->getPathSegments();
         if (!empty($path) && $path[0] === 'employees' && isset($path[1]) && isset($path[2]) && $path[2] === 'documents') {
             $employeeId = (int)$path[1];
             if ($method === 'GET') return $this->listEmployeeDocuments($employeeId);
-            if ($method === 'POST') return $this->uploadEmployeeDocument($employeeId);
+            if ($method === 'POST') return Response::forbidden('Read-only mode: uploads disabled');
             return Response::methodNotAllowed();
         }
 
@@ -57,10 +66,12 @@ class DocumentsController {
                 }
                 return $this->listDocuments();
             case 'DELETE':
+                if ($isReadOnly) return Response::forbidden('Read-only mode: deletions disabled');
                 if (!$id) return Response::methodNotAllowed();
                 return $this->deleteDocument((int)$id);
             case 'POST':
                 if ($id && $subResource === 'token') {
+                    if ($isReadOnly) return Response::forbidden('Read-only mode: token issuance disabled');
                     $ttl = 600;
                     $request = new Request();
                     $data = $request->getData();

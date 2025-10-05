@@ -10,11 +10,13 @@ class AuthMiddleware {
     private $currentUser = null;
     private $jwtSecret;
     private $jwtExpirySeconds;
+    private $readOnly;
 
     public function __construct() {
         $config = $GLOBALS['api_config'] ?? [];
         $this->jwtSecret = $config['jwt']['secret'] ?? 'change-me';
         $this->jwtExpirySeconds = $config['jwt']['expiry'] ?? (24 * 60 * 60);
+        $this->readOnly = (bool)($config['app']['read_only'] ?? false);
     }
 
     /**
@@ -91,6 +93,11 @@ class AuthMiddleware {
             if (strcasecmp($rn, $role) === 0) return true;
         }
         return false;
+    }
+
+    /** Returns true when HR Core is configured to be read-only */
+    public function isReadOnly(): bool {
+        return (bool)$this->readOnly;
     }
 
     private function getBearerToken() {

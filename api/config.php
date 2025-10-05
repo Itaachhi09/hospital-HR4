@@ -36,6 +36,13 @@ $config = [
     'app' => [
         'url' => getenv('APP_URL') ?: 'http://localhost/hospital-HR4',
         'timezone' => 'UTC',
+        // Read-only mode for HR Core (1/true to enable). Blocks POST/PUT/DELETE.
+        'read_only' => (function() {
+            $v = getenv('HR_CORE_READ_ONLY');
+            if ($v === false || $v === null || $v === '') return false;
+            $v = strtolower(trim((string)$v));
+            return in_array($v, ['1','true','yes','on'], true);
+        })()
     ]
 ];
 

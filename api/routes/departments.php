@@ -25,6 +25,11 @@ class DepartmentsController {
      * Handle department requests
      */
     public function handleRequest($method, $id = null, $subResource = null) {
+        // Read-only guard: block non-GET methods when enabled
+        $isReadOnly = method_exists($this->authMiddleware, 'isReadOnly') ? $this->authMiddleware->isReadOnly() : false;
+        if ($isReadOnly && in_array($method, ['POST','PUT','PATCH','DELETE'], true)) {
+            return Response::forbidden('Read-only mode: department modifications disabled');
+        }
         switch ($method) {
             case 'GET':
                 if ($id === null) {
@@ -36,7 +41,7 @@ class DepartmentsController {
                 }
                 break;
             case 'POST':
-                if ($id === 'reorder') { $this->reorderDepartments(); break; }
+                if ($id === 'reorder') { Response::forbidden('Read-only mode: reorder disabled'); break; }
                 $this->createDepartment();
                 break;
             case 'PUT':

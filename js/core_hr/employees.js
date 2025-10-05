@@ -4,7 +4,7 @@
  * v2.1 - Updated to display more comprehensive employee details in the table.
  * v2.0 - Refined rendering functions for XSS protection.
  */
-import { API_BASE_URL } from '../utils.js'; // Import base URL
+import { API_BASE_URL, isReadOnlyMode } from '../utils.js'; // Import base URL and read-only
 
 // Store employee data globally in this module for modal use
 let allEmployeesData = [];
@@ -98,6 +98,8 @@ export async function displayEmployeeSection() {
         initializeEmployeeModalElements(); // Ensure modal elements are ready
         const addNewBtn = document.getElementById('add-new-employee-btn');
         if (addNewBtn) {
+            // Hide button entirely when in read-only mode
+            try { const ro = await isReadOnlyMode(); if (ro) addNewBtn.classList.add('hidden'); } catch(e){}
             addNewBtn.addEventListener('click', () => {
                 if (typeof window.navigateToSectionById === 'function') {
                     window.navigateToSectionById('user-management');
@@ -132,21 +134,19 @@ async function loadEmployees(params = null) {
          return;
     };
     try {
-        let url = `${API_BASE_URL}get_employees.php`;
+        let url = `${API_BASE_URL.replace(/php\/api\/$/, 'api/')}hr-core/employees`;
         if (params) {
             const qs = new URLSearchParams(params).toString();
             url += `?${qs}`;
         }
-        const response = await fetch(url);
+        const response = await fetch(url, { credentials: 'include' });
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        const employees = await response.json();
-        if (employees.error) {
-             console.error("[loadEmployees] API returned error:", employees.error);
-             container.innerHTML = `<p class="text-red-500 text-center py-4">Error: ${employees.error}</p>`;
-        } else {
-             allEmployeesData = employees; // Store for modal
-             renderEmployeeTable(employees);
-        }
+        const result = await response.json();
+        const employees = Array.isArray(result) ? result
+            : (Array.isArray(result?.data?.items) ? result.data.items
+            : (Array.isArray(result?.data) ? result.data : []));
+        allEmployeesData = employees;
+        renderEmployeeTable(employees);
     } catch (error) {
         console.error('[loadEmployees] Error loading employees:', error);
         container.innerHTML = `<p class="text-red-500 text-center py-4">Could not load employee data. ${error.message}</p>`;
@@ -280,20 +280,25 @@ function renderEmployeeTable(employees) {
         viewBtn.dataset.employeeId = emp.EmployeeID;
         actionsCell.appendChild(viewBtn);
 
-        const editBtn = document.createElement('button');
-        editBtn.className = 'text-purple-600 hover:text-purple-800 edit-employee-btn p-1';
-        editBtn.innerHTML = '<i class="fas fa-edit"></i>';
-        editBtn.title = 'Edit Employee (Admin)';
-        editBtn.dataset.employeeId = emp.EmployeeID; // For linking to admin edit
-        actionsCell.appendChild(editBtn);
-        
-        const toggleActiveBtn = document.createElement('button');
-        toggleActiveBtn.className = `p-1 ${emp.IsActive == 1 ? 'text-red-600 hover:text-red-800 deactivate-employee-btn' : 'text-green-600 hover:text-green-800 activate-employee-btn'}`;
-        toggleActiveBtn.innerHTML = emp.IsActive == 1 ? '<i class="fas fa-toggle-off"></i>' : '<i class="fas fa-toggle-on"></i>';
-        toggleActiveBtn.title = emp.IsActive == 1 ? 'Deactivate Employee/User (Admin)' : 'Activate Employee/User (Admin)';
-        toggleActiveBtn.dataset.userId = emp.UserID; // Assuming UserID is available
-        toggleActiveBtn.dataset.employeeId = emp.EmployeeID;
-        actionsCell.appendChild(toggleActiveBtn);
+        (async ()=>{
+            const ro = await isReadOnlyMode();
+            if (!ro) {
+                const editBtn = document.createElement('button');
+                editBtn.className = 'text-purple-600 hover:text-purple-800 edit-employee-btn p-1';
+                editBtn.innerHTML = '<i class="fas fa-edit"></i>';
+                editBtn.title = 'Edit Employee (Admin)';
+                editBtn.dataset.employeeId = emp.EmployeeID; // For linking to admin edit
+                actionsCell.appendChild(editBtn);
+
+                const toggleActiveBtn = document.createElement('button');
+                toggleActiveBtn.className = `p-1 ${emp.IsActive == 1 ? 'text-red-600 hover:text-red-800 deactivate-employee-btn' : 'text-green-600 hover:text-green-800 activate-employee-btn'}`;
+                toggleActiveBtn.innerHTML = emp.IsActive == 1 ? '<i class="fas fa-toggle-off"></i>' : '<i class="fas fa-toggle-on"></i>';
+                toggleActiveBtn.title = emp.IsActive == 1 ? 'Deactivate Employee/User (Admin)' : 'Activate Employee/User (Admin)';
+                toggleActiveBtn.dataset.userId = emp.UserID; // Assuming UserID is available
+                toggleActiveBtn.dataset.employeeId = emp.EmployeeID;
+                actionsCell.appendChild(toggleActiveBtn);
+            }
+        })();
 
     });
 

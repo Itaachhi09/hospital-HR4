@@ -410,7 +410,7 @@ function renderUploadPreview(file){
 async function previewDocument(documentId, documentName){
     try{
         const url = `${API_BASE_URL.replace(/php\/api\/$/, 'api/')}documents/${encodeURIComponent(documentId)}/download`;
-        const res = await fetch(url);
+        const res = await fetch(url, { credentials: 'include' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const blob = await res.blob();
         const ext = (documentName?.split('.').pop() || '').toLowerCase();
@@ -440,7 +440,7 @@ async function previewDocument(documentId, documentName){
 async function issueSecureLink(documentId){
     try{
         const ttl = 600;
-        const res = await fetch(`${API_BASE_URL.replace(/php\/api\/$/, 'api/')}documents/${encodeURIComponent(documentId)}/token`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ttl }) });
+        const res = await fetch(`${API_BASE_URL.replace(/php\/api\/$/, 'api/')}documents/${encodeURIComponent(documentId)}/token`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ttl }), credentials: 'include' });
         const data = await res.json();
         if (!res.ok || !data || data.success === false) throw new Error(data?.message || `HTTP ${res.status}`);
         const token = data.data?.token || data.token;

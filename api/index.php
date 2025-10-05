@@ -169,6 +169,11 @@ try {
                 $controller = new ReportsController();
                 $controller->handleRequest($method, $id, $subResource);
                 break;
+            case 'integrations':
+                require_once __DIR__ . '/routes/integrations.php';
+                $controller = new IntegrationsController();
+                $controller->handleRequest($method, $id, $subResource);
+                break;
             case 'dashboard':
                 require_once __DIR__ . '/routes/dashboard.php';
                 $controller = new DashboardController();

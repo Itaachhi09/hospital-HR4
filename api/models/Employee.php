@@ -51,6 +51,7 @@ class Employee {
                     e.EmployeeID, e.FirstName, e.MiddleName, e.LastName, e.Suffix,
                     e.Email, e.PhoneNumber, e.DateOfBirth, e.Gender, e.JobTitle,
                     e.HireDate, e.IsActive, e.TerminationDate,
+                    e.EmploymentType, e.EmploymentStatus,
                     d.DepartmentName,
                     CONCAT(m.FirstName, ' ', m.LastName) AS ManagerName,
                     u.UserID, u.Username, r.RoleName
@@ -82,6 +83,21 @@ class Employee {
         if (!empty($filters['search'])) {
             $sql .= " AND (e.FirstName LIKE :search OR e.LastName LIKE :search OR e.Email LIKE :search OR e.JobTitle LIKE :search)";
             $params[':search'] = '%' . $filters['search'] . '%';
+        }
+
+        // New optional filters
+        if (!empty($filters['employment_status'])) {
+            $sql .= " AND e.EmploymentStatus = :employment_status";
+            $params[':employment_status'] = $filters['employment_status'];
+        }
+        if (!empty($filters['employment_type'])) {
+            $sql .= " AND e.EmploymentType = :employment_type";
+            $params[':employment_type'] = $filters['employment_type'];
+        }
+        if (!empty($filters['job_title'])) {
+            // Allow partial match on job title for convenience
+            $sql .= " AND e.JobTitle LIKE :job_title";
+            $params[':job_title'] = '%' . $filters['job_title'] . '%';
         }
 
         $sql .= " ORDER BY e.LastName, e.FirstName LIMIT :limit OFFSET :offset";
@@ -125,6 +141,20 @@ class Employee {
         if (!empty($filters['search'])) {
             $sql .= " AND (e.FirstName LIKE :search OR e.LastName LIKE :search OR e.Email LIKE :search OR e.JobTitle LIKE :search)";
             $params[':search'] = '%' . $filters['search'] . '%';
+        }
+
+        // Mirror the new filters for the count query
+        if (!empty($filters['employment_status'])) {
+            $sql .= " AND e.EmploymentStatus = :employment_status";
+            $params[':employment_status'] = $filters['employment_status'];
+        }
+        if (!empty($filters['employment_type'])) {
+            $sql .= " AND e.EmploymentType = :employment_type";
+            $params[':employment_type'] = $filters['employment_type'];
+        }
+        if (!empty($filters['job_title'])) {
+            $sql .= " AND e.JobTitle LIKE :job_title";
+            $params[':job_title'] = '%' . $filters['job_title'] . '%';
         }
 
         $stmt = $this->pdo->prepare($sql);

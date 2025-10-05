@@ -51,12 +51,43 @@ export async function displayEmployeeSection() {
     pageTitleElement.textContent = 'Employee Master List';
     mainContentArea.innerHTML = `
         <div class="bg-white p-6 rounded-lg shadow-md border border-[#F7E6CA] space-y-6">
-            <div class="flex justify-between items-center">
-                <h3 class="text-lg font-semibold text-[#4E3B2A]">All Employees</h3>
-                <button id="add-new-employee-btn" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-150 ease-in-out flex items-center space-x-2">
-                    <i class="fa-solid fa-user-plus"></i>
-                    <span>Add New Employee</span>
-                </button>
+            <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+                <div>
+                    <h3 class="text-lg font-semibold text-[#4E3B2A]">All Employees</h3>
+                    <p class="text-xs text-gray-500">Smart search and filters: department, status, type, job title</p>
+                </div>
+                <div class="flex flex-wrap gap-2 items-end">
+                    <div class="flex items-center border rounded-md px-2">
+                        <i class="fas fa-search text-gray-400 mr-2"></i>
+                        <input id="emp-search-input" type="text" placeholder="Search name, email, title" class="p-2 outline-none text-sm" />
+                    </div>
+                    <select id="emp-filter-dept" class="p-2 border rounded-md text-sm">
+                        <option value="">All Departments</option>
+                    </select>
+                    <select id="emp-filter-status" class="p-2 border rounded-md text-sm">
+                        <option value="">All Status</option>
+                        <option value="Active">Active</option>
+                        <option value="On Leave">On Leave</option>
+                        <option value="Suspended">Suspended</option>
+                        <option value="Terminated">Terminated</option>
+                        <option value="Retired">Retired</option>
+                    </select>
+                    <select id="emp-filter-type" class="p-2 border rounded-md text-sm">
+                        <option value="">All Types</option>
+                        <option value="Regular">Regular</option>
+                        <option value="Contractual">Contractual</option>
+                        <option value="Probationary">Probationary</option>
+                        <option value="Consultant">Consultant</option>
+                        <option value="Part-time">Part-time</option>
+                    </select>
+                    <input id="emp-filter-title" type="text" placeholder="Job title contains" class="p-2 border rounded-md text-sm" />
+                    <button id="emp-apply-filters" class="px-3 py-2 bg-[#594423] text-white rounded-md text-sm">Apply</button>
+                    <button id="emp-clear-filters" class="px-3 py-2 bg-gray-200 text-gray-700 rounded-md text-sm">Clear</button>
+                    <button id="add-new-employee-btn" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-150 ease-in-out flex items-center space-x-2">
+                        <i class="fa-solid fa-user-plus"></i>
+                        <span>Add New Employee</span>
+                    </button>
+                </div>
             </div>
             <div id="employee-list-container" class="overflow-x-auto">
                 <p class="text-center py-4">Loading employees...</p>
@@ -75,6 +106,15 @@ export async function displayEmployeeSection() {
                 }
             });
         }
+        // Populate departments dropdown
+        await populateDepartmentsFilter();
+        // Wire filter actions
+        const applyBtn = document.getElementById('emp-apply-filters');
+        const clearBtn = document.getElementById('emp-clear-filters');
+        const searchInput = document.getElementById('emp-search-input');
+        if (applyBtn) applyBtn.addEventListener('click', () => loadEmployees(buildCurrentFilterParams()));
+        if (clearBtn) clearBtn.addEventListener('click', () => { resetFilters(); loadEmployees(); });
+        if (searchInput) searchInput.addEventListener('keydown', (e)=>{ if (e.key === 'Enter') loadEmployees(buildCurrentFilterParams()); });
         await loadEmployees();
     });
 }
@@ -82,7 +122,7 @@ export async function displayEmployeeSection() {
 /**
  * Fetches employee data from the API.
  */
-async function loadEmployees() {
+async function loadEmployees(params = null) {
     console.log("[Load] Loading Employees...");
     const container = document.getElementById('employee-list-container');
     if (!container) {
@@ -92,7 +132,12 @@ async function loadEmployees() {
          return;
     };
     try {
-        const response = await fetch(`${API_BASE_URL}get_employees.php`);
+        let url = `${API_BASE_URL}get_employees.php`;
+        if (params) {
+            const qs = new URLSearchParams(params).toString();
+            url += `?${qs}`;
+        }
+        const response = await fetch(url);
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         const employees = await response.json();
         if (employees.error) {
@@ -106,6 +151,53 @@ async function loadEmployees() {
         console.error('[loadEmployees] Error loading employees:', error);
         container.innerHTML = `<p class="text-red-500 text-center py-4">Could not load employee data. ${error.message}</p>`;
     }
+}
+
+/**
+ * Read current filters from the UI and return as query params
+ */
+function buildCurrentFilterParams(){
+    const params = {};
+    const q = document.getElementById('emp-search-input')?.value?.trim();
+    const dept = document.getElementById('emp-filter-dept')?.value;
+    const status = document.getElementById('emp-filter-status')?.value;
+    const type = document.getElementById('emp-filter-type')?.value;
+    const title = document.getElementById('emp-filter-title')?.value?.trim();
+    if (q) params.search = q;
+    if (dept) params.department_id = dept;
+    if (status) params.employment_status = status;
+    if (type) params.employment_type = type;
+    if (title) params.job_title = title;
+    return params;
+}
+
+/**
+ * Reset filters to default state
+ */
+function resetFilters(){
+    const ids = ['emp-search-input','emp-filter-dept','emp-filter-status','emp-filter-type','emp-filter-title'];
+    ids.forEach(id=>{ const el = document.getElementById(id); if (!el) return; if (el.tagName === 'SELECT') el.value = ''; else el.value = ''; });
+}
+
+/**
+ * Populate department dropdown options from API
+ */
+async function populateDepartmentsFilter(){
+    const select = document.getElementById('emp-filter-dept');
+    if (!select) return;
+    try{
+        const res = await fetch(`${API_BASE_URL}get_org_structure.php`);
+        const data = await res.json();
+        if (Array.isArray(data)){
+            data.forEach(d=>{
+                if (!d.DepartmentID || !d.DepartmentName) return;
+                const opt = document.createElement('option');
+                opt.value = d.DepartmentID;
+                opt.textContent = d.DepartmentName;
+                select.appendChild(opt);
+            });
+        }
+    }catch(err){ console.warn('Failed to load departments for filter', err); }
 }
 
  /**

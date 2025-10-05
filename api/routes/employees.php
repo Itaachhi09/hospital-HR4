@@ -71,7 +71,11 @@ class EmployeesController {
             'department_id' => $request->getData('department_id'),
             'is_active' => $request->getData('is_active'),
             'manager_id' => $request->getData('manager_id'),
-            'search' => $request->getData('search')
+            'search' => $request->getData('search'),
+            // New filters for richer querying
+            'employment_status' => $request->getData('employment_status'), // e.g., Active, On Leave, Suspended
+            'employment_type' => $request->getData('employment_type'),     // e.g., Regular, Contractual, Probationary
+            'job_title' => $request->getData('job_title')                  // exact or partial job title match
         ];
 
         // Remove empty filters

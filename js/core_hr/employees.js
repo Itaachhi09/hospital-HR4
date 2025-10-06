@@ -182,9 +182,8 @@ async function loadEmployees(params = null) {
     console.log("[Load] Loading Employees...");
     const container = document.getElementById('employee-list-container');
     if (!container) {
-         console.error("Employee list container not found!");
-         const mainContentArea = document.getElementById('main-content-area');
-         if(mainContentArea) mainContentArea.innerHTML = '<p class="text-red-500">Error displaying employee list container.</p>';
+         // Likely navigated away from Employee Directory before debounce fired
+         console.warn('[Employees] employee-list-container not found; aborting load.');
          return;
     };
     try {

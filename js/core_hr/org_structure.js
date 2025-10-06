@@ -13,6 +13,7 @@ import { API_BASE_URL, populateEmployeeDropdown } from '../utils.js';
 
 let hospitalOrgData = {}; // Store comprehensive hospital organizational data
 let currentView = 'hierarchy'; // Current view: hierarchy, divisions, roles, coordinators
+let orgViewRetryCount = 0; // retry counter for late-mounted containers
 
 export async function displayOrgStructureSection() {
     try {
@@ -77,7 +78,11 @@ export async function displayOrgStructureSection() {
         </div>
     `;
         
-        // Initialize view
+        // Initialize view (ensure container exists in DOM before rendering)
+        await new Promise(res => requestAnimationFrame(res));
+        if (!document.getElementById('org-view-content')) {
+            await new Promise(res => setTimeout(res, 50));
+        }
         await loadHospitalOrgData();
         switchOrgView('hierarchy');
     } catch (err) {
@@ -159,6 +164,17 @@ window.switchOrgView = function(view) {
 
 function renderHierarchyView() {
     const contentArea = document.getElementById('org-view-content');
+    if (!contentArea) {
+        // container not yet mounted; retry briefly
+        if (orgViewRetryCount < 3) {
+            orgViewRetryCount++;
+            setTimeout(renderHierarchyView, 50);
+            return;
+        }
+        console.warn('[Org Structure] org-view-content missing; aborting render');
+        return;
+    }
+    orgViewRetryCount = 0;
     contentArea.innerHTML = `
         <div class="space-y-6">
             <!-- Hierarchy Display with controls -->
@@ -191,7 +207,7 @@ function renderHierarchyView() {
 
 function renderHospitalHierarchy() {
     const hierarchyDisplay = document.getElementById('hierarchy-display');
-    if (!hierarchyDisplay) return;
+    if (!hierarchyDisplay) { console.warn('[Org Structure] hierarchy-display missing'); return; }
     
     const departments = hospitalOrgData.departments || [];
     

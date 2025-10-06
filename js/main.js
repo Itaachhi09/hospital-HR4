@@ -15,7 +15,51 @@ function initializeSectionDisplayFunctions() {
     const mainContentArea = document.getElementById('main-content-area');
     const sectionDisplayFunctions = {
         displayDashboardSection: async () => {
-            await loadModule('dashboard/dashboard.js', mainContentArea, 'Dashboard');
+            // For modern dashboard, we don't need to load a separate module
+            // The dashboard is already built into admin_landing.php
+            console.log('Displaying modern dashboard - already loaded in admin_landing.php');
+            
+            // Ensure the dashboard is visible
+            const mainContent = document.getElementById('main-content-area');
+            if (mainContent) {
+                mainContent.style.display = 'block';
+                
+                // Check if modern dashboard content exists
+                if (mainContent.querySelector('#total-employees')) {
+                    console.log('Modern dashboard content already exists, just refreshing data');
+                    // Dashboard is already loaded, just refresh the data
+                    if (window.loadDashboardData) {
+                        window.loadDashboardData();
+                    }
+                    if (window.initializeCharts) {
+                        window.initializeCharts();
+                    }
+                    if (window.loadRecentActivities) {
+                        window.loadRecentActivities();
+                    }
+                } else {
+                    console.log('Modern dashboard content missing, restoring...');
+                    // The modern dashboard content should be in the HTML already
+                    // If it's missing, we need to restore it
+                    if (window.displayModernDashboard) {
+                        window.displayModernDashboard();
+                    }
+                    
+                    // Load data and initialize charts after restoring
+                    setTimeout(() => {
+                        if (window.loadDashboardData) {
+                            window.loadDashboardData();
+                        }
+                        if (window.initializeCharts) {
+                            window.initializeCharts();
+                        }
+                        if (window.loadRecentActivities) {
+                            window.loadRecentActivities();
+                        }
+                    }, 100);
+                }
+            }
+            return;
         },
         displayEmployeeSection: async () => {
             await loadModule('core_hr/employees.js', mainContentArea, 'Employee Management');
@@ -25,6 +69,9 @@ function initializeSectionDisplayFunctions() {
         },
         displayOrgStructureSection: async () => {
             await loadModule('core_hr/org_structure.js', mainContentArea, 'Organization Structure');
+        },
+        displayRoleAccessSection: async () => {
+            await loadModule('core_hr/role_access.js', mainContentArea, 'Role & Access');
         },
         displayAttendanceSection: async () => {
             await loadModule('time_attendance/attendance.js', mainContentArea, 'Attendance Records');
@@ -149,6 +196,7 @@ export async function initializeApp() {
     // Global handler for unhandled promise rejections to surface module loading/init errors
     window.addEventListener('unhandledrejection', (ev) => {
         console.error('Unhandled promise rejection:', ev.reason);
+        console.error('Stack trace:', ev.reason?.stack);
         try {
             const mainContentArea = document.getElementById('main-content-area');
             if (mainContentArea) {
@@ -156,6 +204,199 @@ export async function initializeApp() {
             }
         } catch (e) { console.error('Failed to render unhandled rejection to UI', e); }
     });
+
+    // Global handler for JavaScript errors
+    window.addEventListener('error', (ev) => {
+        console.error('JavaScript error:', ev.error);
+        console.error('Error message:', ev.message);
+        console.error('Error filename:', ev.filename);
+        console.error('Error line:', ev.lineno);
+        console.error('Error column:', ev.colno);
+        console.error('Error stack:', ev.error?.stack);
+        try {
+            const mainContentArea = document.getElementById('main-content-area');
+            if (mainContentArea) {
+                mainContentArea.innerHTML = `<div class="p-6 text-red-600">
+                    <h3 class="font-bold text-lg mb-2">An unexpected error occurred:</h3>
+                    <p class="mb-2"><strong>Message:</strong> ${String(ev.message)}</p>
+                    <p class="mb-2"><strong>File:</strong> ${ev.filename}</p>
+                    <p class="mb-2"><strong>Line:</strong> ${ev.lineno}</p>
+                    <p class="text-sm text-gray-600">Check the browser console for more details.</p>
+                </div>`;
+            }
+        } catch (e) { console.error('Failed to render error to UI', e); }
+    });
+
+    // Define fallback functions IMMEDIATELY to prevent ReferenceError
+    console.log('Setting up fallback display functions...');
+    
+    // Core HR modules
+    window.displayEmployeeSection = async () => {
+        console.log('Loading Employee Directory module...');
+        await loadModule('core_hr/employees.js', document.getElementById('main-content-area'), 'Employee Directory');
+    };
+    window.displayDocumentsSection = async () => {
+        console.log('Loading Document Viewer module...');
+        await loadModule('core_hr/documents.js', document.getElementById('main-content-area'), 'Document Viewer');
+    };
+    window.displayOrgStructureSection = async () => {
+        console.log('Loading Organizational Structure module...');
+        await loadModule('core_hr/org_structure.js', document.getElementById('main-content-area'), 'Organizational Structure');
+    };
+    window.displayRoleAccessSection = async () => {
+        console.log('Loading Role & Access module...');
+        await loadModule('core_hr/role_access.js', document.getElementById('main-content-area'), 'Role & Access');
+    };
+    
+    // Time & Attendance modules
+    window.displayAttendanceSection = async () => {
+        console.log('Loading Attendance module...');
+        await loadModule('time_attendance/attendance.js', document.getElementById('main-content-area'), 'Attendance Records');
+    };
+    window.displayTimesheetsSection = async () => {
+        console.log('Loading Timesheets module...');
+        await loadModule('time_attendance/timesheets.js', document.getElementById('main-content-area'), 'Timesheets');
+    };
+    window.displaySchedulesSection = async () => {
+        console.log('Loading Schedules module...');
+        await loadModule('time_attendance/schedules.js', document.getElementById('main-content-area'), 'Schedules');
+    };
+    window.displayShiftsSection = async () => {
+        console.log('Loading Shifts module...');
+        await loadModule('time_attendance/shifts.js', document.getElementById('main-content-area'), 'Shifts');
+    };
+    
+    // Payroll modules
+    window.displayPayrollRunsSection = async () => {
+        console.log('Loading Payroll Runs module...');
+        await loadModule('payroll/payroll_runs.js', document.getElementById('main-content-area'), 'Payroll Runs');
+    };
+    window.displaySalariesSection = async () => {
+        console.log('Loading Salaries module...');
+        await loadModule('payroll/salaries.js', document.getElementById('main-content-area'), 'Salaries');
+    };
+    window.displayBonusesSection = async () => {
+        console.log('Loading Bonuses module...');
+        await loadModule('payroll/bonuses.js', document.getElementById('main-content-area'), 'Bonuses');
+    };
+    window.displayDeductionsSection = async () => {
+        console.log('Loading Deductions module...');
+        await loadModule('payroll/deductions.js', document.getElementById('main-content-area'), 'Deductions');
+    };
+    window.displayPayslipsSection = async () => {
+        console.log('Loading Payslips module...');
+        await loadModule('payroll/payslips.js', document.getElementById('main-content-area'), 'Payslips');
+    };
+    
+    // Claims modules
+    window.displaySubmitClaimSection = async () => {
+        console.log('Loading Submit Claim module...');
+        await loadModule('claims/submit_claim.js', document.getElementById('main-content-area'), 'Submit Claim');
+    };
+    window.displayMyClaimsSection = async () => {
+        console.log('Loading My Claims module...');
+        await loadModule('claims/my_claims.js', document.getElementById('main-content-area'), 'My Claims');
+    };
+    window.displayClaimsApprovalSection = async () => {
+        console.log('Loading Claims Approval module...');
+        await loadModule('claims/claims_approval.js', document.getElementById('main-content-area'), 'Claims Approval');
+    };
+    window.displayClaimTypesAdminSection = async () => {
+        console.log('Loading Claim Types Admin module...');
+        await loadModule('claims/claim_types_admin.js', document.getElementById('main-content-area'), 'Claim Types');
+    };
+    
+    // Leave modules
+    window.displayLeaveRequestsSection = async () => {
+        console.log('Loading Leave Requests module...');
+        await loadModule('leave/leave_requests.js', document.getElementById('main-content-area'), 'Leave Requests');
+    };
+    window.displayLeaveBalancesSection = async () => {
+        console.log('Loading Leave Balances module...');
+        await loadModule('leave/leave_balances.js', document.getElementById('main-content-area'), 'Leave Balances');
+    };
+    window.displayLeaveTypesAdminSection = async () => {
+        console.log('Loading Leave Types Admin module...');
+        await loadModule('leave/leave_types_admin.js', document.getElementById('main-content-area'), 'Leave Types');
+    };
+    
+    // Compensation modules
+    window.displayCompensationPlansSection = async () => {
+        console.log('Loading Compensation Plans module...');
+        await loadModule('compensation/compensation_plans.js', document.getElementById('main-content-area'), 'Compensation Plans');
+    };
+    window.displaySalaryAdjustmentsSection = async () => {
+        console.log('Loading Salary Adjustments module...');
+        await loadModule('compensation/salary_adjustments.js', document.getElementById('main-content-area'), 'Salary Adjustments');
+    };
+    window.displayIncentivesSection = async () => {
+        console.log('Loading Incentives module...');
+        await loadModule('compensation/incentives.js', document.getElementById('main-content-area'), 'Incentives');
+    };
+    
+    // Analytics modules
+    window.displayAnalyticsDashboardsSection = async () => {
+        console.log('Loading Analytics Dashboards module...');
+        await loadModule('analytics/analytics_dashboards.js', document.getElementById('main-content-area'), 'Analytics Dashboards');
+    };
+    window.displayAnalyticsReportsSection = async () => {
+        console.log('Loading Analytics Reports module...');
+        await loadModule('analytics/analytics_reports.js', document.getElementById('main-content-area'), 'Analytics Reports');
+    };
+    window.displayAnalyticsMetricsSection = async () => {
+        console.log('Loading Analytics Metrics module...');
+        await loadModule('analytics/analytics_metrics.js', document.getElementById('main-content-area'), 'Analytics Metrics');
+    };
+    
+    // HMO modules
+    window.displayHMOProvidersSection = async () => {
+        console.log('Loading HMO Providers module...');
+        await loadModule('hmo/hmo_providers.js', document.getElementById('main-content-area'), 'HMO Providers');
+    };
+    window.displayHMOPlansSection = async () => {
+        console.log('Loading HMO Plans module...');
+        await loadModule('hmo/hmo_plans.js', document.getElementById('main-content-area'), 'HMO Plans');
+    };
+    window.displayHMOEnrollmentsSection = async () => {
+        console.log('Loading HMO Enrollments module...');
+        await loadModule('hmo/hmo_enrollments.js', document.getElementById('main-content-area'), 'HMO Enrollments');
+    };
+    window.displayHMOClaimsApprovalSection = async () => {
+        console.log('Loading HMO Claims Approval module...');
+        await loadModule('hmo/hmo_claims_admin.js', document.getElementById('main-content-area'), 'HMO Claims Approval');
+    };
+    window.displayHMODashboardSection = async () => {
+        console.log('Loading HMO Dashboard module...');
+        await loadModule('hmo/hmo_dashboard.js', document.getElementById('main-content-area'), 'HMO Dashboard');
+    };
+    window.displayEmployeeHMOSection = async () => {
+        console.log('Loading Employee HMO module...');
+        await loadModule('hmo/employee_hmo.js', document.getElementById('main-content-area'), 'Employee HMO');
+    };
+    window.displayEmployeeHMOClaimsSection = async () => {
+        console.log('Loading Employee HMO Claims module...');
+        await loadModule('hmo/employee_hmo_claims.js', document.getElementById('main-content-area'), 'Employee HMO Claims');
+    };
+    window.displaySubmitHMOClaimSection = async () => {
+        console.log('Loading Submit HMO Claim module...');
+        await loadModule('hmo/submit_hmo_claim.js', document.getElementById('main-content-area'), 'Submit HMO Claim');
+    };
+    
+    // Admin modules
+    window.displayUserManagementSection = async () => {
+        console.log('Loading User Management module...');
+        await loadModule('admin/user_management.js', document.getElementById('main-content-area'), 'User Management');
+    };
+    window.displayUserProfileSection = async () => {
+        console.log('Loading User Profile module...');
+        await loadModule('profile/profile.js', document.getElementById('main-content-area'), 'User Profile');
+    };
+    window.displayNotificationsSection = async () => {
+        console.log('Loading Notifications module...');
+        await loadModule('notifications/notifications.js', document.getElementById('main-content-area'), 'Notifications');
+    };
+    
+    console.log('Fallback display functions set up successfully');
 
     // Ensure a modal container exists; some modules expect #modalContainer to be present
     try {
@@ -171,16 +412,29 @@ export async function initializeApp() {
     // Set initial dashboard content immediately
     const initialPageTitle = document.getElementById('page-title');
     const initialMainContent = document.getElementById('main-content-area');
-    if (initialPageTitle) initialPageTitle.textContent = 'Dashboard';
-    if (initialMainContent) {
-        initialMainContent.innerHTML = '<p class="text-slate-600">Loading dashboard content...</p>';
+    if (initialPageTitle) {
+        initialPageTitle.textContent = 'Dashboard';
+    } else {
+        console.log('Page title element not found during initialization');
     }
+    // Don't replace the modern dashboard content - it's already there
+    // The modern dashboard HTML is already present in admin_landing.php
+    console.log('Modern dashboard content preserved');
 
     // --- DOM Elements ---
     // const loginContainer = document.getElementById('login-container'); // No longer a critical element for this flow
     const appContainer = document.getElementById('app-container');
     const mainContentArea = document.getElementById('main-content-area');
-    const pageTitleElement = document.getElementById('page-title');
+    let pageTitleElement = document.getElementById('page-title');
+    if (!pageTitleElement) {
+        // Retry after a short delay
+        setTimeout(() => {
+            pageTitleElement = document.getElementById('page-title');
+            if (!pageTitleElement) {
+                console.log('Page title element still not found after retry');
+            }
+        }, 100);
+    }
     const timesheetModal = document.getElementById('timesheet-detail-modal');
     const modalOverlayTs = document.getElementById('modal-overlay-ts');
     const modalCloseBtnTs = document.getElementById('modal-close-btn-ts');
@@ -202,6 +456,7 @@ export async function initializeApp() {
         employees: document.getElementById('employees-link'),
         documents: document.getElementById('documents-link'),
         orgStructure: document.getElementById('org-structure-link'),
+        roleAccess: document.getElementById('role-access-link'),
         attendance: document.getElementById('attendance-link'),
         timesheets: document.getElementById('timesheets-link'),
         schedules: document.getElementById('schedules-link'),
@@ -778,7 +1033,7 @@ export async function initializeApp() {
             return;
         }
 
-        pageTitleElement.textContent = 'Notifications';
+        if (pageTitleElement) pageTitleElement.textContent = 'Notifications';
 
         // Create a full-page notifications view
         mainContentArea.innerHTML = `
@@ -824,11 +1079,12 @@ export async function initializeApp() {
     }
 
     // --- Navigation Logic for Notifications & Direct Section Access ---
-    const sectionDisplayFunctions = {
+    window.sectionDisplayFunctions = {
         'dashboard': displayDashboardSection,
         'employees': displayEmployeeSection,
         'documents': displayDocumentsSection,
         'org-structure': displayOrgStructureSection,
+        'role-access': displayRoleAccessSection,
         'attendance': displayAttendanceSection,
         'timesheets': displayTimesheetsSection,
         'schedules': displaySchedulesSection,
@@ -867,17 +1123,35 @@ export async function initializeApp() {
 
     window.navigateToSectionById = async function(sectionId) {
         console.log(`[Main Navigation] Attempting to navigate to section: ${sectionId}`);
-        const displayFunction = sectionDisplayFunctions[sectionId];
+        console.log(`[Main Navigation] Function is defined:`, typeof window.navigateToSectionById);
+        
+        // Create function name from sectionId
+        let functionName;
+        if (sectionId === 'dashboard') {
+            functionName = 'displayDashboardSection';
+        } else {
+            functionName = `display${sectionId.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join('')}Section`;
+        }
+        
+        console.log(`[Main Navigation] Looking for function: ${functionName}`);
+        console.log(`[Main Navigation] Available functions:`, Object.keys(window).filter(key => key.startsWith('display') && key.endsWith('Section')));
+        const displayFunction = window[functionName] || window.sectionDisplayFunctions[sectionId];
         const mainContentArea = document.getElementById('main-content-area'); 
 
+        // Don't show loading message for dashboard if modern dashboard is already loaded
+        if (sectionId === 'dashboard' && mainContentArea && mainContentArea.querySelector('#total-employees')) {
+            console.log('Modern dashboard already loaded, skipping loading message');
+        } else {
         // Immediate visual feedback so clicks are not mistaken for no-ops
         try {
             if (mainContentArea) {
                 mainContentArea.innerHTML = `<div class="p-6 text-center text-gray-600">Loading <strong>${sectionId}</strong>...</div>`;
             }
         } catch (e) { console.warn('Failed to set loading placeholder', e); }
+        }
 
         console.log(`[Main Navigation] Display function for ${sectionId}:`, displayFunction);
+        console.log(`[Main Navigation] Function type:`, typeof displayFunction);
         console.log(`[Main Navigation] Main content area:`, mainContentArea);
         console.log(`[Main Navigation] Current user:`, window.currentUser);
 
@@ -903,12 +1177,45 @@ export async function initializeApp() {
                 }
             } catch (error) {
                 console.error(`Error navigating to section '${sectionId}':`, error);
+                // Fallback: try to directly load the module for core sections even if a display function exists but failed
+                try {
+                    const coreMap = {
+                        'org-structure': { path: 'core_hr/org_structure.js', title: 'Organizational Structure' }
+                    };
+                    const core = coreMap[sectionId];
+                    if (core && mainContentArea) {
+                        const utils = await import('./utils.js');
+                        if (typeof utils.loadModule === 'function') {
+                            await utils.loadModule(core.path, mainContentArea, core.title);
+                            return; // success, stop here
+                        }
+                    }
+                } catch (fallbackErr) {
+                    console.warn('Direct module fallback in catch failed:', fallbackErr);
+                }
                 if (mainContentArea) {
                     mainContentArea.innerHTML = `<p class="text-red-500 p-4">Error loading section: ${sectionId}. Please check the console.</p>`;
                 }
             }
         } else {
             console.warn(`[Main Navigation] No display function found for sectionId: ${sectionId}`);
+            // First, try a direct module-path fallback for core sections
+            try {
+                const coreMap = {
+                    'org-structure': { path: 'core_hr/org_structure.js', title: 'Organizational Structure' }
+                };
+                const core = coreMap[sectionId];
+                if (core && mainContentArea) {
+                    const utils = await import('./utils.js');
+                    if (typeof utils.loadModule === 'function') {
+                        await utils.loadModule(core.path, mainContentArea, core.title);
+                        return;
+                    }
+                }
+            } catch (err) {
+                console.warn('Core section direct-load fallback failed:', err);
+            }
+
             // Fallback: try to dynamically load an HMO admin module if the sectionId matches common HMO patterns
             try {
                 const hmoMatch = sectionId && sectionId.startsWith('hmo-');
@@ -992,14 +1299,35 @@ export async function initializeApp() {
                 // Add robust event delegation on sidebar so clicks always navigate even if links are re-rendered
                 try {
                     const sidebarRoot = document.querySelector('.sidebar');
+                    console.log('[Sidebar] Setting up event delegation on:', sidebarRoot);
+                    console.log('[Sidebar] Sidebar root found:', !!sidebarRoot);
+                    console.log('[Sidebar] Sidebar has delegation attribute:', sidebarRoot?.hasAttribute('data-delegation-added'));
+                    
+                    // Test: Add a simple click listener first to see if basic clicks work
+                    if (sidebarRoot) {
+                        sidebarRoot.addEventListener('click', (ev) => {
+                            console.log('[Sidebar] BASIC CLICK TEST - Click detected on:', ev.target);
+                        });
+                    }
+                    
                     if (sidebarRoot && !sidebarRoot.hasAttribute('data-delegation-added')) {
+                        console.log('[Sidebar] Adding click event listener');
                         sidebarRoot.addEventListener('click', async (ev) => {
+                            console.log('[Sidebar] Click detected on:', ev.target);
+                            console.log('[Sidebar] Event delegation working!');
                             const anchor = ev.target.closest && ev.target.closest('a');
-                            if (!anchor) return; // not a link click
+                            if (!anchor) {
+                                console.log('[Sidebar] Not a link click, ignoring');
+                                return; // not a link click
+                            }
                             // Derive section id from link id (e.g., 'hmo-providers-link' -> 'hmo-providers')
                             const linkId = anchor.id || '';
                             const sectionId = linkId.replace(/-link$/, '');
-                            if (!sectionId) return; // nothing to navigate to
+                            console.log('[Sidebar] Link clicked - ID:', linkId, 'Section ID:', sectionId);
+                            if (!sectionId) {
+                                console.log('[Sidebar] No section ID found, ignoring');
+                                return; // nothing to navigate to
+                            }
                             ev.preventDefault();
                             // Close mobile sidebar if open
                             try { const sidebar = document.querySelector('.sidebar'); if (sidebar && sidebar.classList.contains('mobile-active') && typeof closeSidebar === 'function') try{ closeSidebar(); }catch(e){} } catch(e){}
@@ -1021,6 +1349,45 @@ export async function initializeApp() {
                 } catch (err) {
                     console.warn('Failed to attach sidebar delegation:', err);
                 }
+                
+                // Fallback: Try again after a delay to ensure Alpine.js has rendered
+                setTimeout(() => {
+                    try {
+                        const sidebarRoot = document.querySelector('.sidebar');
+                        if (sidebarRoot && !sidebarRoot.hasAttribute('data-delegation-added')) {
+                            console.log('[Sidebar] Fallback: Adding click event listener after delay');
+                            sidebarRoot.addEventListener('click', async (ev) => {
+                                console.log('[Sidebar] Fallback click detected on:', ev.target);
+                                const anchor = ev.target.closest && ev.target.closest('a');
+                                if (!anchor) {
+                                    console.log('[Sidebar] Fallback: Not a link click, ignoring');
+                                    return;
+                                }
+                                const linkId = anchor.id || '';
+                                const sectionId = linkId.replace(/-link$/, '');
+                                console.log('[Sidebar] Fallback: Link clicked - ID:', linkId, 'Section ID:', sectionId);
+                                if (!sectionId) {
+                                    console.log('[Sidebar] Fallback: No section ID found, ignoring');
+                                    return;
+                                }
+                                ev.preventDefault();
+                                if (typeof navigateToSectionById === 'function') {
+                                    try {
+                                        await navigateToSectionById(sectionId);
+                                    } catch (err) {
+                                        console.error('Fallback navigation handler rejected for section', sectionId, err);
+                                        const mainContentArea = document.getElementById('main-content-area');
+                                        if (mainContentArea) mainContentArea.innerHTML = `<p class="text-red-500 p-4">Navigation failed. See console for details.</p>`;
+                                    }
+                                }
+                                updateActiveSidebarLink(anchor);
+                            });
+                            sidebarRoot.setAttribute('data-delegation-added', 'true');
+                        }
+                    } catch (err) {
+                        console.warn('Failed to attach fallback sidebar delegation:', err);
+                    }
+                }, 500);
                 navigateToSectionById('dashboard');
                 initializeNotificationSystem();
             } else {
@@ -1043,6 +1410,7 @@ export async function initializeApp() {
         { id: 'employees-link', title: 'Employees', content: 'employee' },
         { id: 'documents-link', title: 'Documents', content: 'document' },
         { id: 'org-structure-link', title: 'Organization Structure', content: 'org' },
+        { id: 'role-access-link', title: 'Role & Access', content: 'role' },
         { id: 'attendance-link', title: 'Attendance Records', content: 'attendance' },
         { id: 'timesheets-link', title: 'Timesheets', content: 'timesheet' },
         { id: 'schedules-link', title: 'Schedules', content: 'schedule' },
@@ -1071,35 +1439,21 @@ export async function initializeApp() {
     sidebarLinks.forEach(link => {
         const element = document.getElementById(link.id);
         if (element) {
-            element.addEventListener('click', (e) => {
+            element.addEventListener('click', async (e) => {
                 e.preventDefault();
-                console.log(`${link.title} clicked - loading content`);
-                const mainContentArea = document.getElementById('main-content-area');
-                const pageTitle = document.getElementById('page-title');
-                if (pageTitle) pageTitle.textContent = link.title;
-                if (mainContentArea) {
-                    mainContentArea.innerHTML = `
-                        <div class="bg-white rounded-lg shadow">
-                            <div class="p-6 border-b">
-                                <h3 class="text-lg font-semibold text-gray-800">${link.title}</h3>
-                                <p class="text-gray-600">Manage ${link.content} information and records</p>
-                            </div>
-                            <div class="p-6">
-                                <div class="text-center py-8">
-                                    <div class="text-6xl text-gray-300 mb-4">📊</div>
-                                    <h4 class="text-xl font-semibold text-gray-700 mb-2">${link.title} Module</h4>
-                                    <p class="text-gray-600 mb-4">This module is working! The ${link.content} functionality is ready.</p>
-                                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                                        <p class="text-blue-800 text-sm">
-                                            <strong>Status:</strong> Module loaded successfully<br>
-                                            <strong>Function:</strong> ${link.content} management<br>
-                                            <strong>UI:</strong> New design integrated
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    `;
+                console.log(`${link.title} clicked - calling navigation function`);
+                
+                // Extract section ID from link ID
+                const sectionId = link.id.replace(/-link$/, '');
+                console.log(`[Individual Listener] Navigating to section: ${sectionId}`);
+                
+                // Call the navigation function
+                if (typeof navigateToSectionById === 'function') {
+                    try {
+                        await navigateToSectionById(sectionId);
+                    } catch (err) {
+                        console.error('Navigation failed for', sectionId, err);
+                    }
                 }
             });
         }
@@ -1107,6 +1461,16 @@ export async function initializeApp() {
 
 
     // Make functions globally available through initializeSectionDisplayFunctions
+
+    // --- Insert dynamic optional module registration before finishing init ---
+    // (call helper to load optional modules without overriding the exported initializeSectionDisplayFunctions)
+    if (typeof registerOptionalSectionModules === 'function') {
+        try {
+            await registerOptionalSectionModules();
+        } catch (e) {
+            console.warn('Optional modules registration failed (non-fatal):', e);
+        }
+    }
 
     console.log("HR System JS Initialized (Role-Based Landing).");
     console.log("Functions made globally available:", Object.keys(window).filter(key => key.startsWith('display')));
@@ -1117,3 +1481,117 @@ export async function initializeApp() {
     await runInit();
 
 } // end initializeApp()
+
+// Replaced the duplicated exported initializer with a non-exported helper
+async function registerOptionalSectionModules() {
+    console.log('[Init] Registering optional section modules...');
+    try {
+        const [
+            employeesMod,
+            documentsMod,
+            orgMod,
+            attendanceMod,
+            salariesMod,
+            analyticsMod,
+            claimsMod,
+            compensationMod,
+            dashboardMod,
+            profileMod
+        ] = await Promise.all([
+            import('./core_hr/employees.js'),
+            import('./core_hr/documents.js'),
+            import('./core_hr/org_structure.js'),
+            import('./time_attendance/attendance.js'),
+            import('./payroll/salaries.js'),
+            import('./analytics/analytics.js'),
+            import('./claims/claims.js'),
+            import('./compensation/compensation.js'),
+            import('./dashboard/dashboard.js'),
+            import('./profile/profile.js')
+        ].map(p => p.catch(e => { console.warn('Optional module failed to load', e); return null; })));
+
+        // Ensure a place for registered functions
+        window.sectionDisplayFunctions = window.sectionDisplayFunctions || {};
+
+        // Map found module exports to both sectionDisplayFunctions and top-level window.display* names
+        if (employeesMod?.displayEmployeeSection) {
+            window.sectionDisplayFunctions.displayEmployeeSection = employeesMod.displayEmployeeSection;
+            window.displayEmployeeSection = employeesMod.displayEmployeeSection;
+        }
+        if (documentsMod?.displayDocumentsSection) {
+            window.sectionDisplayFunctions.displayDocumentsSection = documentsMod.displayDocumentsSection;
+            window.displayDocumentsSection = documentsMod.displayDocumentsSection;
+        }
+        if (orgMod?.displayOrgStructureSection) {
+            window.sectionDisplayFunctions.displayOrgStructureSection = orgMod.displayOrgStructureSection;
+            window.displayOrgStructureSection = orgMod.displayOrgStructureSection;
+        }
+        
+        // Add Role Access functions to window object
+        if (window.sectionDisplayFunctions.displayRoleAccessSection) {
+            window.displayRoleAccessSection = window.sectionDisplayFunctions.displayRoleAccessSection;
+        }
+        if (attendanceMod?.displayAttendanceSection) {
+            window.sectionDisplayFunctions.displayAttendanceSection = attendanceMod.displayAttendanceSection;
+            window.displayAttendanceSection = attendanceMod.displayAttendanceSection;
+        }
+        if (salariesMod?.displaySalariesSection) {
+            window.sectionDisplayFunctions.displaySalariesSection = salariesMod.displaySalariesSection;
+            window.displaySalariesSection = salariesMod.displaySalariesSection;
+        }
+        if (analyticsMod?.displayAnalyticsDashboardsSection) {
+            window.sectionDisplayFunctions.displayAnalyticsDashboardsSection = analyticsMod.displayAnalyticsDashboardsSection;
+            window.displayAnalyticsDashboardsSection = analyticsMod.displayAnalyticsDashboardsSection;
+        }
+        if (claimsMod?.displaySubmitClaimSection) {
+            window.sectionDisplayFunctions.displaySubmitClaimSection = claimsMod.displaySubmitClaimSection;
+            window.displaySubmitClaimSection = claimsMod.displaySubmitClaimSection;
+            // also map other claims variants if exported
+            if (claimsMod.displayMyClaimsSection) window.displayMyClaimsSection = claimsMod.displayMyClaimsSection;
+            if (claimsMod.displayClaimsApprovalSection) window.displayClaimsApprovalSection = claimsMod.displayClaimsApprovalSection;
+            if (claimsMod.displayClaimTypesAdminSection) window.displayClaimTypesAdminSection = claimsMod.displayClaimTypesAdminSection;
+        }
+        if (compensationMod?.displaySalaryAdjustmentsSection) {
+            window.sectionDisplayFunctions.displaySalaryAdjustmentsSection = compensationMod.displaySalaryAdjustmentsSection;
+            window.displaySalaryAdjustmentsSection = compensationMod.displaySalaryAdjustmentsSection;
+        }
+        if (dashboardMod?.renderDashboardSummary) {
+            window.sectionDisplayFunctions.renderDashboardSummary = dashboardMod.renderDashboardSummary;
+            if (!window.displayDashboardSection && dashboardMod.renderDashboardSummary) {
+                // Keep existing dashboard loader but provide fallback
+                window.displayDashboardSection = async () => {
+                    const mainContentArea = document.getElementById('main-content-area');
+                    await import('./dashboard/dashboard.js').then(mod => mod.renderDashboardSummary && mod.renderDashboardSummary(mainContentArea)).catch(()=>{});
+                };
+            }
+        }
+        if (profileMod?.renderUserProfile) {
+            window.sectionDisplayFunctions.renderUserProfile = profileMod.renderUserProfile;
+            window.displayUserProfileSection = profileMod.renderUserProfile;
+        }
+
+        console.log('[Init] Optional section modules registered.');
+        return true;
+    } catch (err) {
+        console.error('[Init] Failed to register optional section modules', err);
+        // Non-fatal: let app continue using the already attached window.display* functions
+        return false;
+    }
+}
+
+// Initialize the application when DOM is ready
+// Use a small delay to ensure admin_landing.php initialization completes first
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('[Main] DOM loaded, initializing application...');
+    // Small delay to avoid conflicts with admin_landing.php initialization
+    setTimeout(async () => {
+        try {
+            console.log('[Main] Calling initializeApp...');
+            await initializeApp();
+            console.log('[Main] Application initialized successfully');
+        } catch (error) {
+            console.error('[Main] Error initializing application:', error);
+        }
+    }, 100);
+});
+

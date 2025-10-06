@@ -1,7 +1,13 @@
 /**
- * Hospital HR Organizational Structure Module
+ * Hospital HR Organizational Structure Module (READ-ONLY VIEWER)
+ * v5.0 - Refactored for HR Core integration - Read-only organizational structure viewer
  * v4.0 - Enhanced for Philippine hospital-specific HR management
  * Supports HR divisions, job roles, department coordinators, and comprehensive org hierarchy
+ * 
+ * Purpose: Display real-time organizational hierarchy from integrated HR systems
+ * - No CRUD operations (add/update/delete)
+ * - Dynamic viewer with real-time data from HR1-HR3
+ * - Visual hierarchy display with interactive features
  */
 import { API_BASE_URL, populateEmployeeDropdown } from '../utils.js';
 
@@ -9,39 +15,44 @@ let hospitalOrgData = {}; // Store comprehensive hospital organizational data
 let currentView = 'hierarchy'; // Current view: hierarchy, divisions, roles, coordinators
 
 export async function displayOrgStructureSection() {
-    console.log("[Display] Displaying Hospital Organizational Structure Section...");
-    const pageTitleElement = document.getElementById('page-title');
-    const pageSubtitleElement = document.getElementById('page-subtitle');
-    const mainContentArea = document.getElementById('main-content-area');
+    try {
+        console.log("[Display] Displaying Hospital Organizational Structure Section...");
+        const pageTitleElement = document.getElementById('page-title');
+        const pageSubtitleElement = document.getElementById('page-subtitle');
+        const mainContentArea = document.getElementById('main-content-area');
 
-    if (!pageTitleElement || !mainContentArea) {
-        console.error("displayOrgStructureSection: Core DOM elements not found.");
-        return;
-    }
+        if (!pageTitleElement || !mainContentArea) {
+            console.error("displayOrgStructureSection: Core DOM elements not found.");
+            return;
+        }
 
-    pageTitleElement.textContent = 'Hospital Organizational Structure';
-    pageSubtitleElement.textContent = 'Manage hospital departments, HR divisions, job roles, and coordinators';
+        pageTitleElement.textContent = 'Organizational Structure (Read-Only)';
+        if (pageSubtitleElement) {
+            pageSubtitleElement.textContent = 'Real-time hospital hierarchy from integrated HR systems';
+        } else {
+            console.warn('displayOrgStructureSection: #page-subtitle not found');
+        }
 
-    mainContentArea.innerHTML = `
-        <div class="p-6 space-y-6">
+        mainContentArea.innerHTML = `
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+            
             <!-- Navigation Tabs -->
-            <div class="bg-white rounded-lg shadow-md border border-gray-200">
-                <div class="border-b border-gray-200">
-                    <nav class="flex space-x-8 px-6" aria-label="Tabs">
-                        <button class="nav-tab-btn py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap" 
-                                data-view="hierarchy" onclick="switchOrgView('hierarchy')">
-                            <i class="fas fa-sitemap mr-2"></i>Hospital Hierarchy
-                        </button>
-                        <button class="nav-tab-btn py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap" 
-                                data-view="divisions" onclick="switchOrgView('divisions')">
-                            <i class="fas fa-building mr-2"></i>HR Divisions
-                        </button>
-                        <button class="nav-tab-btn py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap" 
-                                data-view="roles" onclick="switchOrgView('roles')">
-                            <i class="fas fa-users-cog mr-2"></i>Job Roles
-                        </button>
-                        <button class="nav-tab-btn py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap" 
-                                data-view="coordinators" onclick="switchOrgView('coordinators')">
+            <div class="border-b border-gray-200">
+                <nav class="flex space-x-8 px-6" aria-label="Tabs">
+                    <button class="nav-tab-btn py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap" 
+                            data-view="hierarchy" onclick="switchOrgView('hierarchy')">
+                        <i class="fas fa-sitemap mr-2"></i>Hospital Hierarchy
+                    </button>
+                    <button class="nav-tab-btn py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap" 
+                            data-view="divisions" onclick="switchOrgView('divisions')">
+                        <i class="fas fa-building mr-2"></i>HR Divisions
+                    </button>
+                    <button class="nav-tab-btn py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap" 
+                            data-view="roles" onclick="switchOrgView('roles')">
+                        <i class="fas fa-users-cog mr-2"></i>Job Roles
+                    </button>
+                    <button class="nav-tab-btn py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap" 
+                            data-view="coordinators" onclick="switchOrgView('coordinators')">
                             <i class="fas fa-user-tie mr-2"></i>HR Coordinators
                         </button>
                         <button class="nav-tab-btn py-4 px-1 border-b-2 font-medium text-sm whitespace-nowrap" 
@@ -65,10 +76,17 @@ export async function displayOrgStructureSection() {
             </div>
         </div>
     `;
-    
-    // Initialize view
-    await loadHospitalOrgData();
-    switchOrgView('hierarchy');
+        
+        // Initialize view
+        await loadHospitalOrgData();
+        switchOrgView('hierarchy');
+    } catch (err) {
+        console.error('[Org Structure] displayOrgStructureSection failed:', err);
+        const mainContentArea = document.getElementById('main-content-area');
+        if (mainContentArea) {
+            mainContentArea.innerHTML = `<div class="p-6 text-red-600">Failed to load Organizational Structure. Please refresh.</div>`;
+        }
+    }
 }
 
 // ===================== DATA LOADING FUNCTIONS =====================
@@ -143,17 +161,6 @@ function renderHierarchyView() {
     const contentArea = document.getElementById('org-view-content');
     contentArea.innerHTML = `
         <div class="space-y-6">
-            <!-- Header -->
-            <div class="flex justify-between items-center">
-                <div>
-                    <h3 class="text-lg font-semibold text-gray-900">Hospital Organizational Hierarchy</h3>
-                    <p class="text-sm text-gray-600">Complete hospital departmental structure</p>
-                </div>
-                <button onclick="showAddDepartmentModal()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-                    <i class="fas fa-plus mr-2"></i>Add Department
-                </button>
-            </div>
-
             <!-- Hierarchy Display with controls -->
             <div class="flex items-center justify-between">
                 <div class="space-x-2">
@@ -161,8 +168,13 @@ function renderHierarchyView() {
                     <button id="org-zoom-out" class="px-2 py-1 border rounded text-sm" title="Zoom Out"><i class="fas fa-search-minus"></i></button>
                     <button id="org-reset" class="px-2 py-1 border rounded text-sm" title="Reset"><i class="fas fa-compress-arrows-alt"></i></button>
                 </div>
-                <div>
-                    <button id="org-export" class="px-3 py-1 border rounded text-sm" title="Export to PDF"><i class="fas fa-file-pdf"></i> Export</button>
+                <div class="flex space-x-2">
+                    <button onclick="refreshOrgStructure()" class="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        <i class="fas fa-sync mr-2"></i>Refresh
+                    </button>
+                    <button onclick="exportOrgStructure()" class="inline-flex items-center px-3 py-2 bg-green-600 text-white rounded-md text-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                        <i class="fas fa-download mr-2"></i>Export
+                    </button>
                 </div>
             </div>
             <div id="hierarchy-display" class="bg-gray-50 rounded-lg p-6 overflow-hidden">
@@ -201,15 +213,15 @@ function renderHospitalHierarchy() {
     hierarchyDisplay.innerHTML = `<div id="org-panzoom-container" class="cursor-grab"><div id="org-tree-root">${renderDepartmentTree(hierarchy)}</div></div>`;
     setupPanZoom();
 
-    // Attach event delegation for edit/view buttons so clicks reliably call handlers
+    // Attach event delegation for view/export buttons so clicks reliably call handlers
     hierarchyDisplay.querySelectorAll && hierarchyDisplay.addEventListener('click', function(evt){
-        const editBtn = evt.target.closest && evt.target.closest('.btn-edit-dept');
-        if (editBtn) {
-            const id = editBtn.getAttribute('data-id'); if (id) return editDepartment(id);
-        }
         const viewBtn = evt.target.closest && evt.target.closest('.btn-view-dept');
         if (viewBtn) {
             const id = viewBtn.getAttribute('data-id'); if (id) return viewDepartmentDetails(id);
+        }
+        const exportBtn = evt.target.closest && evt.target.closest('.btn-export-dept');
+        if (exportBtn) {
+            const id = exportBtn.getAttribute('data-id'); if (id) return exportDepartmentData(id);
         }
         const node = evt.target.closest && evt.target.closest('.department-node');
         if (node && node.dataset && node.dataset.deptId) {
@@ -343,21 +355,34 @@ async function renderFunctionalView(){
     const contentArea = document.getElementById('org-view-content');
     contentArea.innerHTML = '<div class="text-gray-500">Loading functional view...</div>';
     try{
-        const res = await fetch(`${API_BASE_URL.replace(/php\/api\/$/, 'api/')}positions/summary`);
-        const rows = await res.json();
-        if (!Array.isArray(rows)) throw new Error('Unexpected response');
-        const grouped = rows.reduce((acc, r)=>{ const k = r.DepartmentName || 'Unassigned'; acc[k] = acc[k] || []; acc[k].push(r); return acc; }, {});
+        const res = await fetch(`${API_BASE_URL}get_hospital_org_structure.php?view=functional`, { credentials:'include' });
+        const result = await res.json();
+        const rows = result && result.success ? result.data : [];
+        if (!Array.isArray(rows) || rows.length === 0){
+            contentArea.innerHTML = '<div class="text-gray-500">No functional data available.</div>';
+            return;
+        }
+        const grouped = rows.reduce((acc, r) => {
+            const k = r.DepartmentName || 'Unassigned';
+            acc[k] = acc[k] || [];
+            acc[k].push(r);
+            return acc;
+        }, {});
         const html = Object.entries(grouped).map(([dept, list])=>{
-            const totals = list.reduce((a,r)=>{ a.head+=Number(r.HeadcountBudget||0); a.filled+=Number(r.FilledCount||0); a.vac+=Number(r.VacantCount||0); a.cost+=Number(r.FilledCost||0); return a; }, {head:0,filled:0,vac:0,cost:0});
+            const totals = list.reduce((a,r)=>({
+                head: a.head + Number(r.HeadcountBudget||0),
+                filled: a.filled + Number(r.FilledCount||0),
+                vac: a.vac + Number(r.VacantCount||0),
+                cost: a.cost + Number(r.FilledCost||0)
+            }), {head:0,filled:0,vac:0,cost:0});
             const items = list.map(r=>`<tr>
-                <td class="px-3 py-1 text-sm">${r.RoleTitle}</td>
+                <td class="px-3 py-1 text-sm">${r.RoleTitle||''}</td>
                 <td class="px-3 py-1 text-sm">${r.HeadcountBudget??'-'}</td>
-                <td class="px-3 py-1 text-sm">${r.FilledCount}</td>
-                <td class="px-3 py-1 text-sm">${r.VacantCount}</td>
-                <td class="px-3 py-1 text-sm">${formatRange(r.PayGradeMin, r.PayGradeMax)}</td>
-                <td class="px-3 py-1 text-sm">${formatCurrency(r.Midpoint)}</td>
+                <td class="px-3 py-1 text-sm">${r.FilledCount??0}</td>
+                <td class="px-3 py-1 text-sm">${r.VacantCount??0}</td>
+                <td class="px-3 py-1 text-sm">${(()=>{ const fb=getSSLVI2025Range(r.SalaryGrade); const mn = (r.PayGradeMin ?? (fb ? fb.min : undefined)); const mx = (r.PayGradeMax ?? (fb ? fb.max : undefined)); return formatRange(mn, mx); })()}</td>
+                <td class="px-3 py-1 text-sm">${(()=>{ const fb=getSSLVI2025Range(r.SalaryGrade); const mn = (r.PayGradeMin ?? (fb ? fb.min : undefined)); const mx = (r.PayGradeMax ?? (fb ? fb.max : undefined)); const a = Number(mn == null ? 0 : mn); const b = Number(mx == null ? 0 : mx); return formatCurrency((a + b) / 2); })()}</td>
                 <td class="px-3 py-1 text-sm">${formatCurrency(r.FilledCost)}</td>
-                <td class="px-3 py-1 text-sm">${Number(r.VacantCount)>0? `<button class='px-2 py-1 border rounded text-xs text-blue-700 requisition-btn' data-title='${encodeURIComponent(r.RoleTitle)}' data-dept='${encodeURIComponent(dept)}'>Requisition</button>`:''}</td>
             </tr>`).join('');
             return `<div class="mb-6"><h4 class="font-semibold mb-2">${dept}</h4>
                 <div class="overflow-x-auto"><table class="min-w-full divide-y divide-gray-200 border">
@@ -369,7 +394,6 @@ async function renderFunctionalView(){
                     <th class="px-3 py-2 text-left text-xs text-gray-500">Salary Range</th>
                     <th class="px-3 py-2 text-left text-xs text-gray-500">Midpoint</th>
                     <th class="px-3 py-2 text-left text-xs text-gray-500">Filled Cost</th>
-                    <th class="px-3 py-2 text-left text-xs text-gray-500">Actions</th>
                 </tr></thead>
                 <tbody>${items}</tbody>
                 <tfoot class="bg-gray-50"><tr>
@@ -379,18 +403,10 @@ async function renderFunctionalView(){
                     <td class="px-3 py-2 text-sm font-semibold">${totals.vac}</td>
                     <td></td><td></td>
                     <td class="px-3 py-2 text-sm font-semibold">${formatCurrency(totals.cost)}</td>
-                    <td></td>
                 </tr></tfoot>
                 </table></div></div>`;
         }).join('');
-        contentArea.innerHTML = html || '<div class="text-gray-500">No data</div>';
-        contentArea.addEventListener('click', (e)=>{
-            const btn = e.target.closest('.requisition-btn');
-            if (!btn) return;
-            const role = decodeURIComponent(btn.dataset.title||'');
-            const dept = decodeURIComponent(btn.dataset.dept||'');
-            Swal.fire('Requisition', `Create HR1 requisition for ${role} in ${dept}.`, 'info');
-        });
+        contentArea.innerHTML = html;
     }catch(err){ console.error(err); contentArea.innerHTML = '<div class="text-red-600">Failed to load functional view</div>'; }
 }
 
@@ -399,10 +415,14 @@ async function renderPayGradeView(){
     const contentArea = document.getElementById('org-view-content');
     contentArea.innerHTML = '<div class="text-gray-500">Loading pay grade view...</div>';
     try{
-        const res = await fetch(`${API_BASE_URL.replace(/php\/api\/$/, 'api/')}positions/paygrades`);
-        const rows = await res.json();
-        if (!Array.isArray(rows)) throw new Error('Unexpected response');
-        const html = `<div class="overflow-x-auto"><table class="min-w-full divide-y divide-gray-200 border"><thead class="bg-gray-50"><tr><th class="px-3 py-2 text-left text-xs text-gray-500">Salary Grade</th><th class="px-3 py-2 text-left text-xs text-gray-500">Role</th><th class="px-3 py-2 text-left text-xs text-gray-500">Department</th><th class="px-3 py-2 text-left text-xs text-gray-500">Range</th></tr></thead><tbody>${rows.map(r=>`<tr><td class="px-3 py-1 text-sm">${r.SalaryGrade||'-'}</td><td class="px-3 py-1 text-sm">${r.RoleTitle||''}</td><td class="px-3 py-1 text-sm">${r.DepartmentName||''}</td><td class="px-3 py-1 text-sm">${formatRange(r.PayGradeMin, r.PayGradeMax)}</td></tr>`).join('')}</tbody></table></div>`;
+        const res = await fetch(`${API_BASE_URL}get_hospital_org_structure.php?view=paygrade`, { credentials:'include' });
+        const result = await res.json();
+        const rows = result && result.success ? result.data : [];
+        if (!Array.isArray(rows) || rows.length === 0){
+            contentArea.innerHTML = '<div class="text-gray-500">No pay grade data available.</div>';
+            return;
+        }
+        const html = `<div class="overflow-x-auto"><table class="min-w-full divide-y divide-gray-200 border"><thead class="bg-gray-50"><tr><th class="px-3 py-2 text-left text-xs text-gray-500">Salary Grade</th><th class="px-3 py-2 text-left text-xs text-gray-500">Role</th><th class="px-3 py-2 text-left text-xs text-gray-500">Department</th><th class="px-3 py-2 text-left text-xs text-gray-500">Range</th></tr></thead><tbody>${rows.map(r=>{ const fb=getSSLVI2025Range(r.SalaryGrade); const mn = (r.PayGradeMin ?? (fb ? fb.min : undefined)); const mx = (r.PayGradeMax ?? (fb ? fb.max : undefined)); return `<tr><td class=\"px-3 py-1 text-sm\">${r.SalaryGrade||'-'}</td><td class=\"px-3 py-1 text-sm\">${r.RoleTitle||''}</td><td class=\"px-3 py-1 text-sm\">${r.DepartmentName||''}</td><td class=\"px-3 py-1 text-sm\">${formatRange(mn, mx)}</td></tr>`; }).join('')}</tbody></table></div>`;
         contentArea.innerHTML = html;
     }catch(err){ console.error(err); contentArea.innerHTML = '<div class="text-red-600">Failed to load pay grade view</div>'; }
 }
@@ -412,6 +432,21 @@ function formatRange(min, max){
     return `${f(min)} – ${f(max)}`;
 }
 function formatCurrency(v){ if (v==null) return '-'; return `₱${Number(v).toLocaleString('en-PH',{maximumFractionDigits:2})}`; }
+
+// SSL VI 2025 salary grade step range fallback
+function getSSLVI2025Range(sg){
+    if (!sg) return null;
+    const k = String(sg).toUpperCase().replace(/\s+/g,'');
+    const map = {
+        SG01:{min:14061,max:15671}, SG02:{min:15078,max:16814}, SG03:{min:16082,max:18004}, SG04:{min:16636,max:18638}, SG05:{min:17866,max:19987},
+        SG06:{min:18864,max:21099}, SG07:{min:18993,max:21235}, SG08:{min:20190,max:22587}, SG09:{min:23176,max:25820}, SG10:{min:25586,max:28504},
+        SG11:{min:30024,max:33476}, SG12:{min:32758,max:36444}, SG13:{min:34911,max:38773}, SG14:{min:35567,max:39511}, SG15:{min:36619,max:40698},
+        SG16:{min:39672,max:44083}, SG17:{min:43030,max:47835}, SG18:{min:47003,max:52290}, SG19:{min:51357,max:57135}, SG20:{min:57347,max:63682},
+        SG21:{min:63833,max:70843}, SG22:{min:71511,max:79262}, SG23:{min:79135,max:87707}, SG24:{min:90078,max:99976}, SG25:{min:111727,max:123887},
+        SG26:{min:123981,max:137368}, SG27:{min:139817,max:154931}, SG28:{min:157707,max:174425}, SG29:{min:177714,max:196238}
+    };
+    return map[k] || null;
+}
 
 // Expose renderers for inline onclick usage
 window.renderDivisionsView = renderDivisionsView;
@@ -462,11 +497,11 @@ function renderDepartmentTree(departments, level = 0) {
                             </div>
                         </div>
                         <div class="flex items-center space-x-2">
-                            <button data-id="${dept.DepartmentID}" class="btn-edit-dept p-2 text-blue-600 hover:bg-blue-50 rounded-lg" title="Edit">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button data-id="${dept.DepartmentID}" class="btn-view-dept p-2 text-green-600 hover:bg-green-50 rounded-lg" title="View Details">
+                            <button data-id="${dept.DepartmentID}" class="btn-view-dept p-2 text-blue-600 hover:bg-blue-50 rounded-lg" title="View Details">
                                 <i class="fas fa-eye"></i>
+                            </button>
+                            <button data-id="${dept.DepartmentID}" class="btn-export-dept p-2 text-green-600 hover:bg-green-50 rounded-lg" title="Export Department Data">
+                                <i class="fas fa-download"></i>
                             </button>
                         </div>
                     </div>
@@ -833,17 +868,170 @@ window.viewDepartmentDetails = function(id) {
     overlay.querySelector('#view-dept-close-btn')?.addEventListener('click', ()=>{ overlay.remove(); });
 }
 
-// Delete Department (hard check via API which performs soft delete)
-window.deleteDepartment = async function(id) {
-    const confirmed = await Swal.fire({ title: 'Delete Department', text: 'Are you sure you want to delete this department? This will deactivate it if there are no active employees.', icon: 'warning', showCancelButton: true, confirmButtonText: 'Delete' });
-    if (!confirmed.isConfirmed) return;
+/**
+ * Export department data
+ */
+window.exportDepartmentData = function(id) {
+    const dept = (hospitalOrgData.departments || []).find(d=>Number(d.DepartmentID)===Number(id));
+    if (!dept) { 
+        Swal.fire('Error','Department not found','error'); 
+        return; 
+    }
+    
+    Swal.fire({
+        title: 'Export Department Data',
+        text: `Export data for ${dept.DepartmentName}?`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'CSV',
+        cancelButtonText: 'PDF',
+        showDenyButton: true,
+        denyButtonText: 'Cancel'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            exportDepartmentToCSV(dept);
+        } else if (result.dismiss === Swal.DismissReason.cancel) {
+            exportDepartmentToPDF(dept);
+        }
+    });
+};
+
+/**
+ * Export department to CSV
+ */
+function exportDepartmentToCSV(department) {
     try {
-        const res = await fetch(`${API_BASE_URL}manage_hr_structure.php?entity=department`, { method: 'DELETE', credentials: 'include', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ id }) });
-        // Note: API expects id as query param; supporting both
-        const j = await res.json();
-        if (j.success) { await loadHospitalOrgData(); switchOrgView(currentView); Swal.fire('Deleted','Department deactivated','success'); }
-        else if (j.employee_count) { Swal.fire('Cannot delete', `Department has ${j.employee_count} active employees`, 'error'); }
-        else Swal.fire('Error', j.error || 'Failed to delete department','error');
-    } catch(err){ console.error(err); Swal.fire('Error','Server error while deleting department','error'); }
+        const headers = ['Department ID', 'Name', 'Code', 'Type', 'Manager', 'Employee Count', 'Description'];
+        const csvContent = [
+            headers.join(','),
+            [
+                department.DepartmentID || '',
+                `"${department.DepartmentName || ''}"`,
+                `"${department.DepartmentCode || ''}"`,
+                `"${department.DepartmentType || ''}"`,
+                `"${department.ManagerName || ''}"`,
+                department.EmployeeCount || 0,
+                `"${department.Description || ''}"`
+            ].join(',')
+        ].join('\n');
+
+        downloadFile(csvContent, `department_${department.DepartmentID}.csv`, 'text/csv');
+        Swal.fire('Success', 'Department data exported to CSV successfully!', 'success');
+    } catch (error) {
+        console.error('CSV export error:', error);
+        Swal.fire('Error', 'Failed to export CSV file.', 'error');
+    }
 }
+
+/**
+ * Export department to PDF (placeholder)
+ */
+function exportDepartmentToPDF(department) {
+    Swal.fire({
+        title: 'PDF Export',
+        text: 'PDF export functionality will be implemented in a future update. For now, please use the CSV export option.',
+        icon: 'info',
+        confirmButtonText: 'OK'
+    });
+}
+
+/**
+ * Refresh organizational structure
+ */
+window.refreshOrgStructure = function() {
+    console.log("[Refresh] Refreshing organizational structure...");
+    loadHospitalOrgData().then(() => {
+        switchOrgView(currentView);
+        Swal.fire('Success', 'Organizational structure refreshed!', 'success');
+    });
+};
+
+/**
+ * Export organizational structure
+ */
+window.exportOrgStructure = function() {
+    console.log("[Export] Exporting organizational structure...");
+    
+    Swal.fire({
+        title: 'Export Organizational Structure',
+        text: 'Choose export format:',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'CSV',
+        cancelButtonText: 'PDF',
+        showDenyButton: true,
+        denyButtonText: 'Cancel'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            exportOrgStructureToCSV();
+        } else if (result.dismiss === Swal.DismissReason.cancel) {
+            exportOrgStructureToPDF();
+        }
+    });
+};
+
+/**
+ * Export organizational structure to CSV
+ */
+function exportOrgStructureToCSV() {
+    try {
+        const departments = hospitalOrgData.departments || [];
+        const headers = ['Department ID', 'Name', 'Code', 'Type', 'Parent Department', 'Manager', 'Employee Count', 'Description'];
+        const csvContent = [
+            headers.join(','),
+            ...departments.map(dept => [
+                dept.DepartmentID || '',
+                `"${dept.DepartmentName || ''}"`,
+                `"${dept.DepartmentCode || ''}"`,
+                `"${dept.DepartmentType || ''}"`,
+                `"${dept.ParentDepartmentName || ''}"`,
+                `"${dept.ManagerName || ''}"`,
+                dept.EmployeeCount || 0,
+                `"${dept.Description || ''}"`
+            ].join(','))
+        ].join('\n');
+
+        downloadFile(csvContent, 'organizational_structure.csv', 'text/csv');
+        Swal.fire('Success', 'Organizational structure exported to CSV successfully!', 'success');
+    } catch (error) {
+        console.error('CSV export error:', error);
+        Swal.fire('Error', 'Failed to export CSV file.', 'error');
+    }
+}
+
+/**
+ * Export organizational structure to PDF (placeholder)
+ */
+function exportOrgStructureToPDF() {
+    Swal.fire({
+        title: 'PDF Export',
+        text: 'PDF export functionality will be implemented in a future update. For now, please use the CSV export option.',
+        icon: 'info',
+        confirmButtonText: 'OK'
+    });
+}
+
+/**
+ * Download file utility
+ */
+function downloadFile(content, filename, mimeType) {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+}
+
+/**
+ * Refresh organizational structure data
+ */
+window.refreshOrgStructure = function() {
+    console.log('Refreshing organizational structure...');
+    loadHospitalOrgData();
+};
+
 

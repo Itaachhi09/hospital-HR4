@@ -1,7 +1,15 @@
 /**
- * Core HR - Documents Module
+ * HR Core - Document Viewer Module (READ-ONLY)
+ * v4.0 - Enhanced for HR Core integration with HR1 and HR2 systems
+ * v3.0 - Refactored for HR Core integration - Read-only document viewer
  * v2.1 - Integrated SweetAlert for notifications and confirmations.
  * v2.0 - Refined rendering functions for XSS protection.
+ * 
+ * Purpose: Display integrated documents from HR1 and HR2 systems
+ * - No upload/delete operations (read-only)
+ * - Document categorization (A, B, C) as per hospital requirements
+ * - File preview for PDF, images, and docx files
+ * - Hospital-blue theme with clean UI
  */
 import { API_BASE_URL, populateEmployeeDropdown } from '../utils.js'; // Import shared functions/constants
 
@@ -12,119 +20,121 @@ import { API_BASE_URL, populateEmployeeDropdown } from '../utils.js'; // Import 
 export async function displayDocumentsSection() { 
     console.log("[Display] Displaying Documents Section...");
     const pageTitleElement = document.getElementById('page-title');
+    const pageSubtitleElement = document.getElementById('page-subtitle');
     const mainContentArea = document.getElementById('main-content-area');
 
-    if (!pageTitleElement || !mainContentArea) {
+    if (!pageTitleElement || !pageSubtitleElement || !mainContentArea) {
         console.error("displayDocumentsSection: Core DOM elements not found.");
         if(mainContentArea) mainContentArea.innerHTML = `<p class="text-red-500 p-4">Error initializing document section elements.</p>`;
         return;
     }
 
-    pageTitleElement.textContent = 'Employee Documents';
+    pageTitleElement.textContent = 'HR Core - Document Viewer';
+    pageSubtitleElement.textContent = 'Integrated employee documents from HR1 (Recruitment) and HR2 (Training & Performance)';
     mainContentArea.innerHTML = `
-        <div class="bg-white p-6 rounded-lg shadow-md border border-[#F7E6CA] space-y-6">
-            <div class="border-b border-gray-200 pb-4">
-                <h3 class="text-lg font-semibold text-[#4E3B2A] mb-3 font-header">Upload New Document</h3>
-                <form id="upload-document-form" class="space-y-4" enctype="multipart/form-data">
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                            <label for="doc-employee-select" class="block text-sm font-medium text-gray-700 mb-1">Employee:</label>
-                            <select id="doc-employee-select" name="employee_id" required class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#4E3B2A] focus:border-[#4E3B2A]">
-                                <option value="">Loading employees...</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label for="doc-type" class="block text-sm font-medium text-gray-700 mb-1">Document Type:</label>
-                            <input type="text" id="doc-type" name="document_type" required placeholder="e.g., Contract, ID, Certificate" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#4E3B2A] focus:border-[#4E3B2A]">
-                        </div>
-                        <div>
-                            <label for="doc-category" class="block text-sm font-medium text-gray-700 mb-1">Category/Tag:</label>
-                            <input type="text" id="doc-category" name="category" placeholder="Contract, Certificate, License, ID" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#4E3B2A] focus:border-[#4E3B2A]">
-                        </div>
-                        <div>
-                            <label for="doc-expiry" class="block text-sm font-medium text-gray-700 mb-1">Expiry Date (optional):</label>
-                            <input type="date" id="doc-expiry" name="expires_on" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#4E3B2A] focus:border-[#4E3B2A]">
-                        </div>
-                        <div>
-                            <label for="doc-file" class="block text-sm font-medium text-gray-700 mb-1">File:</label>
-                            <input type="file" id="doc-file" name="document_file" required class="w-full p-1.5 border border-gray-300 rounded-md shadow-sm text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-[#F7E6CA] file:text-[#4E3B2A] hover:file:bg-[#EADDCB]">
-                            <p class="mt-1 text-xs text-gray-500">Allowed: PDF, DOC, DOCX, JPG, PNG (Max 5MB)</p>
-                            <div id="doc-dropzone" class="mt-2 border-2 border-dashed border-gray-300 rounded-md p-4 text-center text-sm text-gray-600 hover:border-[#4E3B2A] cursor-pointer">
-                                Drag & drop file here or click above
-                            </div>
-                            <div id="doc-upload-preview" class="mt-2"></div>
-                        </div>
-                    </div>
-                    <div class="pt-2">
-                            <button type="submit" class="px-4 py-2 bg-[#4727ff] text-white rounded-md hover:bg-[#3a1fcc] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#4727ff] transition duration-150 ease-in-out">
-                                Upload Document
-                            </button>
-                        </div>
-                </form>
-            </div>
-
-            <div>
-                <h3 class="text-lg font-semibold text-[#4E3B2A] mb-3 font-header">Existing Documents</h3>
-                <div class="flex flex-wrap gap-4 mb-4 items-end">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Search:</label>
-                        <input id="doc-search" type="text" placeholder="Search name or doc" class="w-full sm:w-64 p-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#4E3B2A] focus:border-[#4E3B2A]">
-                    </div>
-                     <div>
-                       <label for="filter-doc-employee" class="block text-sm font-medium text-gray-700 mb-1">Filter by Employee:</label>
-                       <select id="filter-doc-employee" class="w-full sm:w-auto p-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#4E3B2A] focus:border-[#4E3B2A]">
-                           <option value="">All Employees</option>
-                           </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Category:</label>
-                        <input id="filter-doc-category" type="text" placeholder="Contract, License, ..." class="w-full sm:w-48 p-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#4E3B2A] focus:border-[#4E3B2A]">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Expiring Within (days):</label>
-                        <input id="filter-doc-expiring" type="number" min="1" class="w-24 p-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#4E3B2A] focus:border-[#4E3B2A]" placeholder="30">
-                    </div>
-                    <div>
-                       <button id="filter-doc-btn" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150 ease-in-out">
-                           Filter
-                       </button>
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+            <!-- Header with Actions -->
+            <div class="px-6 py-4 border-b border-gray-200 bg-blue-50">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                        <h3 class="text-xl font-semibold text-blue-900">HR Core Document Library</h3>
+                        <p class="text-sm text-blue-700">View-only access to employee documents from integrated HR systems</p>
+                </div>
+                    <div class="flex items-center space-x-3">
+                        <button onclick="refreshDocuments()" class="inline-flex items-center px-4 py-2 border border-blue-300 rounded-md text-sm font-medium text-blue-700 bg-white hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                            <i class="fas fa-sync mr-2"></i>Refresh
+                        </button>
+                        <button onclick="exportDocuments()" class="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                            <i class="fas fa-download mr-2"></i>Export
+                    </button>
+                        <button onclick="showIntegrationStatus()" class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-md text-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                            <i class="fas fa-info-circle mr-2"></i>Integration Status
+                    </button>
                     </div>
                 </div>
+            </div>
+
+            <!-- Search and Filters -->
+            <div class="px-6 py-4 bg-gray-50 border-b border-gray-200">
+                <div class="flex flex-col lg:flex-row gap-4">
+                    <!-- Search Bar -->
+                    <div class="flex-1">
+                        <div class="relative">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i class="fas fa-search text-gray-400"></i>
+                        </div>
+                            <input id="doc-search-input" type="text" placeholder="Search by employee name or document title..." 
+                                   class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
+                        </div>
+                    </div>
+                    
+                    <!-- Filter Dropdowns -->
+                    <div class="flex flex-col sm:flex-row gap-3">
+                        <select id="doc-module-filter" class="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">All Modules</option>
+                            <option value="HR1">HR1 (Recruitment)</option>
+                            <option value="HR2">HR2 (Training & Performance)</option>
+                        </select>
+                        
+                        <select id="doc-category-filter" class="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">All Categories</option>
+                            <option value="A">Category A - Initial Application</option>
+                            <option value="B">Category B - Pre-Employment</option>
+                            <option value="C">Category C - Position-Specific</option>
+                        </select>
+                        
+                        <select id="doc-status-filter" class="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">All Status</option>
+                            <option value="active">Active</option>
+                            <option value="archived">Archived</option>
+                            <option value="expired">Expired</option>
+                        </select>
+                        
+                        <button onclick="applyDocumentFilters()" class="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <i class="fas fa-filter mr-1"></i>Filter
+                        </button>
+                        
+                        <button onclick="clearDocumentFilters()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md text-sm hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500">
+                            <i class="fas fa-times mr-1"></i>Clear
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Documents Table -->
+            <div class="px-6 py-4">
                 <div id="documents-list-container" class="overflow-x-auto">
-                    <p class="text-center py-4">Loading documents...</p> 
+                    <div class="text-center py-8">
+                        <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                        <p class="text-gray-500 mt-2">Loading HR Core documents...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Document Preview Modal -->
+        <div id="document-preview-modal" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+            <div class="flex items-end justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+                <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
+                <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+                <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
+                    <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-medium text-gray-900" id="modal-title">Document Preview</h3>
+                            <button onclick="closeDocumentPreview()" class="text-gray-400 hover:text-gray-600">
+                                <i class="fas fa-times text-xl"></i>
+                            </button>
+                        </div>
+                        <div id="document-preview-content" class="w-full h-96 border border-gray-300 rounded-lg">
+                            <!-- Document preview will be loaded here -->
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>`;
 
     requestAnimationFrame(async () => {
-        await populateEmployeeDropdown('doc-employee-select'); 
-        await populateEmployeeDropdown('filter-doc-employee', true); 
-
-        const uploadForm = document.getElementById('upload-document-form');
-        if (uploadForm) {
-            if (!uploadForm.hasAttribute('data-listener-attached')) {
-                uploadForm.addEventListener('submit', handleUploadDocument);
-                uploadForm.setAttribute('data-listener-attached', 'true');
-            }
-            setupDragAndDrop();
-            const fileInput = document.getElementById('doc-file');
-            fileInput?.addEventListener('change', (e)=>{
-                const f = e.target.files && e.target.files[0];
-                if (f) renderUploadPreview(f);
-            });
-        } else {
-            console.error("Upload Document form not found after injecting HTML.");
-        }
-
-        const filterBtn = document.getElementById('filter-doc-btn');
-        if (filterBtn) {
-            if (!filterBtn.hasAttribute('data-listener-attached')) {
-                filterBtn.addEventListener('click', applyDocumentFilter);
-                filterBtn.setAttribute('data-listener-attached', 'true');
-            }
-        } else {
-            console.error("Filter Document button not found after injecting HTML.");
-        }
+        // Load documents
         await loadDocuments();
     });
 }
@@ -133,46 +143,58 @@ export async function displayDocumentsSection() {
  * Applies the selected employee filter and reloads the document list.
  */
 function applyDocumentFilter() {
-    const employeeId = document.getElementById('filter-doc-employee')?.value;
-    const q = document.getElementById('doc-search')?.value?.trim();
-    const cat = document.getElementById('filter-doc-category')?.value?.trim();
-    const days = document.getElementById('filter-doc-expiring')?.value?.trim();
-    loadDocuments(employeeId, { search: q, category: cat, expiring_within_days: days }); 
+    const searchTerm = document.getElementById('doc-search-input')?.value?.trim();
+    const module = document.getElementById('doc-module-filter')?.value;
+    const category = document.getElementById('doc-category-filter')?.value;
+    const status = document.getElementById('doc-status-filter')?.value;
+    loadDocuments(null, { search: searchTerm, module_origin: module, category: category, status: status }); 
 }
 
 /**
  * Fetches documents from the API based on the optional employee filter.
  */
 async function loadDocuments(employeeId = null, extra = {}) {
-    console.log(`[Load] Loading Documents... (Employee ID: ${employeeId || 'All'})`);
+    console.log(`[Load] Loading HR Core Documents... (Employee ID: ${employeeId || 'All'})`);
     const container = document.getElementById('documents-list-container');
     if (!container) return;
-    container.innerHTML = '<p class="text-center py-4">Loading documents...</p>'; 
+    container.innerHTML = '<div class="text-center py-8"><div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div><p class="text-gray-500 mt-2">Loading HR Core documents...</p></div>'; 
 
-    // Use REST endpoint; employees see only their own via server-side auth
-    let url = `${API_BASE_URL.replace(/php\/api\/$/, 'api/') }documents`;
+    // Use HR Core API endpoint
+    console.log('API_BASE_URL:', API_BASE_URL);
+    let url = `${API_BASE_URL.replace('php/api/', 'api')}/hrcore/documents`;
+    console.log('Constructed URL:', url);
+    
     const params = new URLSearchParams();
-    if (employeeId) params.set('employee_id', String(employeeId));
+    if (employeeId) params.set('emp_id', String(employeeId));
     if (extra && extra.search) params.set('search', extra.search);
     if (extra && extra.category) params.set('category', extra.category);
-    if (extra && extra.expiring_within_days) params.set('expiring_within_days', extra.expiring_within_days);
+    if (extra && extra.module_origin) params.set('module_origin', extra.module_origin);
+    if (extra && extra.status) params.set('status', extra.status);
     const qs = params.toString();
     if (qs) url += `?${qs}`;
+    
+    console.log('Full URL with params:', url);
 
     try {
-        const response = await fetch(url, { credentials: 'include' });
+        const response = await fetch(url, { 
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        const documents = await response.json();
+        const result = await response.json();
 
-        if (documents.error) {
-            console.error("Error fetching documents:", documents.error);
-            container.innerHTML = `<p class="text-red-500 text-center py-4">Error: ${documents.error}</p>`;
+        if (result.success && result.data) {
+            renderDocumentsTable(result.data); 
         } else {
-            renderDocumentsTable(documents); 
+            console.error("Error fetching HR Core documents:", result.message);
+            container.innerHTML = `<p class="text-red-500 text-center py-4">Error: ${result.message || 'Failed to load documents'}</p>`;
         }
     } catch (error) {
-        console.error('Error loading documents:', error);
-        container.innerHTML = `<p class="text-red-500 text-center py-4">Could not load documents. ${error.message}</p>`;
+        console.error('Error loading HR Core documents:', error);
+        container.innerHTML = `<p class="text-red-500 text-center py-4">Could not load HR Core documents. ${error.message}</p>`;
     }
 }
 
@@ -180,126 +202,159 @@ async function loadDocuments(employeeId = null, extra = {}) {
  * Renders the list of documents into an HTML table.
  */
 function renderDocumentsTable(documents) {
-    console.log("[Render] Rendering Documents Table...");
+    console.log("[Render] Rendering HR Core Documents Table...");
     const container = document.getElementById('documents-list-container');
     if (!container) return;
-    container.innerHTML = '';
 
     if (!documents || documents.length === 0) {
-        const noDataMessage = document.createElement('p');
-        noDataMessage.className = 'text-center py-4 text-gray-500';
-        noDataMessage.textContent = 'No documents found for the selected criteria.';
-        container.appendChild(noDataMessage);
+        container.innerHTML = `
+            <div class="text-center py-8">
+                <i class="fas fa-file-alt text-6xl text-gray-300 mb-4"></i>
+                <h3 class="text-lg font-medium text-gray-900 mb-2">No HR Core documents found</h3>
+                <p class="text-gray-500">No documents match your current filters or no documents have been integrated yet.</p>
+            </div>
+        `;
         return;
     }
 
     const table = document.createElement('table');
-    table.className = 'min-w-full divide-y divide-gray-200 border border-gray-300';
-
-    const thead = table.createTHead();
-    thead.className = 'bg-gray-50';
-    const headerRow = thead.insertRow();
-    const headers = ['Employee', 'Type', 'Category', 'Filename', 'Uploaded', 'Expiry', 'Actions'];
-    headers.forEach(text => {
-        const th = document.createElement('th');
-        th.scope = 'col';
-        th.className = 'px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider';
-        th.textContent = text; 
-        headerRow.appendChild(th);
-    });
+    table.className = 'min-w-full divide-y divide-gray-200';
+    table.innerHTML = `
+        <thead class="bg-blue-50">
+            <tr>
+                <th class="px-4 py-3 text-left text-xs font-medium text-blue-600 uppercase tracking-wider">Employee ID</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-blue-600 uppercase tracking-wider">Employee Name</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-blue-600 uppercase tracking-wider">Document Title</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-blue-600 uppercase tracking-wider">Category</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-blue-600 uppercase tracking-wider">Origin Module</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-blue-600 uppercase tracking-wider">Uploaded By</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-blue-600 uppercase tracking-wider">Upload Date</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-blue-600 uppercase tracking-wider">Status</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-blue-600 uppercase tracking-wider">Actions</th>
+            </tr>
+        </thead>
+    `;
 
     const tbody = table.createTBody();
-    tbody.className = 'bg-white divide-y divide-gray-200 document-action-container';
+    tbody.className = 'bg-white divide-y divide-gray-200';
 
     documents.forEach(doc => {
         const row = tbody.insertRow();
-        row.id = `doc-row-${doc.DocumentID}`;
+        row.id = `doc-row-${doc.doc_id}`;
 
-        const createCell = (text) => {
+        const createCell = (text, className = '') => {
             const cell = row.insertCell();
-            cell.className = 'px-4 py-3 whitespace-nowrap text-sm';
+            cell.className = `px-4 py-3 whitespace-nowrap text-sm ${className}`;
             cell.textContent = text ?? ''; 
             return cell;
         };
 
-        createCell(doc.EmployeeName).classList.add('font-medium', 'text-gray-900');
+        // Employee ID
+        createCell(doc.emp_id, 'font-mono text-gray-600');
 
-        const typeCell = createCell(doc.DocumentType);
-        if (!doc.DocumentType) {
-            typeCell.innerHTML = '<span class="text-gray-400 italic">N/A</span>'; 
-        } else {
-            typeCell.classList.add('text-gray-700');
-        }
+        // Employee Name
+        createCell(doc.employee_name, 'font-medium text-gray-900');
 
+        // Document Title
+        createCell(doc.title, 'text-gray-700');
+
+        // Category
         const categoryCell = row.insertCell();
         categoryCell.className = 'px-4 py-3 whitespace-nowrap text-xs';
-        if (doc.Category) {
+        if (doc.category) {
             const chip = document.createElement('span');
-            chip.textContent = doc.Category;
-            chip.className = 'inline-block px-2 py-1 rounded-full text-white text-xs ' + mapCategoryToChip(doc.Category);
+            chip.textContent = `Category ${doc.category}`;
+            chip.className = 'inline-block px-2 py-1 rounded-full text-white text-xs ' + getCategoryBadgeClass(doc.category);
             categoryCell.appendChild(chip);
         } else {
             categoryCell.innerHTML = '<span class="text-gray-400 italic">N/A</span>';
         }
 
-        const filenameCell = row.insertCell();
-        filenameCell.className = 'px-4 py-3 whitespace-nowrap text-sm text-gray-700';
-        // Use secure download endpoint within app (session-based)
-        const filePath = `${API_BASE_URL.replace(/php\/api\/$/, 'api/')}documents/${encodeURIComponent(doc.DocumentID)}/download`;
-        const link = document.createElement('a');
-        link.href = filePath;
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        link.className = 'text-blue-600 hover:underline';
-        link.title = 'View Document';
-        link.textContent = doc.DocumentName || ''; 
-        if (!doc.DocumentName) {
-            link.innerHTML = '<span class="text-gray-400 italic">N/A</span>'; 
-        }
-        filenameCell.appendChild(link);
-
-        const uploadDate = doc.UploadedAt ? new Date(doc.UploadedAt).toLocaleDateString() : (doc.UploadDate ? new Date(doc.UploadDate).toLocaleDateString() : 'N/A');
-        createCell(uploadDate).classList.add('text-gray-500');
-
-        const expiryCell = row.insertCell();
-        expiryCell.className = 'px-4 py-3 whitespace-nowrap text-sm';
-        if (doc.ExpiresOn) {
-            const dt = new Date(doc.ExpiresOn);
-            const daysLeft = Math.ceil((dt - new Date()) / (1000*60*60*24));
+        // Origin Module
+        const originCell = row.insertCell();
+        originCell.className = 'px-4 py-3 whitespace-nowrap text-sm';
+        if (doc.module_origin) {
             const badge = document.createElement('span');
-            badge.textContent = dt.toLocaleDateString();
-            badge.className = 'inline-block px-2 py-1 rounded text-xs ' + (daysLeft <= 30 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700');
-            expiryCell.appendChild(badge);
+            badge.textContent = doc.module_origin;
+            badge.className = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ' + getModuleBadgeClass(doc.module_origin);
+            originCell.appendChild(badge);
         } else {
-            expiryCell.innerHTML = '<span class="text-gray-400 italic">—</span>';
+            originCell.innerHTML = '<span class="text-gray-400 italic">N/A</span>';
         }
 
+        // Uploaded By
+        createCell(doc.uploaded_by, 'text-gray-600');
+
+        // Upload Date
+        const uploadDate = doc.upload_date ? new Date(doc.upload_date).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+        }) : 'N/A';
+        createCell(uploadDate, 'text-gray-500');
+
+        // Status
+        const statusCell = row.insertCell();
+        statusCell.className = 'px-4 py-3 whitespace-nowrap text-sm';
+        if (doc.status) {
+            const statusBadge = document.createElement('span');
+            statusBadge.textContent = doc.status.charAt(0).toUpperCase() + doc.status.slice(1);
+            statusBadge.className = 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ' + getStatusBadgeClass(doc.status);
+            statusCell.appendChild(statusBadge);
+        } else {
+            statusCell.innerHTML = '<span class="text-gray-400 italic">N/A</span>';
+        }
+
+        // Actions
         const actionsCell = row.insertCell();
-        actionsCell.className = 'px-4 py-3 whitespace-nowrap text-sm font-medium space-x-3';
-        const previewBtn = document.createElement('button');
-        previewBtn.className = 'text-blue-600 hover:text-blue-800 preview-doc-btn';
-        previewBtn.dataset.docId = doc.DocumentID;
-        previewBtn.dataset.docName = doc.DocumentName || '';
-        previewBtn.title = 'Preview';
-        previewBtn.innerHTML = '<i class="fas fa-eye"></i> Preview';
-        actionsCell.appendChild(previewBtn);
+        actionsCell.className = 'px-4 py-3 whitespace-nowrap text-sm font-medium';
+        
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'flex items-center space-x-2';
+        
+        const viewBtn = document.createElement('button');
+        viewBtn.innerHTML = '<i class="fas fa-eye mr-1"></i>View';
+        viewBtn.className = 'inline-flex items-center px-3 py-1 border border-blue-300 rounded-md text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500';
+        viewBtn.onclick = () => previewDocument(doc.doc_id, doc.title, doc.file_type);
+        actionsDiv.appendChild(viewBtn);
 
-        const tokenBtn = document.createElement('button');
-        tokenBtn.className = 'text-green-600 hover:text-green-800 token-doc-btn';
-        tokenBtn.dataset.docId = doc.DocumentID;
-        tokenBtn.title = 'Create secure link';
-        tokenBtn.innerHTML = '<i class="fas fa-link"></i> Link';
-        actionsCell.appendChild(tokenBtn);
-
-        const deleteButton = document.createElement('button');
-        deleteButton.className = 'text-red-600 hover:text-red-800 delete-doc-btn';
-        deleteButton.dataset.docId = doc.DocumentID;
-        deleteButton.title = 'Delete Document';
-        deleteButton.innerHTML = '<i class="fas fa-trash-alt"></i> Delete';
-        actionsCell.appendChild(deleteButton);
+        const downloadBtn = document.createElement('button');
+        downloadBtn.innerHTML = '<i class="fas fa-download mr-1"></i>Download';
+        downloadBtn.className = 'inline-flex items-center px-3 py-1 border border-gray-300 rounded-md text-xs font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500';
+        downloadBtn.onclick = () => downloadDocument(doc.doc_id, doc.title);
+        actionsDiv.appendChild(downloadBtn);
+        
+        actionsCell.appendChild(actionsDiv);
     });
+    container.innerHTML = '';
     container.appendChild(table);
-    attachDeleteListeners();
+}
+
+// Helper functions for badge styling
+function getCategoryBadgeClass(category) {
+    switch(category) {
+        case 'A': return 'bg-blue-600';
+        case 'B': return 'bg-green-600';
+        case 'C': return 'bg-purple-600';
+        default: return 'bg-gray-600';
+    }
+}
+
+function getModuleBadgeClass(module) {
+    switch(module) {
+        case 'HR1': return 'bg-blue-100 text-blue-800';
+        case 'HR2': return 'bg-green-100 text-green-800';
+        default: return 'bg-gray-100 text-gray-800';
+    }
+}
+
+function getStatusBadgeClass(status) {
+    switch(status) {
+        case 'active': return 'bg-green-100 text-green-800';
+        case 'archived': return 'bg-gray-100 text-gray-800';
+        case 'expired': return 'bg-red-100 text-red-800';
+        default: return 'bg-gray-100 text-gray-800';
+    }
 }
 
 function mapCategoryToChip(category){
@@ -327,10 +382,10 @@ function attachDeleteListeners() {
  * Prompts for confirmation using SweetAlert.
  */
 async function handleDocumentActionClick(event) {
-    const delBtn = event.target.closest('.delete-doc-btn');
+    const downloadBtn = event.target.closest('.download-doc-btn');
     const previewBtn = event.target.closest('.preview-doc-btn');
     const tokenBtn = event.target.closest('.token-doc-btn');
-    if (!delBtn && !previewBtn && !tokenBtn) return;
+    if (!downloadBtn && !previewBtn && !tokenBtn) return;
 
     if (previewBtn) {
         const documentId = previewBtn.dataset.docId;
@@ -340,77 +395,63 @@ async function handleDocumentActionClick(event) {
         return;
     }
 
+    if (downloadBtn) {
+        const documentId = downloadBtn.dataset.docId;
+        if (!documentId) return;
+        downloadDocument(documentId);
+        return;
+    }
+
     if (tokenBtn) {
         const documentId = tokenBtn.dataset.docId;
         if (!documentId) return;
         issueSecureLink(documentId);
         return;
     }
+}
 
-    if (delBtn) {
-        const documentId = delBtn.dataset.docId;
-        if (!documentId) {
-            console.error("Could not find document ID on delete button.");
-            Swal.fire('Error', 'Could not identify the document to delete.', 'error');
-            return;
-        }
-        const result = await Swal.fire({
-            title: 'Are you sure?',
-            text: `Do you want to delete document ID ${documentId}? This action cannot be undone.`,
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#d33',
-            cancelButtonColor: '#3085d6',
-            confirmButtonText: 'Yes, delete it!'
+/**
+ * Download document function
+ */
+async function downloadDocument(documentId) {
+    try {
+        const url = `${API_BASE_URL.replace('php/api/', 'api')}/hrcore/documents/${encodeURIComponent(documentId)}/download`;
+        const response = await fetch(url, { 
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
         });
-        if (result.isConfirmed) deleteDocument(documentId);
-    }
-}
-
-function setupDragAndDrop(){
-    const dz = document.getElementById('doc-dropzone');
-    const fileInput = document.getElementById('doc-file');
-    if (!dz || !fileInput) return;
-    const highlight = (on)=>{ dz.classList.toggle('border-[#4E3B2A]', on); dz.classList.toggle('bg-gray-50', on); };
-    dz.addEventListener('dragover', (e)=>{ e.preventDefault(); highlight(true); });
-    dz.addEventListener('dragleave', (e)=>{ e.preventDefault(); highlight(false); });
-    dz.addEventListener('drop', (e)=>{
-        e.preventDefault(); highlight(false);
-        const files = e.dataTransfer?.files;
-        if (files && files.length){
-            fileInput.files = files;
-            renderUploadPreview(files[0]);
-        }
-    });
-    dz.addEventListener('click', ()=> fileInput.click());
-}
-
-function renderUploadPreview(file){
-    const cont = document.getElementById('doc-upload-preview');
-    if (!cont) return;
-    cont.innerHTML = '';
-    const info = document.createElement('div');
-    info.className = 'text-xs text-gray-600 mb-2';
-    info.textContent = `${file.name} (${Math.round(file.size/1024)} KB)`;
-    cont.appendChild(info);
-    const ext = (file.name.split('.').pop() || '').toLowerCase();
-    if (['png','jpg','jpeg'].includes(ext)){
-        const img = document.createElement('img');
-        img.className = 'h-24 rounded border';
-        img.src = URL.createObjectURL(file);
-        cont.appendChild(img);
-    } else if (ext === 'pdf') {
-        const badge = document.createElement('span');
-        badge.className = 'inline-block px-2 py-1 bg-gray-200 text-gray-700 rounded text-xs';
-        badge.textContent = 'PDF selected';
-        cont.appendChild(badge);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        
+        const blob = await response.blob();
+        const downloadUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = `document_${documentId}`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(downloadUrl);
+        
+        Swal.fire('Success', 'Document downloaded successfully!', 'success');
+    } catch (error) {
+        console.error('Download failed:', error);
+        Swal.fire('Error', 'Failed to download document.', 'error');
     }
 }
 
 async function previewDocument(documentId, documentName){
     try{
-        const url = `${API_BASE_URL.replace(/php\/api\/$/, 'api/')}documents/${encodeURIComponent(documentId)}/download`;
-        const res = await fetch(url, { credentials: 'include' });
+        const url = `${API_BASE_URL.replace('php/api/', 'api')}/hrcore/documents/${encodeURIComponent(documentId)}/preview`;
+        const res = await fetch(url, { 
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const blob = await res.blob();
         const ext = (documentName?.split('.').pop() || '').toLowerCase();
@@ -440,12 +481,12 @@ async function previewDocument(documentId, documentName){
 async function issueSecureLink(documentId){
     try{
         const ttl = 600;
-        const res = await fetch(`${API_BASE_URL.replace(/php\/api\/$/, 'api/')}documents/${encodeURIComponent(documentId)}/token`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ttl }), credentials: 'include' });
+        const res = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/hrcore/documents/${encodeURIComponent(documentId)}/token`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ttl }), credentials: 'include' });
         const data = await res.json();
         if (!res.ok || !data || data.success === false) throw new Error(data?.message || `HTTP ${res.status}`);
         const token = data.data?.token || data.token;
         const expiresAt = data.data?.expires_at || data.expires_at;
-        const downloadUrl = `${window.location.origin}${API_BASE_URL.replace(/php\/api\/$/, 'api/')}documents/${encodeURIComponent(documentId)}/download?token=${encodeURIComponent(token)}`;
+        const downloadUrl = `${window.location.origin}${API_BASE_URL.replace('php/api/', 'api')}/hrcore/documents/${encodeURIComponent(documentId)}/download?token=${encodeURIComponent(token)}`;
         await Swal.fire({
             icon: 'success',
             title: 'Secure Link Created',
@@ -465,135 +506,213 @@ async function issueSecureLink(documentId){
 
 
 /**
- * Sends a request to the API to delete a specific document.
- * Uses SweetAlert for feedback.
+ * Export documents function
  */
-async function deleteDocument(documentId) {
-    console.log(`[Delete] Attempting to delete document ID: ${documentId}`);
+window.exportDocuments = function() {
+    console.log("[Export] Exporting document data...");
     
+    const documents = document.querySelectorAll('#documents-list-container tbody tr');
+    if (!documents || documents.length === 0) {
+        Swal.fire('No Data', 'No documents available to export.', 'warning');
+        return;
+    }
+
     Swal.fire({
-        title: 'Deleting...',
-        text: `Deleting document ${documentId}, please wait.`,
-        allowOutsideClick: false,
-        didOpen: () => {
-            Swal.showLoading();
+        title: 'Export Documents',
+        text: 'Choose export format:',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'CSV',
+        cancelButtonText: 'PDF',
+        showDenyButton: true,
+        denyButtonText: 'Cancel'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            exportDocumentsToCSV();
+        } else if (result.dismiss === Swal.DismissReason.cancel) {
+            exportDocumentsToPDF();
         }
     });
-
-    try {
-        const response = await fetch(`${API_BASE_URL.replace(/php\/api\/$/, 'api/')}documents/${encodeURIComponent(documentId)}`, {
-            method: 'DELETE',
-            credentials: 'include'
-        });
-
-        const result = await response.json();
-
-        if (!response.ok) {
-            throw new Error(result.error || `HTTP error! status: ${response.status}`);
-        }
-
-        Swal.fire({
-            icon: 'success',
-            title: 'Deleted!',
-            text: result.message || 'Document deleted successfully!',
-            timer: 2000,
-            confirmButtonColor: '#4E3B2A'
-        });
-        await loadDocuments(document.getElementById('filter-doc-employee')?.value);
-
-    } catch (error) {
-        console.error('Error deleting document:', error);
-        Swal.fire({
-            icon: 'error',
-            title: 'Deletion Failed',
-            text: `Error deleting document: ${error.message}`,
-            confirmButtonColor: '#4E3B2A'
-        });
-    }
-}
-
+};
 
 /**
- * Handles the submission of the document upload form.
- * Uses SweetAlert for feedback.
+ * Export documents to CSV
  */
-async function handleUploadDocument(event) {
-    event.preventDefault(); 
-    const form = event.target;
-    const submitButton = form.querySelector('button[type="submit"]');
-    const fileInput = document.getElementById('doc-file');
-
-    if (!form || !submitButton || !fileInput) {
-         console.error("Upload Document form elements missing.");
-         return;
-    }
-
-    if (!fileInput.files || fileInput.files.length === 0) {
-        Swal.fire('Validation Error', 'Please select a file to upload.', 'warning');
-        return;
-    }
-    const file = fileInput.files[0];
-    const maxSize = 5 * 1024 * 1024; // 5MB
-    if (file.size > maxSize) {
-        Swal.fire('File Too Large', 'File size exceeds the 5MB limit.', 'warning');
-        return;
-    }
-    
-    const formData = new FormData(form);
-
-    Swal.fire({
-        title: 'Uploading...',
-        text: 'Uploading document, please wait.',
-        allowOutsideClick: false,
-        didOpen: () => {
-            Swal.showLoading();
-        }
-    });
-    submitButton.disabled = true;
-
+function exportDocumentsToCSV() {
     try {
-        const empId = form.elements['employee_id']?.value;
-        const response = await fetch(`${API_BASE_URL.replace(/php\/api\/$/, 'api/')}employees/${encodeURIComponent(empId)}/documents`, {
-            method: 'POST',
-            body: formData,
-            credentials: 'include'
+        const headers = ['Employee', 'Type', 'Category', 'Filename', 'Source System', 'Uploaded', 'Expiry'];
+        const rows = Array.from(document.querySelectorAll('#documents-list-container tbody tr')).map(row => {
+            const cells = row.querySelectorAll('td');
+            return [
+                cells[0]?.textContent?.trim() || '',
+                cells[1]?.textContent?.trim() || '',
+                cells[2]?.textContent?.trim() || '',
+                cells[3]?.textContent?.trim() || '',
+                cells[4]?.textContent?.trim() || '',
+                cells[5]?.textContent?.trim() || '',
+                cells[6]?.textContent?.trim() || ''
+            ];
         });
 
-        const result = await response.json();
+        const csvContent = [
+            headers.join(','),
+            ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+        ].join('\n');
 
-        if (!response.ok) {
-            if (response.status === 400 && result.details) {
-                 const errorMessages = Object.values(result.details).join(' ');
-                 throw new Error(errorMessages || result.error || `HTTP error! status: ${response.status}`);
-            }
-             if ((response.status === 400 || response.status === 500) && result.error && (result.error.includes('upload') || result.error.includes('save'))) {
-                 throw new Error(result.error);
-             }
-            throw new Error(result.error || `HTTP error! status: ${response.status}`);
-        }
-
-        Swal.fire({
-            icon: 'success',
-            title: 'Uploaded!',
-            text: result.message || 'Document uploaded successfully!',
-            timer: 2000,
-            confirmButtonColor: '#4E3B2A'
-        });
-        form.reset(); 
-        await loadDocuments(document.getElementById('filter-doc-employee')?.value);
-
+        downloadFile(csvContent, 'documents.csv', 'text/csv');
+        Swal.fire('Success', 'Documents exported to CSV successfully!', 'success');
     } catch (error) {
-        console.error('Error uploading document:', error);
-        Swal.fire({
-            icon: 'error',
-            title: 'Upload Failed',
-            text: `Upload Error: ${error.message}`,
-            confirmButtonColor: '#4E3B2A'
-        });
-    } finally {
-        submitButton.disabled = false; 
-        if (Swal.isLoading()) {
-            Swal.close();
-        }
+        console.error('CSV export error:', error);
+        Swal.fire('Error', 'Failed to export CSV file.', 'error');
     }
 }
+
+/**
+ * Export documents to PDF (placeholder)
+ */
+function exportDocumentsToPDF() {
+    Swal.fire({
+        title: 'PDF Export',
+        text: 'PDF export functionality will be implemented in a future update. For now, please use the CSV export option.',
+        icon: 'info',
+        confirmButtonText: 'OK'
+    });
+}
+
+/**
+ * Refresh documents function
+ */
+window.refreshDocuments = function() {
+    console.log("[Refresh] Refreshing documents...");
+    loadDocuments();
+};
+
+/**
+ * Download file utility
+ */
+function downloadFile(content, filename, mimeType) {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+}
+
+/**
+ * Apply document filters
+ */
+window.applyDocumentFilters = function() {
+    applyDocumentFilter();
+};
+
+/**
+ * Clear document filters
+ */
+window.clearDocumentFilters = function() {
+    document.getElementById('doc-module-filter').value = '';
+    document.getElementById('doc-category-filter').value = '';
+    document.getElementById('doc-status-filter').value = '';
+    document.getElementById('doc-search-input').value = '';
+    
+    // Reload all documents
+    loadDocuments();
+};
+
+/**
+ * Refresh documents
+ */
+window.refreshDocuments = function() {
+    loadDocuments();
+};
+
+/**
+ * Export documents
+ */
+window.exportDocuments = function() {
+    // Placeholder for export functionality
+    console.log('Export documents functionality not yet implemented');
+};
+
+/**
+ * Preview document in modal
+ */
+window.previewDocument = function(docId, title, fileType) {
+    const modal = document.getElementById('document-preview-modal');
+    const content = document.getElementById('document-preview-content');
+    const modalTitle = document.getElementById('modal-title');
+    
+    modalTitle.textContent = `Preview: ${title}`;
+    
+    // Show loading
+    content.innerHTML = `
+        <div class="flex items-center justify-center h-full">
+            <div class="text-center">
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <p class="text-gray-500 mt-2">Loading preview...</p>
+            </div>
+        </div>
+    `;
+    
+    modal.classList.remove('hidden');
+    
+    // Load preview based on file type
+    if (fileType && fileType.includes('pdf')) {
+        content.innerHTML = `
+            <iframe src="/api/hrcore/documents/${docId}/preview" 
+                    class="w-full h-full border-0 rounded-lg"
+                    title="Document Preview">
+            </iframe>
+        `;
+    } else if (fileType && fileType.startsWith('image/')) {
+        content.innerHTML = `
+            <img src="/api/hrcore/documents/${docId}/preview" 
+                 class="w-full h-full object-contain"
+                 alt="Document Preview">
+        `;
+    } else {
+        content.innerHTML = `
+            <div class="flex items-center justify-center h-full">
+                <div class="text-center">
+                    <i class="fas fa-file text-6xl text-gray-300 mb-4"></i>
+                    <p class="text-gray-500">Preview not available for this file type</p>
+                    <button onclick="downloadDocument(${docId}, '${title}')" 
+                            class="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                        <i class="fas fa-download mr-2"></i>Download to View
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+};
+
+/**
+ * Close document preview modal
+ */
+window.closeDocumentPreview = function() {
+    const modal = document.getElementById('document-preview-modal');
+    modal.classList.add('hidden');
+};
+
+/**
+ * Download document
+ */
+window.downloadDocument = function(docId, title) {
+    const link = document.createElement('a');
+    link.href = `/api/hrcore/documents/${docId}/download`;
+    link.download = title || 'document';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+};
+
+/**
+ * Show integration status
+ */
+window.showIntegrationStatus = function() {
+    // This would show a modal with integration status
+    console.log('Integration status functionality not yet implemented');
+};

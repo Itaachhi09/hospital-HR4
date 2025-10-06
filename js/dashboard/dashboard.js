@@ -25,10 +25,10 @@ let myLeaveSummaryChartInstance = null; // For employee
  * Initializes common elements used by the dashboard module.
  */
 function initializeDashboardElements() {
-    pageTitleElement = document.getElementById('page-title');
+    // For modern dashboard, we don't need to find page-title as it's handled differently
     mainContentArea = document.getElementById('main-content-area');
-    if (!pageTitleElement || !mainContentArea) {
-        console.error("Dashboard Module: Core DOM elements (page-title or main-content-area) not found!");
+    if (!mainContentArea) {
+        console.error("Dashboard Module: main-content-area not found!");
         return false;
     }
     return true;
@@ -43,27 +43,20 @@ export async function displayDashboardSection() {
 
     let user = window.currentUser;
     if (!user || !user.role_name) {
-        pageTitleElement.textContent = 'Dashboard';
         mainContentArea.innerHTML = '<p class="text-red-500 p-4">Error: User role not found. Please login again.</p>';
         console.error("Dashboard Error: window.currentUser or window.currentUser.role_name is not defined.");
         return;
     }
     console.log("[Dashboard] Current user:", user);
 
-    pageTitleElement.textContent = `${user.role_name} Dashboard`;
-    // Add containers for summary, charts, and quick actions
-    mainContentArea.innerHTML = `
-        <div id="dashboard-summary-container" class="mb-8">
-            <p class="text-center py-4 text-gray-500">Loading dashboard summary...</p>
-        </div>
-        <div id="dashboard-quick-actions-container" class="mb-8">
-            </div>
-        <div id="dashboard-charts-container" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            </div>
-    `;
-    dashboardSummaryContainer = document.getElementById('dashboard-summary-container');
-    dashboardChartsContainer = document.getElementById('dashboard-charts-container'); // Assign new container
-    dashboardQuickActionsContainer = document.getElementById('dashboard-quick-actions-container');
+    // For modern dashboard, we don't replace the entire content
+    // Instead, we just update the data in the existing modern dashboard structure
+    console.log("Modern dashboard is already displayed, updating data only...");
+    
+    // Find the modern dashboard containers
+    dashboardSummaryContainer = document.querySelector('.grid.grid-cols-1.md\\:grid-cols-2.lg\\:grid-cols-4.gap-6');
+    dashboardChartsContainer = document.querySelector('.grid.grid-cols-1.lg\\:grid-cols-2.gap-6');
+    dashboardQuickActionsContainer = document.querySelector('.space-y-3');
 
 
     try {
@@ -106,48 +99,27 @@ export async function displayDashboardSection() {
  * Renders the summary cards on the dashboard.
  */
 function renderDashboardSummary(summaryData, userRole) {
-    if (!dashboardSummaryContainer) return;
+    if (!dashboardSummaryContainer) {
+        console.log("Dashboard summary container not found, skipping summary update");
+        return;
+    }
     if (!summaryData || typeof summaryData !== 'object') {
         console.error("[Render] renderDashboardSummary: summaryData is invalid or null.", summaryData);
-        dashboardSummaryContainer.innerHTML = '<p class="text-red-500 p-4 text-center">Failed to render dashboard summary: Invalid data received.</p>';
         return;
     }
 
-    let cardsHtml = '<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">';
-    
-    const cardBgColor = 'bg-[#4727ff]'; 
-    const textColor = 'text-white'; 
-    const iconColor = 'text-white'; 
-    const valueColor = 'text-white'; 
+    // Update the existing modern dashboard stat cards with real data
+    const totalEmployeesEl = document.getElementById('total-employees');
+    const activeEmployeesEl = document.getElementById('active-employees');
+    const pendingLeaveEl = document.getElementById('pending-leave');
+    const recentHiresEl = document.getElementById('recent-hires');
 
-    if (userRole === 'System Admin' || userRole === 'HR Admin') {
-        cardsHtml += createSummaryCard('Total Employees', summaryData.total_employees || 0, 'fa-users', cardBgColor, textColor, iconColor, valueColor);
-        cardsHtml += createSummaryCard('Active Employees', summaryData.active_employees || 0, 'fa-user-check', cardBgColor, textColor, iconColor, valueColor);
-        cardsHtml += createSummaryCard('Pending Leave', summaryData.pending_leave_requests || 0, 'fa-calendar-alt', cardBgColor, textColor, iconColor, valueColor);
-        // New Card for Recent Hires
-        cardsHtml += createSummaryCard('Recent Hires (30d)', summaryData.recent_hires_last_30_days || 0, 'fa-user-plus', cardBgColor, textColor, iconColor, valueColor);
-    } else if (userRole === 'Manager') {
-        cardsHtml += createSummaryCard('Team Members', summaryData.team_members || 0, 'fa-users-cog', cardBgColor, textColor, iconColor, valueColor);
-        cardsHtml += createSummaryCard('Pending Team Leave', summaryData.pending_team_leave || 0, 'fa-calendar-day', cardBgColor, textColor, iconColor, valueColor);
-        cardsHtml += createSummaryCard('Pending Timesheets', summaryData.pending_timesheets || 0, 'fa-clock', cardBgColor, textColor, iconColor, valueColor);
-        cardsHtml += createSummaryCard('Open Team Tasks', summaryData.open_tasks || 0, 'fa-tasks', cardBgColor, textColor, iconColor, valueColor);
-    } else if (userRole === 'Employee') {
-        cardsHtml += createSummaryCard('My Available Leave', summaryData.available_leave_days || 0, 'fa-plane-departure', cardBgColor, textColor, iconColor, valueColor);
-        cardsHtml += createSummaryCard('My Pending Claims', summaryData.pending_claims || 0, 'fa-file-invoice-dollar', cardBgColor, textColor, iconColor, valueColor);
-        cardsHtml += createSummaryCard('Upcoming Payslip', summaryData.upcoming_payslip_date || 'N/A', 'fa-money-bill-wave', cardBgColor, textColor, iconColor, valueColor);
-        cardsHtml += createSummaryCard('My Documents', summaryData.my_documents_count || 0, 'fa-folder-open', cardBgColor, textColor, iconColor, valueColor);
-    } else if (userRole === 'Department Head' || userRole === 'Department Manager') {
-        // Alias department leadership to Manager view (uses same summary for now)
-        cardsHtml += createSummaryCard('Team Members', summaryData.team_members || 0, 'fa-users-cog', cardBgColor, textColor, iconColor, valueColor);
-        cardsHtml += createSummaryCard('Pending Team Leave', summaryData.pending_team_leave || 0, 'fa-calendar-day', cardBgColor, textColor, iconColor, valueColor);
-        cardsHtml += createSummaryCard('Pending Timesheets', summaryData.pending_timesheets || 0, 'fa-clock', cardBgColor, textColor, iconColor, valueColor);
-        cardsHtml += createSummaryCard('Open Team Tasks', summaryData.open_tasks || 0, 'fa-tasks', cardBgColor, textColor, iconColor, valueColor);
-    } else {
-        cardsHtml += '<p class="col-span-full text-center text-gray-500">No specific dashboard summary for this role.</p>';
-    }
+    if (totalEmployeesEl) totalEmployeesEl.textContent = summaryData.total_employees || '0';
+    if (activeEmployeesEl) activeEmployeesEl.textContent = summaryData.active_employees || '0';
+    if (pendingLeaveEl) pendingLeaveEl.textContent = summaryData.pending_leave_requests || '0';
+    if (recentHiresEl) recentHiresEl.textContent = summaryData.recent_hires_last_30_days || '0';
 
-    cardsHtml += '</div>';
-    dashboardSummaryContainer.innerHTML = cardsHtml;
+    console.log("Updated modern dashboard stat cards with real data");
 }
 
 /**
@@ -245,12 +217,15 @@ function createSummaryCard(title, value, iconClass, bgColor, textColor, iconColo
  */
 function renderCharts(chartData, userRole) {
     if (!dashboardChartsContainer) { // Check if the container exists
-        console.error("Dashboard Charts Container not found.");
+        console.log("Dashboard Charts Container not found, skipping chart updates");
         return;
     }
-    dashboardChartsContainer.innerHTML = ''; 
 
-    // Destroy previous chart instances
+    // For modern dashboard, we don't replace the entire charts container
+    // Instead, we update the existing charts with real data
+    console.log("Updating modern dashboard charts with real data");
+
+    // Destroy previous chart instances if they exist
     if (employeeStatusChartInstance) employeeStatusChartInstance.destroy();
     if (leaveRequestsChartInstance) leaveRequestsChartInstance.destroy();
     if (departmentDistributionChartInstance) departmentDistributionChartInstance.destroy();
@@ -276,121 +251,34 @@ function renderCharts(chartData, userRole) {
     }
 
     if (userRole === 'System Admin' || userRole === 'HR Admin') {
-        // Chart 1: Employee Status Distribution
-        if (chartData.employee_status_distribution && chartData.employee_status_distribution.data && chartData.employee_status_distribution.data.some(d => d > 0)) {
-            const div1 = document.createElement('div');
-            div1.className = 'bg-white p-6 rounded-lg shadow-md border border-[#F7E6CA] min-h-[300px]'; 
-            const canvas1 = document.createElement('canvas');
-            canvas1.id = 'employeeStatusChart';
-            div1.appendChild(canvas1);
-            dashboardChartsContainer.appendChild(div1);
-            
-            employeeStatusChartInstance = new Chart(canvas1, {
-                type: 'doughnut',
-                data: {
-                    labels: chartData.employee_status_distribution.labels || ['Active', 'Inactive'],
-                    datasets: [{
-                        label: 'Employee Status',
-                        data: chartData.employee_status_distribution.data,
-                        backgroundColor: [primaryChartColor, secondaryChartColor], 
-                        borderColor: [borderColor, borderColor],
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { position: 'top', labels: { color: '#4E3B2A' } }, title: { display: true, text: 'Employee Status Distribution', color: '#4E3B2A', font: { size: 16, family: 'Cinzel' } } }
-                }
-            });
-        }
-
-        // Chart 2: Leave Requests by Type
-        if (chartData.leave_requests_by_type && chartData.leave_requests_by_type.data && chartData.leave_requests_by_type.data.length > 0) {
-            const div2 = document.createElement('div');
-            div2.className = 'bg-white p-6 rounded-lg shadow-md border border-[#F7E6CA] min-h-[300px]';
-            const canvas2 = document.createElement('canvas');
-            canvas2.id = 'leaveRequestsChart';
-            div2.appendChild(canvas2);
-            dashboardChartsContainer.appendChild(div2);
-
-            leaveRequestsChartInstance = new Chart(canvas2, {
-                type: 'bar',
-                data: {
-                    labels: chartData.leave_requests_by_type.labels,
-                    datasets: [{
-                        label: 'Leave Requests by Type',
-                        data: chartData.leave_requests_by_type.data,
-                        backgroundColor: secondaryChartColor, borderColor: borderColor, borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    scales: { y: { beginAtZero: true, ticks: { color: '#4E3B2A', stepSize: 1 }, grid: { color: tertiaryChartColor } }, x: { ticks: { color: '#4E3B2A' }, grid: { color: tertiaryChartColor } } },
-                    plugins: { legend: { display: false }, title: { display: true, text: 'Leave Requests by Type (Last 30 Days)', color: '#4E3B2A', font: { size: 16, family: 'Cinzel' } } }
-                }
-            });
+        // Update the existing modern dashboard charts with real data
+        const departmentChart = document.getElementById('departmentChart');
+        const hiresTrendChart = document.getElementById('hiresTrendChart');
+        
+        // Update Department Distribution Chart if it exists
+        if (departmentChart && chartData.employee_status_distribution && chartData.employee_status_distribution.data) {
+            // Update the existing chart with real data
+            if (window.dashboardCharts && window.dashboardCharts.department) {
+                window.dashboardCharts.department.data.datasets[0].data = chartData.employee_status_distribution.data;
+                window.dashboardCharts.department.data.labels = chartData.employee_status_distribution.labels || ['Active', 'Inactive'];
+                window.dashboardCharts.department.update();
+            }
         }
         
-        // New Chart: Employee Distribution by Department
-        if (chartData.employee_distribution_by_department && chartData.employee_distribution_by_department.data && chartData.employee_distribution_by_department.data.length > 0) {
-            const div3 = document.createElement('div');
-            div3.className = 'bg-white p-6 rounded-lg shadow-md border border-[#F7E6CA] min-h-[300px] lg:col-span-2'; 
-            const canvas3 = document.createElement('canvas');
-            canvas3.id = 'departmentDistributionChart';
-            div3.appendChild(canvas3);
-            dashboardChartsContainer.appendChild(div3);
-
-            departmentDistributionChartInstance = new Chart(canvas3, {
-                type: 'pie', 
-                data: {
-                    labels: chartData.employee_distribution_by_department.labels,
-                    datasets: [{
-                        label: 'Employees by Department',
-                        data: chartData.employee_distribution_by_department.data,
-                        backgroundColor: [primaryChartColor, secondaryChartColor, altColor1, altColor2, tertiaryChartColor, '#808080'], 
-                        borderColor: borderColor,
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { position: 'right', labels: { color: '#4E3B2A' } }, title: { display: true, text: 'Active Employee Distribution by Department', color: '#4E3B2A', font: { size: 16, family: 'Cinzel' } } }
-                }
-            });
+        // Update Hires Trend Chart if it exists
+        if (hiresTrendChart && chartData.hires_trend && chartData.hires_trend.data) {
+            // Update the existing chart with real data
+            if (window.dashboardCharts && window.dashboardCharts.hiresTrend) {
+                window.dashboardCharts.hiresTrend.data.datasets[0].data = chartData.hires_trend.data;
+                window.dashboardCharts.hiresTrend.data.labels = chartData.hires_trend.labels || ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+                window.dashboardCharts.hiresTrend.update();
+            }
         }
 
-
+        console.log("Updated modern dashboard charts with real data");
     } else if (userRole === 'Employee') {
-         if (chartData.my_leave_summary && chartData.my_leave_summary.data && chartData.my_leave_summary.data.some(d => d > 0)) { 
-            const div1 = document.createElement('div');
-            div1.className = 'bg-white p-6 rounded-lg shadow-md border border-[#F7E6CA] min-h-[300px]';
-            const canvas1 = document.createElement('canvas');
-            canvas1.id = 'myLeaveSummaryChart';
-            div1.appendChild(canvas1);
-            dashboardChartsContainer.appendChild(div1);
-            
-            myLeaveSummaryChartInstance = new Chart(canvas1, { 
-                type: 'pie',
-                data: {
-                    labels: chartData.my_leave_summary.labels || ['Available', 'Used This Year', 'Pending This Year'],
-                    datasets: [{
-                        label: 'My Leave Summary',
-                        data: chartData.my_leave_summary.data,
-                        backgroundColor: [primaryChartColor, secondaryChartColor, tertiaryChartColor],
-                        borderColor: [borderColor, borderColor, borderColor],
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { position: 'top', labels: { color: '#4E3B2A' } }, title: { display: true, text: 'My Leave Summary (Current Year)', color: '#4E3B2A', font: { size: 16, family: 'Cinzel' } } }
-                }
-            });
-        }
-    }
-
-    if (dashboardChartsContainer.children.length === 0) {
-        dashboardChartsContainer.innerHTML = '<p class="col-span-full text-center text-gray-500 py-4">No charts available for this role or no data to display.</p>';
+        // For employee role, we can add specific chart updates here if needed
+        console.log("Employee role - no specific chart updates needed for modern dashboard");
     }
 }
 

@@ -40,9 +40,10 @@ try {
             'data' => [(int)$summaryData['active_employees'], (int)$inactive_employees]
         ];
 
-        // Pending Leave Requests (System-wide)
-        $stmt = $pdo->query("SELECT COUNT(*) as count FROM LeaveRequests WHERE Status = 'Pending'");
-        $summaryData['pending_leave_requests'] = $stmt->fetchColumn();
+        // Pending Leave Requests (System-wide) - DISABLED FOR HR3 INTEGRATION
+        // $stmt = $pdo->query("SELECT COUNT(*) as count FROM LeaveRequests WHERE Status = 'Pending'");
+        // $summaryData['pending_leave_requests'] = $stmt->fetchColumn();
+        $summaryData['pending_leave_requests'] = 0; // Placeholder - Leave module disabled for HR3 integration
 
         // Total Departments
         $stmt = $pdo->query("SELECT COUNT(*) as count FROM organizationalstructure"); 
@@ -52,34 +53,47 @@ try {
         $stmt_recent_hires = $pdo->query("SELECT COUNT(*) as count FROM Employees WHERE HireDate >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)");
         $summaryData['recent_hires_last_30_days'] = $stmt_recent_hires->fetchColumn();
 
-        // Leave Requests by Type (Last 30 Days, System-wide)
-        $stmt_leave_types = $pdo->query("
-            SELECT lt.TypeName, COUNT(lr.RequestID) as count
-            FROM LeaveRequests lr
-            JOIN LeaveTypes lt ON lr.LeaveTypeID = lt.LeaveTypeID
-            WHERE lr.RequestDate >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
-            GROUP BY lt.TypeName
-            ORDER BY count DESC
-            LIMIT 5
-        ");
-        $leave_type_labels = [];
-        $leave_type_data = [];
-        while ($row = $stmt_leave_types->fetch(PDO::FETCH_ASSOC)) {
-            $leave_type_labels[] = $row['TypeName'];
-            $leave_type_data[] = (int)$row['count'];
-        }
+        // Leave Requests by Type (Last 30 Days, System-wide) - DISABLED FOR HR3 INTEGRATION
+        // $stmt_leave_types = $pdo->query("
+        //     SELECT lt.TypeName, COUNT(lr.RequestID) as count
+        //     FROM LeaveRequests lr
+        //     JOIN LeaveTypes lt ON lr.LeaveTypeID = lt.LeaveTypeID
+        //     WHERE lr.RequestDate >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+        //     GROUP BY lt.TypeName
+        //     ORDER BY count DESC
+        //     LIMIT 5
+        // ");
+        // $leave_type_labels = [];
+        // $leave_type_data = [];
+        // while ($row = $stmt_leave_types->fetch(PDO::FETCH_ASSOC)) {
+        //     $leave_type_labels[] = $row['TypeName'];
+        //     $leave_type_data[] = (int)$row['count'];
+        // }
+        // $summaryData['charts']['leave_requests_by_type'] = [
+        //     'labels' => $leave_type_labels,
+        //     'data' => $leave_type_data
+        // ];
         $summaryData['charts']['leave_requests_by_type'] = [
-            'labels' => $leave_type_labels,
-            'data' => $leave_type_data
-        ];
+            'labels' => ['Integration Pending'],
+            'data' => [0]
+        ]; // Placeholder - Leave module disabled for HR3 integration
 
         // Employee Distribution by Department
         $stmt_dept_dist = $pdo->query("
-            SELECT os.DepartmentName, COUNT(e.EmployeeID) as count
+            SELECT 
+                CASE 
+                    WHEN e.DepartmentID IS NULL THEN 'Unassigned'
+                    ELSE COALESCE(os.DepartmentName, 'Unknown Department')
+                END as DepartmentName,
+                COUNT(e.EmployeeID) as count
             FROM Employees e
-            JOIN organizationalstructure os ON e.DepartmentID = os.DepartmentID
+            LEFT JOIN organizationalstructure os ON e.DepartmentID = os.DepartmentID
             WHERE e.IsActive = 1
-            GROUP BY os.DepartmentName
+            GROUP BY 
+                CASE 
+                    WHEN e.DepartmentID IS NULL THEN 'Unassigned'
+                    ELSE COALESCE(os.DepartmentName, 'Unknown Department')
+                END
             ORDER BY count DESC
         ");
         $dept_dist_labels = [];
@@ -219,15 +233,24 @@ try {
         $summaryData['message'] = "No specific dashboard summary for role: " . htmlspecialchars($role);
     }
 
-    echo json_encode($summaryData);
+    echo json_encode([
+        'success' => true,
+        'data' => $summaryData
+    ]);
 
 } catch (PDOException $e) {
     http_response_code(500);
     error_log("Database Error in get_dashboard_summary.php: " . $e->getMessage());
-    echo json_encode(['error' => 'Database error. ' . $e->getMessage()]);
+    echo json_encode([
+        'success' => false,
+        'error' => 'Database error. ' . $e->getMessage()
+    ]);
 } catch (Exception $e) {
     http_response_code(500);
     error_log("General Error in get_dashboard_summary.php: " . $e->getMessage());
-    echo json_encode(['error' => 'An error occurred: ' . $e->getMessage()]);
+    echo json_encode([
+        'success' => false,
+        'error' => 'An error occurred: ' . $e->getMessage()
+    ]);
 }
 ?>

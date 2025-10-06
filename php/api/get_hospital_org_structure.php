@@ -47,6 +47,16 @@ try {
             // Get full organizational hierarchy
             $data = $departmentModel->getHospitalOrgHierarchy();
             break;
+
+        case 'functional':
+            // Functional summary per department/role
+            $data = $departmentModel->getFunctionalSummary();
+            break;
+
+        case 'paygrade':
+            // Pay grade mapping per role/department
+            $data = $departmentModel->getPayGrades();
+            break;
             
         default:
             // Get comprehensive hospital structure

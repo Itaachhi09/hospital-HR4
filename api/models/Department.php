@@ -159,6 +159,62 @@ class Department {
     }
 
     /**
+     * Get functional summary per role and department using hospital_job_roles
+     * Requires: hospital_job_roles with HeadcountBudget, SalaryGrade, PayGradeMin, PayGradeMax
+     */
+    public function getFunctionalSummary() {
+        $sql = "SELECT 
+                    os.DepartmentName,
+                    hjr.RoleTitle,
+                    hjr.HeadcountBudget,
+                    COALESCE(COUNT(emp.EmployeeID), 0) AS FilledCount,
+                    GREATEST(COALESCE(hjr.HeadcountBudget, 0) - COALESCE(COUNT(emp.EmployeeID), 0), 0) AS VacantCount,
+                    hjr.SalaryGrade,
+                    hjr.PayGradeMin,
+                    hjr.PayGradeMax,
+                    (COALESCE(hjr.PayGradeMin,0) + COALESCE(hjr.PayGradeMax,0)) / 2 AS Midpoint,
+                    COALESCE(COUNT(emp.EmployeeID),0) * ((COALESCE(hjr.PayGradeMin,0) + COALESCE(hjr.PayGradeMax,0)) / 2) AS FilledCost
+                FROM hospital_job_roles hjr
+                LEFT JOIN organizationalstructure os ON os.DepartmentID = hjr.DepartmentID
+                LEFT JOIN employees emp ON emp.JobRoleID = hjr.JobRoleID AND emp.IsActive = 1
+                WHERE hjr.IsActive = 1
+                GROUP BY hjr.JobRoleID
+                ORDER BY os.DepartmentName, hjr.RoleTitle";
+
+        try {
+            $stmt = $this->pdo->query($sql);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Throwable $e) {
+            error_log('getFunctionalSummary error: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Get pay grade mapping per role/department (read-only)
+     */
+    public function getPayGrades() {
+        $sql = "SELECT 
+                    os.DepartmentName,
+                    hjr.RoleTitle,
+                    hjr.SalaryGrade,
+                    hjr.PayGradeMin,
+                    hjr.PayGradeMax
+                FROM hospital_job_roles hjr
+                LEFT JOIN organizationalstructure os ON os.DepartmentID = hjr.DepartmentID
+                WHERE hjr.IsActive = 1
+                ORDER BY hjr.SalaryGrade, os.DepartmentName, hjr.RoleTitle";
+
+        try {
+            $stmt = $this->pdo->query($sql);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Throwable $e) {
+            error_log('getPayGrades error: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
      * Get all departments
      */
     public function getDepartments($page = 1, $limit = 20, $filters = []) {

@@ -4,7 +4,7 @@ export async function renderEmployeeHMO(containerId='main-content-area'){
     if (!container) return;
     container.innerHTML = `<div class="p-4">Loading your HMO information...</div>`;
     try{
-        const res = await fetch(`${API_BASE_URL}get_employee_enrollments.php`, { credentials: 'include' });
+        const res = await fetch(`${API_BASE_URL}hmo_unified.php/get_employee_enrollments`, { credentials: 'include' });
         const data = await res.json();
         const enrollments = data.enrollments || [];
         if (!enrollments.length){
@@ -20,7 +20,7 @@ export async function renderEmployeeHMO(containerId='main-content-area'){
             // Fetch detailed plan info
             let planDetails = {};
             try {
-                const planRes = await fetch(`${API_BASE_URL}hmo_plans.php?id=${e.PlanID}`, { credentials: 'include' });
+                const planRes = await fetch(`${API_BASE_URL}hmo_unified.php/hmo_plans?id=${e.PlanID}`, { credentials: 'include' });
                 const planData = await planRes.json();
                 planDetails = planData.plan || {};
             } catch (err) {

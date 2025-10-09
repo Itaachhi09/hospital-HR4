@@ -1,5 +1,16 @@
 <?php
+if (session_status() === PHP_SESSION_NONE) {
+    $secureFlag = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+    session_set_cookie_params([
+        'lifetime' => 0,
+        'path' => '/',
+        'domain' => $_SERVER['HTTP_HOST'] ?? '',
+        'secure' => $secureFlag,
+        'httponly' => true,
+        'samesite' => 'Lax'
+    ]);
 session_start();
+}
 if (!isset($_SESSION['user_id'])) {
     header('Location: index.php');
     exit();

@@ -3,7 +3,15 @@ import { API_BASE_URL } from '../../utils.js';
 export async function renderHMODashboard(containerId='main-content-area'){
     const container = document.getElementById(containerId); if (!container) return;
     try{
-    const res = await fetch(`${API_BASE_URL}hmo_dashboard.php`, { credentials:'include' }); const data = await res.json(); const s = data.summary||{};
+    const res = await fetch(`${API_BASE_URL}hmo_unified.php/hmo_dashboard`, { credentials:'include' });
+    if (!res.ok) {
+        const text = await res.text();
+        console.error('Dashboard API Error Response:', text);
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    }
+    const result = await res.json(); 
+    const data = result.data || result;
+    const s = data.summary||{};
         container.innerHTML = `
             <div class="p-6">
                 <h2 class="text-2xl font-semibold mb-4">HMO Dashboard</h2>
@@ -99,10 +107,21 @@ export async function renderHMODashboard(containerId='main-content-area'){
 // chart bootstrapper
 async function drawHMOCharts(){
     try{
-        const base = `${API_BASE_URL}hmo_dashboard.php`;
-        const mc = await fetch(base+'?mode=monthly_claims', { credentials:'include' }); const mcj = await mc.json(); const monthly = mcj.monthly_claims||[];
-        const th = await fetch(base+'?mode=top_hospitals', { credentials:'include' }); const thj = await th.json(); const top = thj.top_hospitals||[];
-        const pu = await fetch(base+'?mode=plan_utilization', { credentials:'include' }); const puj = await pu.json(); const plans = puj.plan_utilization||[];
+        const base = `${API_BASE_URL}hmo_unified.php/hmo_dashboard`;
+        const mc = await fetch(base+'?mode=monthly_claims', { credentials:'include' }); 
+        const mcj = await mc.json(); 
+        const mcData = mcj.data || mcj;
+        const monthly = mcData.monthly_claims||[];
+        
+        const th = await fetch(base+'?mode=top_hospitals', { credentials:'include' }); 
+        const thj = await th.json(); 
+        const thData = thj.data || thj;
+        const top = thData.top_hospitals||[];
+        
+        const pu = await fetch(base+'?mode=plan_utilization', { credentials:'include' }); 
+        const puj = await pu.json(); 
+        const puData = puj.data || puj;
+        const plans = puData.plan_utilization||[];
         // chart options shared
         const baseOptions = {
             responsive: true,

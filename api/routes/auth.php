@@ -4,13 +4,16 @@
  * Handles login, logout, 2FA, and password reset
  */
 
+// Load Composer autoloader for PHPMailer
+require_once __DIR__ . '/../../vendor/autoload.php';
+
 require_once __DIR__ . '/../utils/Response.php';
 require_once __DIR__ . '/../utils/Request.php';
 require_once __DIR__ . '/../middlewares/AuthMiddleware.php';
 require_once __DIR__ . '/../models/User.php';
 
 use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\Exception;
+use PHPMailer\PHPMailer\Exception as PHPMailerException;
 
 class AuthController {
     private $pdo;
@@ -41,8 +44,18 @@ class AuthController {
         $password = $data['password'];
 
         try {
-            // Get user details
+            // Try to get user by username first
             $user = $this->userModel->getUserByUsername($username);
+            
+            // If not found by username, try by email
+            if (!$user) {
+                $user = $this->userModel->getUserByEmail($username);
+            }
+            
+            // If still not found, try partial username match
+            if (!$user) {
+                $user = $this->userModel->getUserByPartialUsername($username);
+            }
             
             if (!$user || !$user['IsActive']) {
                 Response::unauthorized('Invalid username or password');
@@ -85,6 +98,28 @@ class AuthController {
         } catch (Exception $e) {
             error_log("Login error: " . $e->getMessage());
             Response::error('Login failed', 500);
+        }
+    }
+
+    /**
+     * Check if user has an active session
+     */
+    public function checkSession() {
+        if (isset($_SESSION['user_id']) && !empty($_SESSION['user_id'])) {
+            Response::success([
+                'logged_in' => true,
+                'user' => [
+                    'user_id'     => $_SESSION['user_id'],
+                    'employee_id' => $_SESSION['employee_id'] ?? null,
+                    'username'    => $_SESSION['username'] ?? null,
+                    'full_name'   => $_SESSION['full_name'] ?? null,
+                    'role_id'     => $_SESSION['role_id'] ?? null,
+                    'role_name'   => $_SESSION['role_name'] ?? null,
+                    'hmo_enrollment' => $_SESSION['hmo_enrollment'] ?? null
+                ]
+            ]);
+        } else {
+            Response::success(['logged_in' => false]);
         }
     }
 

@@ -326,7 +326,12 @@ function renderLeaveRequestsTable(requests) {
     if (canApproveReject) headers.push('Employee');
     headers.push('Leave Type', 'Start Date', 'End Date', 'Days', 'Submitted', 'Status');
     if (canApproveReject) headers.push('Approver Comments');
-    if (canApproveReject) headers.push('Actions');
+    
+    // Add Actions column for admins or if employee has pending requests
+    const hasPendingRequests = requests.some(req => req.Status === 'Pending' && req.EmployeeID == user?.employee_id);
+    if (canApproveReject || hasPendingRequests) {
+        headers.push('Actions');
+    }
 
     headers.forEach(text => {
         const th = document.createElement('th');
@@ -395,18 +400,42 @@ function renderLeaveRequestsTable(requests) {
                 rejectBtn.title = 'Reject';
                 rejectBtn.innerHTML = '<i class="fas fa-times-circle fa-fw"></i>';
                 actionsCell.appendChild(rejectBtn);
+
+                // Add delete button
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'text-gray-600 hover:text-red-800 delete-lr-btn p-1';
+                deleteBtn.dataset.requestId = req.RequestID;
+                deleteBtn.title = 'Delete Request';
+                deleteBtn.innerHTML = '<i class="fas fa-trash-alt fa-fw"></i>';
+                actionsCell.appendChild(deleteBtn);
             } else {
-                const processedSpan = document.createElement('span');
-                processedSpan.className = 'text-gray-400 text-xs italic';
-                processedSpan.textContent = 'Processed';
-                actionsCell.appendChild(processedSpan);
+                // Admin can delete even processed requests
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'text-gray-600 hover:text-red-800 delete-lr-btn p-1';
+                deleteBtn.dataset.requestId = req.RequestID;
+                deleteBtn.title = 'Delete Request';
+                deleteBtn.innerHTML = '<i class="fas fa-trash-alt fa-fw"></i>';
+                actionsCell.appendChild(deleteBtn);
+            }
+        } else {
+            // For employees: add delete button for their own pending requests
+            if (req.Status === 'Pending' && req.EmployeeID == user?.employee_id) {
+                const actionsCell = row.insertCell();
+                actionsCell.className = 'px-4 py-3 whitespace-nowrap text-sm font-medium';
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'text-gray-600 hover:text-red-800 delete-lr-btn p-1';
+                deleteBtn.dataset.requestId = req.RequestID;
+                deleteBtn.title = 'Delete Request';
+                deleteBtn.innerHTML = '<i class="fas fa-trash-alt fa-fw"></i>';
+                actionsCell.appendChild(deleteBtn);
             }
         }
     });
 
     container.appendChild(table);
 
-    if (canApproveReject) {
+    // Attach listeners if admin or if employee has pending requests
+    if (canApproveReject || hasPendingRequests) {
         attachLeaveRequestActionListeners();
     }
 }
@@ -422,8 +451,25 @@ function attachLeaveRequestActionListeners() {
 async function handleLeaveRequestAction(event) {
     const approveButton = event.target.closest('.approve-lr-btn');
     const rejectButton = event.target.closest('.reject-lr-btn');
+    const deleteButton = event.target.closest('.delete-lr-btn');
 
-    if (approveButton) {
+    if (deleteButton) {
+        const requestId = deleteButton.dataset.requestId;
+        const result = await Swal.fire({
+            title: 'Delete Leave Request?',
+            text: 'This action cannot be undone. If the request was approved, leave balance will be restored.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Delete',
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#aaa',
+            cancelButtonText: 'Cancel'
+        });
+        
+        if (result.isConfirmed) {
+            await deleteLeaveRequest(requestId);
+        }
+    } else if (approveButton) {
         const requestId = approveButton.dataset.requestId;
         const { value: comments } = await Swal.fire({
             title: `Approve Leave Request ID ${requestId}?`,
@@ -505,6 +551,51 @@ async function updateLeaveRequestStatus(requestId, newStatus, comments = null) {
             icon: 'error',
             title: 'Update Failed',
             text: `Failed to ${newStatus.toLowerCase()} leave request: ${error.message}`,
+            confirmButtonColor: '#4E3B2A'
+        });
+    } finally {
+        if (Swal.isLoading()) { Swal.close(); }
+    }
+}
+
+async function deleteLeaveRequest(requestId) {
+    console.log(`Deleting Leave Request ${requestId}`);
+    
+    Swal.fire({
+        title: 'Deleting...',
+        text: 'Please wait while the leave request is being deleted...',
+        allowOutsideClick: false,
+        didOpen: () => { Swal.showLoading(); }
+    });
+
+    try {
+        const response = await fetch(`${API_BASE_URL}delete_leave_request.php?id=${requestId}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        
+        const result = await handleApiResponse(response);
+
+        Swal.fire({
+            icon: 'success',
+            title: 'Deleted!',
+            text: result.message || 'Leave request deleted successfully!',
+            timer: 2000,
+            showConfirmButton: false,
+            confirmButtonColor: '#4E3B2A'
+        });
+
+        // Reload the leave requests list
+        const employeeFilter = document.getElementById('filter-lr-employee')?.value || currentlyLoadedEmployeeId || null;
+        const statusFilter = document.getElementById('filter-lr-status')?.value || null;
+        loadLeaveRequests(employeeFilter, statusFilter);
+
+    } catch (error) {
+        console.error('Error deleting leave request:', error);
+        Swal.fire({
+            icon: 'error',
+            title: 'Delete Failed',
+            text: `Failed to delete leave request: ${error.message}`,
             confirmButtonColor: '#4E3B2A'
         });
     } finally {

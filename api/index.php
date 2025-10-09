@@ -12,6 +12,9 @@ error_reporting(E_ALL);
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 
+// Include configuration and establish database connection
+require_once __DIR__ . '/config.php';
+
 // Start session for authentication
 if (session_status() !== PHP_SESSION_ACTIVE) {
     session_start();
@@ -96,6 +99,15 @@ try {
                     Response::methodNotAllowed();
                 }
                 break;
+            case 'check-session':
+                if ($method === 'GET') {
+                    require_once __DIR__ . '/routes/auth.php';
+                    $authController = new AuthController();
+                    $authController->checkSession();
+                } else {
+                    Response::methodNotAllowed();
+                }
+                break;
             case 'reset-password':
                 if ($method === 'POST') {
                     require_once __DIR__ . '/routes/auth.php';
@@ -126,10 +138,8 @@ try {
         $id = $segments[1] ?? null;
         $subResource = $segments[2] ?? null;
         
-        // Debug: Log the segments
-        error_log("API Debug - Segments: " . json_encode($segments));
-        error_log("API Debug - Resource: " . $resource);
 
+        
         switch ($resource) {
             case 'users':
                 require_once __DIR__ . '/routes/users.php';
@@ -176,6 +186,36 @@ try {
                 $controller = new PayrollController();
                 $controller->handleRequest($method, $id, $subResource);
                 break;
+        case 'payroll-v2':
+            require_once __DIR__ . '/routes/payroll_v2.php';
+            $controller = new PayrollV2Controller();
+            $controller->handleRequest($method, $id, $subResource);
+            break;
+        case 'salaries':
+            require_once __DIR__ . '/routes/salaries.php';
+            $controller = new SalariesController();
+            $controller->handleRequest($method, $id, $subResource);
+            break;
+        case 'bonuses':
+            require_once __DIR__ . '/routes/bonuses.php';
+            $controller = new BonusesController();
+            $controller->handleRequest($method, $id, $subResource);
+            break;
+        case 'deductions':
+            require_once __DIR__ . '/routes/deductions.php';
+            $controller = new DeductionsController();
+            $controller->handleRequest($method, $id, $subResource);
+            break;
+        case 'payslips':
+            require_once __DIR__ . '/routes/payslips.php';
+            $controller = new PayslipsController();
+            $controller->handleRequest($method, $id, $subResource);
+            break;
+        case 'branches':
+            require_once __DIR__ . '/routes/branches.php';
+            $controller = new BranchesController();
+            $controller->handleRequest($method, $id, $subResource);
+            break;
             case 'attendance':
                 require_once __DIR__ . '/routes/attendance.php';
                 $controller = new AttendanceController();
@@ -192,22 +232,38 @@ try {
                 $controller->handleRequest($method, $id, $subResource);
                 break;
             case 'reports':
-                require_once __DIR__ . '/routes/reports.php';
-                $controller = new ReportsController();
-                $controller->handleRequest($method, $id, $subResource);
+                Response::notFound('Reports endpoint not implemented');
                 break;
             case 'integrations':
                 require_once __DIR__ . '/routes/integrations.php';
-                $controller = new IntegrationsController();
-                $controller->handleRequest($method, $id, $subResource);
+                // The integrations.php file handles its own routing
                 break;
             case 'dashboard':
                 require_once __DIR__ . '/routes/dashboard.php';
                 $controller = new DashboardController();
                 $controller->handleRequest($method, $id, $subResource);
                 break;
-            default:
-                Response::notFound();
+            case 'compensation-planning':
+                require_once __DIR__ . '/routes/compensation_planning.php';
+                // The compensation_planning.php file handles its own routing
+                break;
+            case 'hr-analytics':
+                require_once __DIR__ . '/routes/hr_analytics.php';
+                $controller = new HRAnalyticsController();
+                $controller->handleRequest($method, $id, $subResource);
+                break;
+        case 'hr-reports':
+            require_once __DIR__ . '/routes/hr_reports.php';
+            $controller = new HRReportsController();
+            $controller->handleRequest($method, $id, $subResource);
+            break;
+        case 'hr-analytics-metrics':
+            require_once __DIR__ . '/routes/hr_analytics_metrics.php';
+            $controller = new HRAnalyticsMetricsController();
+            $controller->handleRequest($method, $id, $subResource);
+            break;
+        default:
+            Response::notFound();
         }
     }
 } catch (Exception $e) {

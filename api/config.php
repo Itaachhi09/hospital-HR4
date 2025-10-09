@@ -45,3 +45,17 @@ date_default_timezone_set($config['app']['timezone']);
 // Make config available globally
 $GLOBALS['api_config'] = $config;
 
+// Database connection (PDO)
+try {
+    $dsn = "mysql:host={$config['database']['host']};dbname={$config['database']['name']};charset=utf8mb4";
+    $pdo = new PDO($dsn, $config['database']['user'], $config['database']['pass']);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    error_log("Database connection failed: " . $e->getMessage());
+    // In a real application, you might want to show a user-friendly error page
+    http_response_code(500);
+    echo json_encode(['error' => 'Database connection failed']);
+    exit();
+}
+

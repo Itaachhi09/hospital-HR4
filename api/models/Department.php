@@ -221,29 +221,19 @@ class Department {
         $offset = ($page - 1) * $limit;
         
         $sql = "SELECT
-                    d.DepartmentID, d.DepartmentName, d.Description, d.ManagerID,
-                    d.Budget, d.Location, d.IsActive, d.CreatedDate,
-                    CONCAT(m.FirstName, ' ', m.LastName) AS ManagerName,
-                    COUNT(e.EmployeeID) AS EmployeeCount
-                FROM OrganizationalStructure d
-                LEFT JOIN Employees m ON d.ManagerID = m.EmployeeID
-                LEFT JOIN Employees e ON d.DepartmentID = e.DepartmentID AND e.IsActive = 1
+                    d.DepartmentID, d.DepartmentName
+                FROM departments d
                 WHERE 1=1";
 
         $params = [];
 
         // Apply filters
-        if (!empty($filters['is_active'])) {
-            $sql .= " AND d.IsActive = :is_active";
-            $params[':is_active'] = $filters['is_active'];
-        }
-
         if (!empty($filters['search'])) {
-            $sql .= " AND (d.DepartmentName LIKE :search OR d.Description LIKE :search)";
+            $sql .= " AND d.DepartmentName LIKE :search";
             $params[':search'] = '%' . $filters['search'] . '%';
         }
 
-        $sql .= " GROUP BY d.DepartmentID ORDER BY d.DepartmentName LIMIT :limit OFFSET :offset";
+        $sql .= " ORDER BY d.DepartmentName ASC LIMIT :limit OFFSET :offset";
 
         $stmt = $this->pdo->prepare($sql);
         
@@ -262,17 +252,12 @@ class Department {
      * Count total departments
      */
     public function countDepartments($filters = []) {
-        $sql = "SELECT COUNT(*) as total FROM OrganizationalStructure d WHERE 1=1";
+        $sql = "SELECT COUNT(*) as total FROM departments d WHERE 1=1";
         $params = [];
 
         // Apply same filters as getDepartments
-        if (!empty($filters['is_active'])) {
-            $sql .= " AND d.IsActive = :is_active";
-            $params[':is_active'] = $filters['is_active'];
-        }
-
         if (!empty($filters['search'])) {
-            $sql .= " AND (d.DepartmentName LIKE :search OR d.Description LIKE :search)";
+            $sql .= " AND d.DepartmentName LIKE :search";
             $params[':search'] = '%' . $filters['search'] . '%';
         }
 

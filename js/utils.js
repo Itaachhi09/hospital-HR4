@@ -160,6 +160,138 @@ export async function loadModule(modulePath, container, title = '') {
  * @param {string} selectElementId - The ID of the select element to populate.
  * @param {boolean} [includeAllOption=false] - Whether to include an "All Employees" option.
  */
+export async function loadBranchesForFilter(selectElementId) {
+    try {
+        const selectElement = document.getElementById(selectElementId);
+        if (!selectElement) {
+            console.error(`[loadBranchesForFilter] Element with ID '${selectElementId}' NOT FOUND.`);
+            return;
+        }
+
+        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/branches`, {
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+
+        if (!response.ok) {
+            console.error(`[loadBranchesForFilter] API error for '${selectElementId}':`, response.status, response.statusText);
+            return;
+        }
+
+        const data = await response.json();
+        if (data.success && Array.isArray(data.data)) {
+            // Keep the first option (All Branches)
+            const firstOption = selectElement.querySelector('option');
+            selectElement.innerHTML = '';
+            if (firstOption) {
+                selectElement.appendChild(firstOption);
+            }
+            
+            data.data.forEach(branch => {
+                const option = document.createElement('option');
+                option.value = branch.BranchID;
+                option.textContent = branch.BranchName;
+                selectElement.appendChild(option);
+            });
+        } else {
+            console.error(`[loadBranchesForFilter] Invalid data format for '${selectElementId}'. Expected array.`);
+        }
+    } catch (error) {
+        console.error(`[loadBranchesForFilter] Failed for '${selectElementId}':`, error);
+    }
+}
+
+export async function loadDepartmentsForFilter(selectElementId) {
+    try {
+        const selectElement = document.getElementById(selectElementId);
+        if (!selectElement) {
+            console.error(`[loadDepartmentsForFilter] Element with ID '${selectElementId}' NOT FOUND.`);
+            return;
+        }
+
+        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/departments`, {
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+
+        if (!response.ok) {
+            console.error(`[loadDepartmentsForFilter] API error for '${selectElementId}':`, response.status, response.statusText);
+            return;
+        }
+
+        const data = await response.json();
+        if (data.success && Array.isArray(data.data)) {
+            // Keep the first option (All Departments)
+            const firstOption = selectElement.querySelector('option');
+            selectElement.innerHTML = '';
+            if (firstOption) {
+                selectElement.appendChild(firstOption);
+            }
+            
+            data.data.forEach(dept => {
+                const option = document.createElement('option');
+                option.value = dept.DepartmentID;
+                option.textContent = dept.DepartmentName;
+                selectElement.appendChild(option);
+            });
+        } else {
+            console.error(`[loadDepartmentsForFilter] Invalid data format for '${selectElementId}'. Expected array.`);
+        }
+    } catch (error) {
+        console.error(`[loadDepartmentsForFilter] Failed for '${selectElementId}':`, error);
+    }
+}
+
+export async function loadPositionsForFilter(selectElementId) {
+    try {
+        const selectElement = document.getElementById(selectElementId);
+        if (!selectElement) {
+            console.error(`[loadPositionsForFilter] Element with ID '${selectElementId}' NOT FOUND.`);
+            return;
+        }
+
+        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/positions`, {
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+
+        if (!response.ok) {
+            console.error(`[loadPositionsForFilter] API error for '${selectElementId}':`, response.status, response.statusText);
+            return;
+        }
+
+        const data = await response.json();
+        if (data.success && Array.isArray(data.data)) {
+            // Keep the first option (All Positions)
+            const firstOption = selectElement.querySelector('option');
+            selectElement.innerHTML = '';
+            if (firstOption) {
+                selectElement.appendChild(firstOption);
+            }
+            
+            data.data.forEach(pos => {
+                const option = document.createElement('option');
+                option.value = pos.PositionID;
+                option.textContent = pos.PositionName;
+                selectElement.appendChild(option);
+            });
+        } else {
+            console.error(`[loadPositionsForFilter] Invalid data format for '${selectElementId}'. Expected array.`);
+        }
+    } catch (error) {
+        console.error(`[loadPositionsForFilter] Failed for '${selectElementId}':`, error);
+    }
+}
+
 export async function populateEmployeeDropdown(selectElementId, includeAllOption = false) {
     const selectElement = document.getElementById(selectElementId);
     if (!selectElement) {

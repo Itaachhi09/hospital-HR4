@@ -1,50 +1,158 @@
 import { API_BASE_URL } from '../../utils.js';
 
 export async function renderHMOEnrollments(containerId='main-content-area'){
-    const container = document.getElementById(containerId); if (!container) return;
+    const container = document.getElementById(containerId); 
+    if (!container) return;
+
+    // Show loading state
+    container.innerHTML = `
+        <div class="flex items-center justify-center py-12">
+            <div class="text-center">
+                <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                <p class="text-gray-500 mt-4">Loading enrollments...</p>
+            </div>
+        </div>
+    `;
+
     try{
-        const res = await fetch(`${API_BASE_URL}hmo_enrollments.php`, { credentials:'include' }); const data = await res.json(); const enrollments = data.enrollments||[];
+        const res = await fetch(`${API_BASE_URL}hmo_enrollments.php`, { credentials:'include' });
+        if (!res.ok) {
+            const text = await res.text();
+            console.error('API Error Response:', text);
+            throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+        const data = await res.json(); 
+        const enrollments = data.data?.enrollments || data.enrollments || [];
+
+        // Calculate statistics
+        const activeCount = enrollments.filter(e => e.Status === 'Active').length;
+        const pendingCount = enrollments.filter(e => e.Status === 'Pending').length;
+
         container.innerHTML = `
-            <div class="p-6">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-2xl font-semibold">Employee Enrollments</h2>
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                <!-- Enhanced Header -->
+                <div class="bg-gradient-to-r from-blue-500 to-cyan-600 text-white px-6 py-4 rounded-t-lg">
+                    <div class="flex justify-between items-center">
                     <div>
-                        <button id="refresh-enrollments" class="hmo-btn hmo-btn-primary">Refresh</button>
-                        <button id="add-enrollment-btn" class="hmo-btn hmo-btn-success">Enroll Employee</button>
+                            <h2 class="text-2xl font-bold mb-1">HMO Enrollments</h2>
+                            <p class="text-sm text-blue-100">Manage employee health insurance enrollments</p>
+                        </div>
+                        <div class="flex items-center space-x-3">
+                            <button id="refresh-enrollments" class="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition duration-150 ease-in-out flex items-center space-x-2">
+                                <i class="fas fa-sync-alt"></i>
+                                <span>Refresh</span>
+                            </button>
+                            <button id="export-enrollments" class="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition duration-150 ease-in-out flex items-center space-x-2">
+                                <i class="fas fa-download"></i>
+                                <span>Export</span>
+                            </button>
+                            <button id="add-enrollment-btn" class="px-4 py-2 bg-white text-blue-600 hover:bg-blue-50 font-semibold rounded-lg transition duration-150 ease-in-out flex items-center space-x-2">
+                                <i class="fas fa-user-plus"></i>
+                                <span>Enroll Employee</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
-                <div class="bg-white rounded-lg shadow">
+
+                <!-- Summary Statistics -->
+                <div class="px-6 py-4 bg-blue-50 border-b border-blue-100">
+                    <div class="flex items-center space-x-6">
+                        <div class="flex items-center space-x-2">
+                            <i class="fas fa-users text-blue-600"></i>
+                            <span class="text-sm text-gray-600">Total Enrollments:</span>
+                            <span class="font-semibold text-gray-900">${enrollments.length}</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <i class="fas fa-check-circle text-green-600"></i>
+                            <span class="text-sm text-gray-600">Active:</span>
+                            <span class="font-semibold text-green-600">${activeCount}</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <i class="fas fa-clock text-yellow-600"></i>
+                            <span class="text-sm text-gray-600">Pending:</span>
+                            <span class="font-semibold text-yellow-600">${pendingCount}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Table -->
+                <div class="overflow-x-auto">
                     <table class="w-full text-left" id="hmo-enrollments-table">
                         <thead>
-                            <tr class="bg-gray-100">
-                                <th class="p-3">Employee</th>
-                                <th class="p-3">Plan</th>
-                                <th class="p-3">Start</th>
-                                <th class="p-3">End</th>
-                                <th class="p-3">Status</th>
-                                <th class="p-3">Actions</th>
+                            <tr class="bg-gray-100 border-b border-gray-200">
+                                <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
+                                <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Plan</th>
+                                <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Start Date</th>
+                                <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">End Date</th>
+                                <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider text-right">Actions</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody class="bg-white divide-y divide-gray-200">
                         ${enrollments.length === 0 ? `
                             <tr>
-                                <td class="p-6 text-center text-sm text-gray-500" colspan="6">
-                                    No employee enrollments found. Use "Enroll Employee" to add a new enrollment. Employees can also enroll themselves via the employee portal.
-                                    <div class="mt-2"><button id="empty-add-enrollment" class="hmo-btn hmo-btn-success">Enroll Employee</button></div>
+                                <td colspan="6" class="px-6 py-12 text-center">
+                                    <div class="flex flex-col items-center justify-center space-y-3">
+                                        <i class="fas fa-user-shield text-gray-300 text-5xl"></i>
+                                        <p class="text-gray-500 text-lg font-medium">No enrollments found</p>
+                                        <p class="text-gray-400 text-sm">Start enrolling employees in HMO plans</p>
+                                        <button id="empty-add-enrollment" class="mt-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition duration-150 ease-in-out">
+                                            <i class="fas fa-user-plus mr-2"></i>Enroll First Employee
+                                        </button>
+                                    </div>
                                 </td>
                             </tr>
-                        ` : enrollments.map(e=>`<tr>
-                            <td class="p-3">${e.FirstName?e.FirstName+' '+(e.LastName||''):e.EmployeeID}</td>
-                            <td class="p-3">${e.PlanName||''}</td>
-                            <td class="p-3">${e.StartDate||''}</td>
-                            <td class="p-3">${e.EndDate||''}</td>
-                            <td class="p-3">${e.Status||''}</td>
-                            <td class="p-3">
-                                <button class="hmo-btn hmo-btn-secondary edit-enrollment" data-id="${e.EnrollmentID}">Edit</button>
-                                <button class="hmo-btn hmo-btn-warning terminate-enrollment" data-id="${e.EnrollmentID}">Terminate</button>
-                                <button class="hmo-btn hmo-btn-danger delete-enrollment" data-id="${e.EnrollmentID}">Remove</button>
+                        ` : enrollments.map(e=>{
+                            const employeeName = e.FirstName ? `${e.FirstName} ${e.LastName||''}`.trim() : `Employee #${e.EmployeeID}`;
+                            let statusBadge = '';
+                            if (e.Status === 'Active') {
+                                statusBadge = '<span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800"><i class="fas fa-check-circle mr-1"></i>Active</span>';
+                            } else if (e.Status === 'Pending') {
+                                statusBadge = '<span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800"><i class="fas fa-clock mr-1"></i>Pending</span>';
+                            } else if (e.Status === 'Terminated') {
+                                statusBadge = '<span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800"><i class="fas fa-times-circle mr-1"></i>Terminated</span>';
+                            } else {
+                                statusBadge = '<span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">' + (e.Status || 'Unknown') + '</span>';
+                            }
+                            
+                            return `
+                            <tr class="hover:bg-gray-50 transition duration-150 ease-in-out">
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="flex items-center">
+                                        <div class="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center">
+                                            <i class="fas fa-user text-blue-600"></i>
+                                        </div>
+                                        <div class="ml-3">
+                                            <div class="text-sm font-medium text-gray-900">${employeeName}</div>
+                                            <div class="text-xs text-gray-500">ID: ${e.EmployeeID}</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm text-gray-900">${e.PlanName || 'N/A'}</div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm text-gray-700">${e.StartDate || 'N/A'}</div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm text-gray-700">${e.EndDate || 'N/A'}</div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">${statusBadge}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                    <div class="flex items-center justify-end space-x-2">
+                                        <button class="text-blue-600 hover:text-blue-800 edit-enrollment" data-id="${e.EnrollmentID}" title="Edit Enrollment">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                        ${e.Status === 'Active' ? `<button class="text-orange-600 hover:text-orange-800 terminate-enrollment" data-id="${e.EnrollmentID}" title="Terminate Enrollment">
+                                            <i class="fas fa-ban"></i>
+                                        </button>` : ''}
+                                        <button class="text-red-600 hover:text-red-800 delete-enrollment" data-id="${e.EnrollmentID}" title="Delete Enrollment">
+                                            <i class="fas fa-trash-alt"></i>
+                                        </button>
+                                    </div>
                             </td>
-                        </tr>`).join('')}
+                            </tr>`;
+                        }).join('')}
                         </tbody>
                     </table>
                 </div>
@@ -53,6 +161,7 @@ export async function renderHMOEnrollments(containerId='main-content-area'){
         document.getElementById('refresh-enrollments')?.addEventListener('click', ()=>renderHMOEnrollments(containerId));
         document.getElementById('add-enrollment-btn')?.addEventListener('click', ()=>showAddEnrollmentModal(containerId));
     document.getElementById('empty-add-enrollment')?.addEventListener('click', ()=>showAddEnrollmentModal(containerId));
+        document.getElementById('export-enrollments')?.addEventListener('click', ()=>exportEnrollmentsToCSV(enrollments));
         container.querySelectorAll('.edit-enrollment').forEach(b=>b.addEventListener('click', async ev=>{ const id = ev.target.dataset.id; if (!id) return; showEditEnrollmentModal(id, containerId); }));
         container.querySelectorAll('.terminate-enrollment').forEach(b=>b.addEventListener('click', async ev=>{
             const id = ev.target.dataset.id; if (!confirm('Terminate enrollment?')) return; const r = await fetch(`${API_BASE_URL}hmo_enrollments.php?id=${id}`, { method:'PUT', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({status:'Terminated'}) }); const j = await r.json(); if (j.success) renderHMOEnrollments(containerId); else alert(j.error||'Failed');
@@ -108,7 +217,65 @@ export async function renderHMOEnrollments(containerId='main-content-area'){
                 alert('Could not get enrollment details. Please try again.');
             }
         }));
-    }catch(e){console.error(e); container.innerHTML='<div class="p-6">Error loading enrollments</div>'}
+    }catch(e){
+        console.error(e); 
+        container.innerHTML = `
+            <div class="bg-white rounded-lg shadow-sm border border-red-200 p-6">
+                <div class="flex items-center space-x-3 text-red-600">
+                    <i class="fas fa-exclamation-circle text-2xl"></i>
+                    <div>
+                        <h3 class="text-lg font-semibold">Error Loading Enrollments</h3>
+                        <p class="text-sm text-red-500 mt-1">${e.message}</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+}
+
+// CSV Export Function
+function exportEnrollmentsToCSV(enrollments) {
+    if (!enrollments || enrollments.length === 0) {
+        alert('No enrollments to export');
+        return;
+    }
+
+    // Define CSV headers
+    const headers = ['Enrollment ID', 'Employee ID', 'Employee Name', 'Plan', 'Start Date', 'End Date', 'Status'];
+    
+    // Convert enrollments data to CSV rows
+    const rows = enrollments.map(e => {
+        const employeeName = e.FirstName ? `${e.FirstName} ${e.LastName||''}`.trim() : '';
+        
+        return [
+            e.EnrollmentID || '',
+            e.EmployeeID || '',
+            employeeName,
+            e.PlanName || '',
+            e.StartDate || '',
+            e.EndDate || '',
+            e.Status || ''
+        ];
+    });
+
+    // Combine headers and rows
+    const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+
+    // Create and trigger download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `hmo_enrollments_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    console.log(`Exported ${enrollments.length} enrollments to CSV`);
 }
 
 export async function showAddEnrollmentModal(containerId='main-content-area'){

@@ -95,6 +95,16 @@ try { global $pdo; $method = $_SERVER['REQUEST_METHOD'];
             // non-fatal
         }
 
+        // **NEW: Auto-sync with compensation module**
+        try {
+            require_once __DIR__ . '/../../api/integrations/HMOPayrollIntegration.php';
+            $hmoIntegration = new HMOPayrollIntegration();
+            $hmoIntegration->syncWithCompensation($employeeId);
+        } catch (Throwable $syncErr) {
+            error_log('HMO enrollment compensation sync error: ' . $syncErr->getMessage());
+            // Non-fatal, continue
+        }
+
         echo json_encode(['success'=>true,'id'=>$newId]); exit;
     }
 
@@ -149,6 +159,20 @@ try { global $pdo; $method = $_SERVER['REQUEST_METHOD'];
         } catch (Throwable $ne) {
             error_log('HMO update notification error: '.$ne->getMessage());
         }
+
+        // **NEW: Auto-sync with compensation module after update**
+        try {
+            require_once __DIR__ . '/../../api/integrations/HMOPayrollIntegration.php';
+            $hmoIntegration = new HMOPayrollIntegration();
+            $employeeIdToSync = (int)($d['employee_id'] ?? ($rec['EmployeeID'] ?? 0));
+            if ($employeeIdToSync > 0) {
+                $hmoIntegration->syncWithCompensation($employeeIdToSync);
+            }
+        } catch (Throwable $syncErr) {
+            error_log('HMO enrollment update compensation sync error: ' . $syncErr->getMessage());
+            // Non-fatal, continue
+        }
+
         echo json_encode(['success'=>true]); exit;
     }
 

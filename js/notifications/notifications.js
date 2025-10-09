@@ -115,33 +115,54 @@ function renderNotificationList(notifications) {
     }
 
     let html = notifications.map(notif => `
-        <a href="${notif.Link || '#'}"
-           class="block px-4 py-3 hover:bg-gray-100 notification-item ${!notif.IsRead ? 'bg-blue-50' : ''}"
-           data-notification-id="${notif.NotificationID}"
-           data-is-read="${notif.IsRead}"
-           data-link="${notif.Link || '#'}">
-            <div class="flex items-start space-x-3">
-                <div class="flex-shrink-0 pt-0.5">
-                    ${getNotificationIcon(notif.NotificationType)}
+        <div class="notification-wrapper flex hover:bg-gray-100 ${!notif.IsRead ? 'bg-blue-50' : ''}">
+            <a href="${notif.Link || '#'}"
+               class="flex-1 block px-4 py-3 notification-item"
+               data-notification-id="${notif.NotificationID}"
+               data-is-read="${notif.IsRead}"
+               data-link="${notif.Link || '#'}">
+                <div class="flex items-start space-x-3">
+                    <div class="flex-shrink-0 pt-0.5">
+                        ${getNotificationIcon(notif.NotificationType)}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm text-gray-800 ${!notif.IsRead ? 'font-semibold' : ''} truncate">
+                            ${notif.Message || 'No message content.'}
+                        </p>
+                        <p class="text-xs text-gray-500">
+                            ${notif.SenderName ? `From: ${notif.SenderName} - ` : ''}
+                            ${notif.TimeAgo || notif.CreatedAtFormatted || ''}
+                        </p>
+                    </div>
+                    ${!notif.IsRead ? '<span class="ml-2 mt-1 h-2 w-2 rounded-full bg-blue-500 flex-shrink-0" title="Unread"></span>' : ''}
                 </div>
-                <div class="flex-1 min-w-0">
-                    <p class="text-sm text-gray-800 ${!notif.IsRead ? 'font-semibold' : ''} truncate">
-                        ${notif.Message || 'No message content.'}
-                    </p>
-                    <p class="text-xs text-gray-500">
-                        ${notif.SenderName ? `From: ${notif.SenderName} - ` : ''}
-                        ${notif.TimeAgo || notif.CreatedAtFormatted || ''}
-                    </p>
-                </div>
-                ${!notif.IsRead ? '<span class="ml-2 mt-1 h-2 w-2 rounded-full bg-blue-500 flex-shrink-0" title="Unread"></span>' : ''}
-            </div>
-        </a>
+            </a>
+            <button class="px-3 py-3 text-gray-400 hover:text-red-600 delete-notification-btn" 
+                    data-notification-id="${notif.NotificationID}"
+                    title="Delete notification">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
     `).join('');
 
-    // Add "View All Notifications" link
-    html += `<a href="#notifications" class="block px-4 py-3 text-center text-blue-600 hover:bg-gray-100 view-all-notifications">View All Notifications</a>`;
+    // Add action buttons
+    html += `
+        <div class="border-t border-gray-200">
+            <div class="flex divide-x divide-gray-200">
+                <a href="#notifications" class="flex-1 block px-4 py-3 text-center text-blue-600 hover:bg-gray-100 view-all-notifications">
+                    <i class="fas fa-list mr-1"></i> View All
+                </a>
+                <button class="flex-1 block px-4 py-3 text-center text-gray-600 hover:bg-gray-100 clear-all-notifications">
+                    <i class="fas fa-trash-alt mr-1"></i> Clear Read
+                </button>
+            </div>
+        </div>
+    `;
 
     notificationListElement.innerHTML = html;
+    
+    // Attach delete event listeners
+    attachNotificationDeleteListeners();
 }
 
 /**
@@ -221,9 +242,99 @@ function updateNotificationDot(unreadCount) {
 /**
  * Handles clicks on individual notification items in the dropdown.
  */
+/**
+ * Attaches delete event listeners to notification delete buttons
+ */
+function attachNotificationDeleteListeners() {
+    // Individual notification delete buttons
+    const deleteButtons = document.querySelectorAll('.delete-notification-btn');
+    deleteButtons.forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const notificationId = btn.dataset.notificationId;
+            if (notificationId) {
+                await deleteNotification(notificationId);
+            }
+        });
+    });
+    
+    // Clear all read notifications button
+    const clearAllBtn = document.querySelector('.clear-all-notifications');
+    if (clearAllBtn) {
+        clearAllBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            await deleteAllReadNotifications();
+        });
+    }
+}
+
+/**
+ * Deletes a single notification
+ */
+async function deleteNotification(notificationId) {
+    try {
+        const response = await fetch(`${API_BASE_URL}delete_notification.php?id=${notificationId}`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            console.log('[Notifications] Deleted notification:', notificationId);
+            // Refresh notifications
+            await fetchAndRenderNotifications();
+        } else {
+            console.error('[Notifications] Delete failed:', result.error);
+        }
+    } catch (error) {
+        console.error('[Notifications] Error deleting notification:', error);
+    }
+}
+
+/**
+ * Deletes all read notifications
+ */
+async function deleteAllReadNotifications() {
+    try {
+        const response = await fetch(`${API_BASE_URL}delete_notification.php?id=all`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            console.log('[Notifications] Deleted all read notifications');
+            // Refresh notifications
+            await fetchAndRenderNotifications();
+        } else {
+            console.error('[Notifications] Delete all failed:', result.error);
+        }
+    } catch (error) {
+        console.error('[Notifications] Error deleting all notifications:', error);
+    }
+}
+
 async function handleNotificationItemClick(event) {
     const notificationItem = event.target.closest('.notification-item');
     const viewAllLink = event.target.closest('.view-all-notifications');
+    
+    // Ignore clicks on delete buttons
+    if (event.target.closest('.delete-notification-btn') || event.target.closest('.clear-all-notifications')) {
+        return;
+    }
+    
     if (!notificationItem && !viewAllLink) return;
 
     event.preventDefault();

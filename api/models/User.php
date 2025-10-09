@@ -38,7 +38,8 @@ class User {
      */
     public function getUserByEmail($email) {
         $sql = "SELECT
-                    u.UserID, u.EmployeeID, u.Username, u.RoleID, u.IsActive,
+                    u.UserID, u.EmployeeID, u.Username, u.PasswordHash, u.RoleID, u.IsActive,
+                    u.IsTwoFactorEnabled, u.TwoFactorEmailCode, u.TwoFactorCodeExpiry,
                     r.RoleName,
                     e.FirstName, e.LastName, e.Email
                 FROM Users u
@@ -48,6 +49,29 @@ class User {
 
         $stmt = $this->pdo->prepare($sql);
         $stmt->bindParam(':email', $email, PDO::PARAM_STR);
+        $stmt->execute();
+        
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Get user by partial username (for flexible login)
+     */
+    public function getUserByPartialUsername($partialUsername) {
+        $sql = "SELECT
+                    u.UserID, u.EmployeeID, u.Username, u.PasswordHash, u.RoleID, u.IsActive,
+                    u.IsTwoFactorEnabled, u.TwoFactorEmailCode, u.TwoFactorCodeExpiry,
+                    r.RoleName,
+                    e.FirstName, e.LastName, e.Email
+                FROM Users u
+                JOIN Roles r ON u.RoleID = r.RoleID
+                JOIN Employees e ON u.EmployeeID = e.EmployeeID
+                WHERE u.Username LIKE :partialUsername1 OR e.Email LIKE :partialUsername2";
+
+        $stmt = $this->pdo->prepare($sql);
+        $searchTerm = '%' . $partialUsername . '%';
+        $stmt->bindParam(':partialUsername1', $searchTerm, PDO::PARAM_STR);
+        $stmt->bindParam(':partialUsername2', $searchTerm, PDO::PARAM_STR);
         $stmt->execute();
         
         return $stmt->fetch(PDO::FETCH_ASSOC);

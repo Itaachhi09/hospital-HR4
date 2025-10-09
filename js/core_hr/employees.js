@@ -178,12 +178,18 @@ export async function displayEmployeeSection() {
 /**
  * Fetches employee data from the API.
  */
-async function loadEmployees(params = null) {
+async function loadEmployees(params = null, retryCount = 0) {
     console.log("[Load] Loading Employees...");
     const container = document.getElementById('employee-list-container');
     if (!container) {
-         // Likely navigated away from Employee Directory before debounce fired
-         console.warn('[Employees] employee-list-container not found; aborting load.');
+         // element might not be in DOM yet due to navigation or async rendering
+         if (retryCount < 3) {
+             // wait a bit and retry silently
+             await new Promise(r => setTimeout(r, 120));
+             return loadEmployees(params, retryCount + 1);
+         }
+         // final abort with a non-fatal log
+         console.debug('[Employees] employee-list-container still not found after retries; aborting load.');
          return;
     };
     try {
@@ -194,6 +200,12 @@ async function loadEmployees(params = null) {
         }
         const response = await fetch(url);
         if (!response.ok) {
+            // If the server signals authentication is required, redirect to login
+            if (response.status === 401) {
+                console.info('[loadEmployees] Unauthorized (401). Redirecting to login.');
+                window.location.href = 'index.php';
+                return;
+            }
             // Fallback to client-side filter if we already have data
             if (allEmployeesData && allEmployeesData.length > 0) {
                 console.warn('[loadEmployees] Server returned', response.status, '— falling back to client-side filtering');
@@ -205,6 +217,12 @@ async function loadEmployees(params = null) {
         }
         const employees = await response.json();
         if (employees.error) {
+             // If backend returned an authentication error message, redirect to login
+             if (typeof employees.error === 'string' && /auth/i.test(employees.error)) {
+                 console.info('[loadEmployees] API returned authentication error. Redirecting to login.');
+                 window.location.href = 'index.php';
+                 return;
+             }
              console.error("[loadEmployees] API returned error:", employees.error);
              container.innerHTML = `<p class="text-red-500 text-center py-4">Error: ${employees.error}</p>`;
         } else {

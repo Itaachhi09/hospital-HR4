@@ -14,52 +14,26 @@ import { loadModule } from './utils.js';
 function initializeSectionDisplayFunctions() {
     const mainContentArea = document.getElementById('main-content-area');
     const sectionDisplayFunctions = {
-        displayDashboardSection: async () => {
-            // For modern dashboard, we don't need to load a separate module
-            // The dashboard is already built into admin_landing.php
-            console.log('Displaying modern dashboard - already loaded in admin_landing.php');
-            
-            // Ensure the dashboard is visible
-            const mainContent = document.getElementById('main-content-area');
-            if (mainContent) {
-                mainContent.style.display = 'block';
-                
-                // Check if modern dashboard content exists
-                if (mainContent.querySelector('#total-employees')) {
-                    console.log('Modern dashboard content already exists, just refreshing data');
-                    // Dashboard is already loaded, just refresh the data
-                    if (window.loadDashboardData) {
-                        window.loadDashboardData();
-                    }
-                    if (window.initializeCharts) {
-                        window.initializeCharts();
-                    }
-                    if (window.loadRecentActivities) {
-                        window.loadRecentActivities();
-                    }
-                } else {
-                    console.log('Modern dashboard content missing, restoring...');
-                    // The modern dashboard content should be in the HTML already
-                    // If it's missing, we need to restore it
-                    if (window.displayModernDashboard) {
-                        window.displayModernDashboard();
-                    }
-                    
-                    // Load data and initialize charts after restoring
-                    setTimeout(() => {
-                        if (window.loadDashboardData) {
-                            window.loadDashboardData();
-                        }
-                        if (window.initializeCharts) {
-                            window.initializeCharts();
-                        }
-                        if (window.loadRecentActivities) {
-                            window.loadRecentActivities();
-                        }
-                    }, 100);
+        displayAnalyticsDashboardsSection: async () => {
+            // Prefer the modern HR analytics dashboard module. If import fails, fall back to legacy analytics module.
+            const mainContentArea = document.getElementById('main-content-area');
+            try {
+                const mod = await import('./analytics/hr_analytics_dashboard.js');
+                if (mod && typeof mod.displayHRAnalyticsDashboard === 'function') {
+                    await mod.displayHRAnalyticsDashboard();
+                    return;
                 }
+            } catch (err) {
+                console.warn('Failed to load hr_analytics_dashboard.js, falling back to legacy analytics:', err);
             }
-            return;
+
+            // Fallback: load legacy analytics module
+            try {
+                await loadModule('analytics/analytics.js', mainContentArea, 'Analytics Dashboard');
+            } catch (fallbackErr) {
+                console.error('Failed to load legacy analytics module as fallback:', fallbackErr);
+                if (mainContentArea) mainContentArea.innerHTML = '<p class="text-red-500 p-4">Failed to load Analytics Dashboard. See console for details.</p>';
+            }
         },
         displayEmployeeSection: async () => {
             await loadModule('core_hr/employees.js', mainContentArea, 'Employee Management');
@@ -122,19 +96,51 @@ function initializeSectionDisplayFunctions() {
             await loadModule('leave/leave.js', mainContentArea, 'Leave Types');
         },
         displayCompensationPlansSection: async () => {
-            await loadModule('compensation/compensation.js', mainContentArea, 'Compensation Plans');
+            try {
+                const mod = await import('./compensation/compensation.js');
+                if (mod && typeof mod.displayCompensationPlansSection === 'function') {
+                    await mod.displayCompensationPlansSection();
+                } else {
+                    throw new Error('displayCompensationPlansSection export not found in compensation module');
+                }
+            } catch (err) {
+                console.error('Failed to load/display Compensation Plans module:', err);
+                throw err;
+            }
         },
         displaySalaryAdjustmentsSection: async () => {
-            await loadModule('compensation/compensation.js', mainContentArea, 'Salary Adjustments');
+            try {
+                const mod = await import('./compensation/compensation.js');
+                if (mod && typeof mod.displaySalaryAdjustmentsSection === 'function') {
+                    await mod.displaySalaryAdjustmentsSection();
+                } else {
+                    throw new Error('displaySalaryAdjustmentsSection export not found in compensation module');
+                }
+            } catch (err) {
+                console.error('Failed to load/display Salary Adjustments module:', err);
+                throw err;
+            }
         },
         displayIncentivesSection: async () => {
-            await loadModule('compensation/compensation.js', mainContentArea, 'Incentives');
+            try {
+                const mod = await import('./compensation/compensation.js');
+                if (mod && typeof mod.displayIncentivesSection === 'function') {
+                    await mod.displayIncentivesSection();
+                } else {
+                    throw new Error('displayIncentivesSection export not found in compensation module');
+                }
+            } catch (err) {
+                console.error('Failed to load/display Incentives module:', err);
+                throw err;
+            }
         },
         displayAnalyticsDashboardsSection: async () => {
-            await loadModule('analytics/analytics.js', mainContentArea, 'Analytics Dashboards');
+            // Use the integrated analytics dashboard with reports functionality
+            await loadModule('analytics/analytics.js', mainContentArea, 'Analytics Dashboard');
         },
         displayAnalyticsReportsSection: async () => {
-            await loadModule('analytics/analytics.js', mainContentArea, 'Analytics Reports');
+            // Redirect to the integrated analytics dashboard with reports functionality
+            await loadModule('analytics/analytics.js', mainContentArea, 'Analytics Dashboard');
         },
         displayAnalyticsMetricsSection: async () => {
             await loadModule('analytics/analytics.js', mainContentArea, 'Analytics Metrics');
@@ -291,95 +297,329 @@ export async function initializeApp() {
     // Claims modules
     window.displaySubmitClaimSection = async () => {
         console.log('Loading Submit Claim module...');
-        await loadModule('claims/submit_claim.js', document.getElementById('main-content-area'), 'Submit Claim');
+        await loadModule('claims/claims.js', document.getElementById('main-content-area'), 'Submit Claim');
     };
     window.displayMyClaimsSection = async () => {
         console.log('Loading My Claims module...');
-        await loadModule('claims/my_claims.js', document.getElementById('main-content-area'), 'My Claims');
+        await loadModule('claims/claims.js', document.getElementById('main-content-area'), 'My Claims');
     };
     window.displayClaimsApprovalSection = async () => {
         console.log('Loading Claims Approval module...');
-        await loadModule('claims/claims_approval.js', document.getElementById('main-content-area'), 'Claims Approval');
+        await loadModule('claims/claims.js', document.getElementById('main-content-area'), 'Claims Approval');
     };
     window.displayClaimTypesAdminSection = async () => {
         console.log('Loading Claim Types Admin module...');
-        await loadModule('claims/claim_types_admin.js', document.getElementById('main-content-area'), 'Claim Types');
+        await loadModule('claims/claims.js', document.getElementById('main-content-area'), 'Claim Types');
     };
     
     // Leave modules
     window.displayLeaveRequestsSection = async () => {
         console.log('Loading Leave Requests module...');
-        await loadModule('leave/leave_requests.js', document.getElementById('main-content-area'), 'Leave Requests');
+        await loadModule('leave/leave.js', document.getElementById('main-content-area'), 'Leave Requests');
     };
     window.displayLeaveBalancesSection = async () => {
         console.log('Loading Leave Balances module...');
-        await loadModule('leave/leave_balances.js', document.getElementById('main-content-area'), 'Leave Balances');
+        await loadModule('leave/leave.js', document.getElementById('main-content-area'), 'Leave Balances');
     };
     window.displayLeaveTypesAdminSection = async () => {
         console.log('Loading Leave Types Admin module...');
-        await loadModule('leave/leave_types_admin.js', document.getElementById('main-content-area'), 'Leave Types');
+        await loadModule('leave/leave.js', document.getElementById('main-content-area'), 'Leave Types');
     };
     
-    // Compensation modules
+    // Compensation Planning modules
     window.displayCompensationPlansSection = async () => {
         console.log('Loading Compensation Plans module...');
-        await loadModule('compensation/compensation_plans.js', document.getElementById('main-content-area'), 'Compensation Plans');
+        try {
+            const mod = await import('./compensation/compensation.js');
+            if (mod && typeof mod.displayCompensationPlansSection === 'function') {
+                await mod.displayCompensationPlansSection();
+            } else {
+                throw new Error('displayCompensationPlansSection not exported by compensation module');
+            }
+        } catch (err) {
+            console.error('Error loading Compensation Plans module:', err);
+            try {
+                await fetchModuleDebug('js/compensation/compensation.js');
+            } catch (dbg) {
+                console.warn('fetchModuleDebug failed:', dbg);
+            }
+            // Attempt UMD fallback loader
+            try {
+                await loadUmdFallback('/hospital-HR4/js/compensation/compensation.umd.js');
+                if (typeof window.displayCompensationPlansSection === 'function') {
+                    console.info('Using UMD fallback for Compensation Plans');
+                    await window.displayCompensationPlansSection();
+                    return;
+                }
+            } catch (fbErr) {
+                console.warn('UMD fallback failed:', fbErr);
+            }
+            throw err;
+        }
     };
     window.displaySalaryAdjustmentsSection = async () => {
         console.log('Loading Salary Adjustments module...');
-        await loadModule('compensation/salary_adjustments.js', document.getElementById('main-content-area'), 'Salary Adjustments');
+        try {
+            const mod = await import('./compensation/compensation.js');
+            if (mod && typeof mod.displaySalaryAdjustmentsSection === 'function') {
+                await mod.displaySalaryAdjustmentsSection();
+            } else {
+                throw new Error('displaySalaryAdjustmentsSection not exported by compensation module');
+            }
+        } catch (err) {
+            console.error('Error loading Salary Adjustments module:', err);
+            try {
+                await fetchModuleDebug('js/compensation/compensation.js');
+            } catch (dbg) { console.warn('fetchModuleDebug failed:', dbg); }
+            try {
+                await loadUmdFallback('/hospital-HR4/js/compensation/compensation.umd.js');
+                if (typeof window.displaySalaryAdjustmentsSection === 'function') {
+                    console.info('Using UMD fallback for Salary Adjustments');
+                    await window.displaySalaryAdjustmentsSection();
+                    return;
+                }
+            } catch (fbErr) { console.warn('UMD fallback failed:', fbErr); }
+            throw err;
+        }
     };
     window.displayIncentivesSection = async () => {
         console.log('Loading Incentives module...');
-        await loadModule('compensation/incentives.js', document.getElementById('main-content-area'), 'Incentives');
+        try {
+            const mod = await import('./compensation/compensation.js');
+            if (mod && typeof mod.displayIncentivesSection === 'function') {
+                await mod.displayIncentivesSection();
+            } else {
+                throw new Error('displayIncentivesSection not exported by compensation module');
+            }
+        } catch (err) {
+            console.error('Error loading Incentives module:', err);
+            try {
+                await fetchModuleDebug('js/compensation/compensation.js');
+            } catch (dbg) { console.warn('fetchModuleDebug failed:', dbg); }
+            try {
+                await loadUmdFallback('/hospital-HR4/js/compensation/compensation.umd.js');
+                if (typeof window.displayIncentivesSection === 'function') {
+                    console.info('Using UMD fallback for Incentives');
+                    await window.displayIncentivesSection();
+                    return;
+                }
+            } catch (fbErr) { console.warn('UMD fallback failed:', fbErr); }
+            throw err;
+        }
+    };
+    
+    // New Compensation Planning modules
+    window.displaySalaryGradesSection = async () => {
+        console.log('Loading Salary Grades module...');
+        try {
+            const mod = await import('./compensation/compensation.js');
+            if (mod && typeof mod.displaySalaryGradesSection === 'function') {
+                await mod.displaySalaryGradesSection();
+            } else {
+                throw new Error('displaySalaryGradesSection not exported by compensation module');
+            }
+        } catch (err) {
+            console.error('Error loading Salary Grades module:', err);
+            try {
+                await fetchModuleDebug('js/compensation/compensation.js');
+            } catch (dbg) { console.warn('fetchModuleDebug failed:', dbg); }
+            try {
+                await loadUmdFallback('/hospital-HR4/js/compensation/compensation.umd.js');
+                if (typeof window.displaySalaryGradesSection === 'function') {
+                    console.info('Using UMD fallback for Salary Grades');
+                    await window.displaySalaryGradesSection();
+                    return;
+                }
+            } catch (fbErr) { console.warn('UMD fallback failed:', fbErr); }
+            throw err;
+        }
+    };
+    window.displayPayBandsSection = async () => {
+        console.log('Loading Pay Bands module...');
+        try {
+            const mod = await import('./compensation/compensation.js');
+            if (mod && typeof mod.displayPayBandsSection === 'function') {
+                await mod.displayPayBandsSection();
+            } else {
+                throw new Error('displayPayBandsSection not exported by compensation module');
+            }
+        } catch (err) {
+            console.error('Error loading Pay Bands module:', err);
+            try {
+                await fetchModuleDebug('js/compensation/compensation.js');
+            } catch (dbg) { console.warn('fetchModuleDebug failed:', dbg); }
+            try {
+                await loadUmdFallback('/hospital-HR4/js/compensation/compensation.umd.js');
+                if (typeof window.displayPayBandsSection === 'function') {
+                    console.info('Using UMD fallback for Pay Bands');
+                    await window.displayPayBandsSection();
+                    return;
+                }
+            } catch (fbErr) { console.warn('UMD fallback failed:', fbErr); }
+            throw err;
+        }
+    };
+    window.displayEmployeeMappingSection = async () => {
+        console.log('Loading Employee Mapping module...');
+        try {
+            const mod = await import('./compensation/compensation.js');
+            if (mod && typeof mod.displayEmployeeMappingSection === 'function') {
+                await mod.displayEmployeeMappingSection();
+            } else {
+                throw new Error('displayEmployeeMappingSection not exported by compensation module');
+            }
+        } catch (err) {
+            console.error('Error loading Employee Mapping module:', err);
+            try {
+                await fetchModuleDebug('js/compensation/compensation.js');
+            } catch (dbg) { console.warn('fetchModuleDebug failed:', dbg); }
+            try {
+                await loadUmdFallback('/hospital-HR4/js/compensation/compensation.umd.js');
+                if (typeof window.displayEmployeeMappingSection === 'function') {
+                    console.info('Using UMD fallback for Employee Mapping');
+                    await window.displayEmployeeMappingSection();
+                    return;
+                }
+            } catch (fbErr) { console.warn('UMD fallback failed:', fbErr); }
+            throw err;
+        }
+    };
+    window.displayWorkflowsSection = async () => {
+        console.log('Loading Workflows module...');
+        try {
+            const mod = await import('./compensation/compensation.js');
+            if (mod && typeof mod.displayWorkflowsSection === 'function') {
+                await mod.displayWorkflowsSection();
+            } else {
+                throw new Error('displayWorkflowsSection not exported by compensation module');
+            }
+        } catch (err) {
+            console.error('Error loading Workflows module:', err);
+            try {
+                await fetchModuleDebug('js/compensation/compensation.js');
+            } catch (dbg) { console.warn('fetchModuleDebug failed:', dbg); }
+            try {
+                await loadUmdFallback('/hospital-HR4/js/compensation/compensation.umd.js');
+                if (typeof window.displayWorkflowsSection === 'function') {
+                    console.info('Using UMD fallback for Workflows');
+                    await window.displayWorkflowsSection();
+                    return;
+                }
+            } catch (fbErr) { console.warn('UMD fallback failed:', fbErr); }
+            throw err;
+        }
+    };
+    window.displaySimulationToolsSection = async () => {
+        console.log('Loading Simulation Tools module...');
+        try {
+            const mod = await import('./compensation/compensation.js');
+            if (mod && typeof mod.displaySimulationToolsSection === 'function') {
+                await mod.displaySimulationToolsSection();
+            } else {
+                throw new Error('displaySimulationToolsSection not exported by compensation module');
+            }
+        } catch (err) {
+            console.error('Error loading Simulation Tools module:', err);
+            try {
+                await fetchModuleDebug('js/compensation/compensation.js');
+            } catch (dbg) { console.warn('fetchModuleDebug failed:', dbg); }
+            try {
+                await loadUmdFallback('/hospital-HR4/js/compensation/compensation.umd.js');
+                if (typeof window.displaySimulationToolsSection === 'function') {
+                    console.info('Using UMD fallback for Simulation Tools');
+                    await window.displaySimulationToolsSection();
+                    return;
+                }
+            } catch (fbErr) { console.warn('UMD fallback failed:', fbErr); }
+            throw err;
+        }
     };
     
     // Analytics modules
     window.displayAnalyticsDashboardsSection = async () => {
         console.log('Loading Analytics Dashboards module...');
-        await loadModule('analytics/analytics_dashboards.js', document.getElementById('main-content-area'), 'Analytics Dashboards');
+        // Load new comprehensive HR Analytics Dashboard
+        try {
+            const hrAnalyticsMod = await import('./analytics/hr_analytics_dashboard.js');
+            if (hrAnalyticsMod?.displayHRAnalyticsDashboard) {
+                await hrAnalyticsMod.displayHRAnalyticsDashboard();
+            } else {
+                // Fallback to old analytics
+                await loadModule('analytics/analytics.js', document.getElementById('main-content-area'), 'Analytics Dashboards');
+            }
+        } catch (err) {
+            console.error('Failed to load HR Analytics Dashboard:', err);
+            // Fallback to old analytics
+            await loadModule('analytics/analytics.js', document.getElementById('main-content-area'), 'Analytics Dashboards');
+        }
     };
     window.displayAnalyticsReportsSection = async () => {
         console.log('Loading Analytics Reports module...');
-        await loadModule('analytics/analytics_reports.js', document.getElementById('main-content-area'), 'Analytics Reports');
+        try {
+            const hrReportsMod = await import('./analytics/hr_reports_dashboard.js');
+            if (hrReportsMod?.displayHRReportsDashboard) {
+                await hrReportsMod.displayHRReportsDashboard();
+            } else {
+                // Fallback to old analytics
+                await loadModule('analytics/analytics.js', document.getElementById('main-content-area'), 'Analytics Reports');
+            }
+        } catch (err) {
+            console.error('Failed to load HR Reports Dashboard:', err);
+            // Fallback to old analytics
+            await loadModule('analytics/analytics.js', document.getElementById('main-content-area'), 'Analytics Reports');
+        }
     };
     window.displayAnalyticsMetricsSection = async () => {
         console.log('Loading Analytics Metrics module...');
-        await loadModule('analytics/analytics_metrics.js', document.getElementById('main-content-area'), 'Analytics Metrics');
+        try {
+            const hrMetricsMod = await import('./analytics/hr_analytics_metrics_dashboard.js');
+            if (hrMetricsMod?.displayHRAnalyticsMetricsDashboard) {
+                await hrMetricsMod.displayHRAnalyticsMetricsDashboard();
+            } else {
+                // Fallback to old analytics
+                await loadModule('analytics/analytics.js', document.getElementById('main-content-area'), 'Analytics Metrics');
+            }
+        } catch (err) {
+            console.error('Failed to load HR Metrics Dashboard:', err);
+            // Fallback to old analytics
+            await loadModule('analytics/analytics.js', document.getElementById('main-content-area'), 'Analytics Metrics');
+        }
     };
     
     // HMO modules
     window.displayHMOProvidersSection = async () => {
         console.log('Loading HMO Providers module...');
-        await loadModule('hmo/hmo_providers.js', document.getElementById('main-content-area'), 'HMO Providers');
+        await loadModule('admin/hmo/providers.js', document.getElementById('main-content-area'), 'HMO Providers');
     };
     window.displayHMOPlansSection = async () => {
         console.log('Loading HMO Plans module...');
-        await loadModule('hmo/hmo_plans.js', document.getElementById('main-content-area'), 'HMO Plans');
+        await loadModule('admin/hmo/plans.js', document.getElementById('main-content-area'), 'HMO Plans');
     };
     window.displayHMOEnrollmentsSection = async () => {
         console.log('Loading HMO Enrollments module...');
-        await loadModule('hmo/hmo_enrollments.js', document.getElementById('main-content-area'), 'HMO Enrollments');
+        await loadModule('admin/hmo/enrollments.js', document.getElementById('main-content-area'), 'HMO Enrollments');
     };
     window.displayHMOClaimsApprovalSection = async () => {
         console.log('Loading HMO Claims Approval module...');
-        await loadModule('hmo/hmo_claims_admin.js', document.getElementById('main-content-area'), 'HMO Claims Approval');
+        await loadModule('admin/hmo/claims.js', document.getElementById('main-content-area'), 'HMO Claims Approval');
     };
     window.displayHMODashboardSection = async () => {
         console.log('Loading HMO Dashboard module...');
-        await loadModule('hmo/hmo_dashboard.js', document.getElementById('main-content-area'), 'HMO Dashboard');
+        await loadModule('admin/hmo/dashboard.js', document.getElementById('main-content-area'), 'HMO Dashboard');
     };
     window.displayEmployeeHMOSection = async () => {
         console.log('Loading Employee HMO module...');
-        await loadModule('hmo/employee_hmo.js', document.getElementById('main-content-area'), 'Employee HMO');
+        await loadModule('employee/hmo.js', document.getElementById('main-content-area'), 'Employee HMO');
     };
     window.displayEmployeeHMOClaimsSection = async () => {
         console.log('Loading Employee HMO Claims module...');
-        await loadModule('hmo/employee_hmo_claims.js', document.getElementById('main-content-area'), 'Employee HMO Claims');
+        // Employee claims are shown in the main HMO view
+        await loadModule('employee/hmo.js', document.getElementById('main-content-area'), 'My HMO Claims');
     };
     window.displaySubmitHMOClaimSection = async () => {
         console.log('Loading Submit HMO Claim module...');
-        await loadModule('hmo/submit_hmo_claim.js', document.getElementById('main-content-area'), 'Submit HMO Claim');
+        // Claim submission is part of the employee HMO module
+        await loadModule('employee/hmo.js', document.getElementById('main-content-area'), 'Submit HMO Claim');
     };
     
     // Admin modules
@@ -473,9 +713,15 @@ export async function initializeApp() {
         leaveRequests: document.getElementById('leave-requests-link'),
         leaveBalances: document.getElementById('leave-balances-link'),
         leaveTypes: document.getElementById('leave-types-link'),
+    // compensationOverview removed
         compPlans: document.getElementById('comp-plans-link'),
         salaryAdjust: document.getElementById('salary-adjust-link'),
         incentives: document.getElementById('incentives-link'),
+        salaryGrades: document.getElementById('salary-grades-link'),
+        payBands: document.getElementById('pay-bands-link'),
+        employeeMapping: document.getElementById('employee-mapping-link'),
+        workflows: document.getElementById('workflows-link'),
+        simulationTools: document.getElementById('simulation-tools-link'),
         analyticsDashboards: document.getElementById('analytics-dashboards-link'),
         analyticsReports: document.getElementById('analytics-reports-link'),
         analyticsMetrics: document.getElementById('analytics-metrics-link'),
@@ -795,6 +1041,7 @@ export async function initializeApp() {
         if (sidebarItems.leaveTypes) {
              addClickListenerOnce(sidebarItems.leaveTypes, displayLeaveTypesAdminSection);
         }
+       // compensationOverview listener removed
         if (sidebarItems.compPlans) {
              addClickListenerOnce(sidebarItems.compPlans, displayCompensationPlansSection);
         }
@@ -803,6 +1050,21 @@ export async function initializeApp() {
         }
         if (sidebarItems.incentives) {
              addClickListenerOnce(sidebarItems.incentives, displayIncentivesSection);
+        }
+        if (sidebarItems.salaryGrades) {
+             addClickListenerOnce(sidebarItems.salaryGrades, displaySalaryGradesSection);
+        }
+        if (sidebarItems.payBands) {
+             addClickListenerOnce(sidebarItems.payBands, displayPayBandsSection);
+        }
+        if (sidebarItems.employeeMapping) {
+             addClickListenerOnce(sidebarItems.employeeMapping, displayEmployeeMappingSection);
+        }
+        if (sidebarItems.workflows) {
+             addClickListenerOnce(sidebarItems.workflows, displayWorkflowsSection);
+        }
+        if (sidebarItems.simulationTools) {
+             addClickListenerOnce(sidebarItems.simulationTools, displaySimulationToolsSection);
         }
         if (sidebarItems.analyticsDashboards) {
              addClickListenerOnce(sidebarItems.analyticsDashboards, displayAnalyticsDashboardsSection);
@@ -1101,6 +1363,7 @@ export async function initializeApp() {
         'leave-requests': displayLeaveRequestsSection,
         'leave-balances': displayLeaveBalancesSection,
         'leave-types': displayLeaveTypesAdminSection,
+    // 'compensation-overview' removed
         'comp-plans': displayCompensationPlansSection,
         'salary-adjust': displaySalaryAdjustmentsSection,
         'incentives': displayIncentivesSection,
@@ -1391,7 +1654,27 @@ export async function initializeApp() {
                 navigateToSectionById('dashboard');
                 initializeNotificationSystem();
             } else {
-                window.location.href = 'index.php';
+                // Do NOT hard-redirect on refresh if the PHP page already established a session
+                // Some environments may fail the ajax session check intermittently. If the
+                // server-side rendered page exposed window.currentUser, proceed using it.
+                if (window.currentUser && window.currentUser.user_id) {
+                    try {
+                        showAppUI();
+                        updateUserDisplay(window.currentUser);
+                        updateSidebarAccess(window.currentUser.role_name);
+                        attachSidebarListeners();
+                        navigateToSectionById('dashboard');
+                        initializeNotificationSystem();
+                    } catch (e) {
+                        console.warn('Proceeding with server-side session context failed:', e);
+                    }
+                } else {
+                    // As a last resort, show a login prompt rather than forcing navigation
+                    const initialMainContent = document.getElementById('main-content-area');
+                    if (initialMainContent) {
+                        initialMainContent.innerHTML = '<div class="bg-white rounded-lg shadow-sm border p-6"><h3 class="text-lg font-semibold mb-2">Session not detected</h3><p class="text-sm text-gray-600">Please <a class="text-blue-600 underline" href="index.php">log in</a> again.</p></div>';
+                    }
+                }
             }
         })
         .catch((error) => {
@@ -1427,9 +1710,15 @@ export async function initializeApp() {
         { id: 'leave-requests-link', title: 'Leave Requests', content: 'leave' },
         { id: 'leave-balances-link', title: 'Leave Balances', content: 'balance' },
         { id: 'leave-types-link', title: 'Leave Types', content: 'leavetype' },
+    // compensation-overview link removed from sidebarLinks
         { id: 'comp-plans-link', title: 'Compensation Plans', content: 'compplan' },
         { id: 'salary-adjust-link', title: 'Salary Adjustments', content: 'adjustment' },
         { id: 'incentives-link', title: 'Incentives', content: 'incentive' },
+        { id: 'salary-grades-link', title: 'Salary Grades', content: 'salarygrades' },
+        { id: 'pay-bands-link', title: 'Pay Bands', content: 'paybands' },
+        { id: 'employee-mapping-link', title: 'Employee Mapping', content: 'employeemapping' },
+        { id: 'workflows-link', title: 'Workflows', content: 'workflows' },
+        { id: 'simulation-tools-link', title: 'Simulation Tools', content: 'simulationtools' },
         { id: 'analytics-dashboards-link', title: 'Analytics Dashboards', content: 'analytics' },
         { id: 'analytics-reports-link', title: 'Analytics Reports', content: 'report' },
         { id: 'analytics-metrics-link', title: 'Analytics Metrics', content: 'metric' },
@@ -1492,6 +1781,9 @@ async function registerOptionalSectionModules() {
             orgMod,
             attendanceMod,
             salariesMod,
+            bonusesMod,
+            deductionsMod,
+            payslipsMod,
             analyticsMod,
             claimsMod,
             compensationMod,
@@ -1503,6 +1795,9 @@ async function registerOptionalSectionModules() {
             import('./core_hr/org_structure.js'),
             import('./time_attendance/attendance.js'),
             import('./payroll/salaries.js'),
+            import('./payroll/bonuses.js'),
+            import('./payroll/deductions.js'),
+            import('./payroll/payslips.js'),
             import('./analytics/analytics.js'),
             import('./claims/claims.js'),
             import('./compensation/compensation.js'),
@@ -1538,6 +1833,18 @@ async function registerOptionalSectionModules() {
         if (salariesMod?.displaySalariesSection) {
             window.sectionDisplayFunctions.displaySalariesSection = salariesMod.displaySalariesSection;
             window.displaySalariesSection = salariesMod.displaySalariesSection;
+        }
+        if (bonusesMod?.displayBonusesSection) {
+            window.sectionDisplayFunctions.displayBonusesSection = bonusesMod.displayBonusesSection;
+            window.displayBonusesSection = bonusesMod.displayBonusesSection;
+        }
+        if (deductionsMod?.displayDeductionsSection) {
+            window.sectionDisplayFunctions.displayDeductionsSection = deductionsMod.displayDeductionsSection;
+            window.displayDeductionsSection = deductionsMod.displayDeductionsSection;
+        }
+        if (payslipsMod?.displayPayslipsSection) {
+            window.sectionDisplayFunctions.displayPayslipsSection = payslipsMod.displayPayslipsSection;
+            window.displayPayslipsSection = payslipsMod.displayPayslipsSection;
         }
         if (analyticsMod?.displayAnalyticsDashboardsSection) {
             window.sectionDisplayFunctions.displayAnalyticsDashboardsSection = analyticsMod.displayAnalyticsDashboardsSection;
@@ -1594,4 +1901,44 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }, 100);
 });
+
+
+// Debug helper: fetch a module URL as text and log headers + a preview to help identify why import() failed
+async function fetchModuleDebug(relativePath) {
+    try {
+        // Build absolute URL relative to current document
+        const base = window.location.pathname.replace(/\/[^/]*$/, '/');
+        const url = new URL(relativePath, window.location.origin + base).href;
+        console.groupCollapsed(`fetchModuleDebug: fetching ${url}`);
+        const response = await fetch(url, { cache: 'no-store' });
+        console.log('Response status:', response.status, response.statusText);
+        try { console.log('Content-Type:', response.headers.get('Content-Type')); } catch (e) { console.warn('Could not read headers', e); }
+        const text = await response.text();
+        const preview = text.length > 3000 ? text.slice(0, 3000) + '\n\n...TRUNCATED...' : text;
+        console.log('Response preview:\n', preview);
+        console.groupEnd();
+        return { status: response.status, contentType: response.headers.get('Content-Type'), textPreview: preview };
+    } catch (e) {
+        console.error('fetchModuleDebug error fetching module:', e);
+        throw e;
+    }
+}
+
+// Injects a UMD fallback script and resolves when loaded
+async function loadUmdFallback(absoluteUrl) {
+    return new Promise((resolve, reject) => {
+        try {
+            // Don't load twice
+            if (document.querySelector(`script[data-umd-fallback][src="${absoluteUrl}"]`)) {
+                return resolve(true);
+            }
+            const s = document.createElement('script');
+            s.src = absoluteUrl;
+            s.setAttribute('data-umd-fallback', '1');
+            s.onload = () => resolve(true);
+            s.onerror = (e) => reject(new Error('Failed to load UMD fallback script: ' + absoluteUrl));
+            document.head.appendChild(s);
+        } catch (e) { reject(e); }
+    });
+}
 

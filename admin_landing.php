@@ -1,6 +1,17 @@
 
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    $secureFlag = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+    session_set_cookie_params([
+        'lifetime' => 0,
+        'path' => '/',
+        'domain' => $_SERVER['HTTP_HOST'] ?? '',
+        'secure' => $secureFlag,
+        'httponly' => true,
+        'samesite' => 'Lax'
+    ]);
+    session_start();
+}
 if (!isset($_SESSION['user_id'])) {
     header('Location: index.php');
     exit();
@@ -520,9 +531,15 @@ if (!isset($_SESSION['user_id'])) {
             <span x-show="sidebarOpen"><span x-show="open === 'comp'">−</span><span x-show="open !== 'comp'">+</span></span>
           </button>
           <div class="ml-6 space-y-1 text-white/80" x-show="open === 'comp' && sidebarOpen" x-transition>
+            <!-- Compensation Overview link removed -->
             <a href="#" id="comp-plans-link" class="block hover:text-[#d4af37]">Compensation Plans</a>
             <a href="#" id="salary-adjust-link" class="block hover:text-[#d4af37]">Salary Adjustments</a>
             <a href="#" id="incentives-link" class="block hover:text-[#d4af37]">Incentives</a>
+            <a href="#" id="salary-grades-link" class="block hover:text-[#d4af37]">Salary Grades</a>
+            <a href="#" id="pay-bands-link" class="block hover:text-[#d4af37]">Pay Bands</a>
+            <a href="#" id="employee-mapping-link" class="block hover:text-[#d4af37]">Employee Mapping</a>
+            <a href="#" id="workflows-link" class="block hover:text-[#d4af37]">Workflows</a>
+            <a href="#" id="simulation-tools-link" class="block hover:text-[#d4af37]">Simulation Tools</a>
           </div>
         </div>
 
@@ -998,13 +1015,13 @@ if (!isset($_SESSION['user_id'])) {
    <script>
       // Set up user data from PHP session
       window.currentUser = {
-        user_id: '<?php echo $_SESSION['user_id'] ?? '1'; ?>',
-        employee_id: '<?php echo $_SESSION['employee_id'] ?? '1'; ?>',
-        username: '<?php echo $_SESSION['username'] ?? 'admin'; ?>',
-        full_name: '<?php echo $_SESSION['full_name'] ?? 'System Admin'; ?>',
-        role_id: '<?php echo $_SESSION['role_id'] ?? '1'; ?>',
-        role_name: '<?php echo $_SESSION['role_name'] ?? 'System Admin'; ?>',
-        hmo_enrollment: '<?php echo $_SESSION['hmo_enrollment'] ?? '1'; ?>'
+        user_id: <?php echo json_encode($_SESSION['user_id'] ?? '1'); ?>,
+        employee_id: <?php echo json_encode($_SESSION['employee_id'] ?? '1'); ?>,
+        username: <?php echo json_encode($_SESSION['username'] ?? 'admin'); ?>,
+        full_name: <?php echo json_encode($_SESSION['full_name'] ?? 'System Admin'); ?>,
+        role_id: <?php echo json_encode($_SESSION['role_id'] ?? '1'); ?>,
+        role_name: <?php echo json_encode($_SESSION['role_name'] ?? 'System Admin'); ?>,
+        hmo_enrollment: <?php echo json_encode($_SESSION['hmo_enrollment'] ?? '1'); ?>
       };
       
       console.log("User data set:", window.currentUser);
@@ -1032,10 +1049,17 @@ if (!isset($_SESSION['user_id'])) {
        try {
          const response = await fetch('php/api/get_dashboard_summary.php');
          console.log('API response status:', response.status);
-         const result = await response.json();
-         console.log('API response data:', result);
-         
-         if (result.success && result.data) {
+        const result = await response.json();
+        console.log('API response data:', result);
+
+        // If server indicates authentication required, redirect to login
+        if (response.status === 401 || (result && result.error && /auth/i.test(result.error))) {
+          console.info('Dashboard API requires authentication; redirecting to login.');
+          window.location.href = 'login.php';
+          return;
+        }
+
+        if (result.success && result.data) {
            const data = result.data;
            console.log('API data loaded successfully, updating stat cards...');
            // Update stat cards - check if elements exist first
@@ -1278,19 +1302,23 @@ if (!isset($_SESSION['user_id'])) {
 
        // Try to load real HMO enrollments as additional activity
        try {
-         const response = await fetch('php/api/get_hmo_enrollments.php');
+         const response = await fetch('php/api/hmo_enrollments.php', { credentials: 'include' });
          const data = await response.json();
          
          if (data.success && data.enrollments && data.enrollments.length > 0) {
            const recentEnrollment = data.enrollments[0];
+           const employeeName = `${recentEnrollment.FirstName || ''} ${recentEnrollment.LastName || ''}`.trim();
+           const planName = recentEnrollment.PlanName || 'N/A';
+           const enrollDate = recentEnrollment.EnrollmentDate || recentEnrollment.EffectiveDate || new Date().toISOString();
+           
            const enrollmentActivity = `
              <div class="flex items-start space-x-3 p-3 bg-white rounded-lg border border-gray-200 hover:shadow-sm transition-shadow">
                <div class="flex-shrink-0">
                  <div class="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
                </div>
                <div class="flex-1 min-w-0">
-                 <p class="text-sm text-gray-900">New HMO enrollment: ${recentEnrollment.employee_name} - ${recentEnrollment.plan_name}</p>
-                 <p class="text-xs text-gray-500 mt-1">${new Date(recentEnrollment.enrollment_date).toLocaleDateString()}</p>
+                 <p class="text-sm text-gray-900">New HMO enrollment: ${employeeName} - ${planName}</p>
+                 <p class="text-xs text-gray-500 mt-1">${new Date(enrollDate).toLocaleDateString()}</p>
             </div>
           </div>
         `;

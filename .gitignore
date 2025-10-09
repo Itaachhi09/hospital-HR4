@@ -1,0 +1,144 @@
+# ===================================
+# Hospital HR System - .gitignore
+# ===================================
+
+# ===== Environment & Configuration =====
+.env
+.env.local
+.env.production
+config.local.php
+api/.env
+
+# ===== Dependencies =====
+/vendor/
+/node_modules/
+composer.phar
+package-lock.json
+yarn.lock
+
+# ===== Logs =====
+*.log
+logs/
+*.log.*
+error_log
+php_errors.log
+access.log
+
+# ===== Temporary Files =====
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== Test Files =====
+test_*.php
+*_test.php
+check_*.php
+debug_*.php
+/tests/output/
+/coverage/
+
+# ===== Response & Debug Files =====
+response_*.txt
+cookies.txt
+*.response
+debug.txt
+
+# ===== Cache =====
+cache/
+*.cache
+/storage/cache/
+/var/cache/
+
+# ===== Sessions =====
+/sessions/
+/tmp/sessions/
+*.session
+
+# ===== Uploads & User Generated Content =====
+/uploads/temp/
+/uploads/tmp/
+*.uploaded
+
+# ===== IDE & Editor Files =====
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+.project
+.settings/
+*.code-workspace
+.phpintel/
+_ide_helper.php
+.phpstorm.meta.php
+
+# ===== OS Files =====
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ===== Backup Files =====
+*.backup
+*.backup.*
+*_backup.*
+backup/
+backups/
+*.old
+*_old.*
+(1).php
+(1).html
+(1).js
+
+# ===== Build & Compiled Files =====
+/dist/
+/build/
+*.min.js
+*.min.css
+*.map
+
+# ===== Documentation Build =====
+/docs/_build/
+/docs/.doctrees/
+
+# ===== Database =====
+*.sql.backup
+*.dump
+*.sqlite
+*.db-journal
+
+# ===== Composer =====
+/vendor/bin/
+composer.lock
+
+# ===== NPM/Yarn =====
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ===== Security =====
+*.pem
+*.key
+*.crt
+*.p12
+private_key*
+public_key*
+
+# ===== Misc =====
+*.pid
+*.seed
+*.pid.lock
+.npm
+.eslintcache
+.stylelintcache
+

@@ -90,7 +90,7 @@ try {
 function checkSchemaIntegrity($pdo) {
     try {
         // Check if key tables exist
-        $tables = ['Users', 'Roles', 'Employees', 'Departments', 'JobRoles'];
+        $tables = ['users', 'roles', 'employees', 'departments', 'job_roles'];
         foreach ($tables as $table) {
             $stmt = $pdo->query("SHOW TABLES LIKE '$table'");
             if ($stmt->rowCount() == 0) {

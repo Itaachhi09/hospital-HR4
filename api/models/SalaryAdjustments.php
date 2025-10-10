@@ -38,20 +38,45 @@ class SalaryAdjustments
             UpdatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             INDEX idx_emp (EmployeeID), INDEX idx_status (Status), INDEX idx_effective (EffectiveDate)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        
+        // Add missing columns if they don't exist
+        $columns = [
+            'DepartmentID' => "ALTER TABLE salary_adjustments ADD COLUMN DepartmentID INT NULL AFTER EmployeeID",
+            'GradeID' => "ALTER TABLE salary_adjustments ADD COLUMN GradeID INT NULL AFTER NewSalary",
+            'StepID' => "ALTER TABLE salary_adjustments ADD COLUMN StepID INT NULL AFTER GradeID",
+            'ReasonID' => "ALTER TABLE salary_adjustments ADD COLUMN ReasonID INT NULL AFTER StepID",
+            'Justification' => "ALTER TABLE salary_adjustments ADD COLUMN Justification TEXT NULL AFTER ReasonID",
+            'AttachmentURL' => "ALTER TABLE salary_adjustments ADD COLUMN AttachmentURL VARCHAR(255) NULL AFTER Justification",
+            'ReviewedBy' => "ALTER TABLE salary_adjustments ADD COLUMN ReviewedBy INT NULL AFTER InitiatedBy",
+            'ImplementedBy' => "ALTER TABLE salary_adjustments ADD COLUMN ImplementedBy INT NULL AFTER ApprovedBy"
+        ];
+        
+        foreach ($columns as $columnName => $alterSql) {
+            try {
+                $this->pdo->exec($alterSql);
+            } catch (\PDOException $e) {
+                // Column might already exist, that's fine
+            }
+        }
     }
 
     public function list($filters = [])
     {
-        $sql = "SELECT sa.*, CONCAT(e.FirstName,' ',e.LastName) AS EmployeeName, d.DepartmentName,
+        $sql = "SELECT sa.*, CONCAT(e.FirstName,' ',e.LastName) AS EmployeeName, 
+                       COALESCE(d.DepartmentName, ed.DepartmentName) AS DepartmentName,
                        ar.ReasonLabel
                 FROM salary_adjustments sa
                 LEFT JOIN employees e ON sa.EmployeeID=e.EmployeeID
                 LEFT JOIN departments d ON sa.DepartmentID=d.DepartmentID
+                LEFT JOIN departments ed ON e.DepartmentID=ed.DepartmentID
                 LEFT JOIN adjustment_reasons ar ON sa.ReasonID=ar.ReasonID
                 WHERE 1=1";
         $params = [];
         if (!empty($filters['status'])) { $sql .= " AND sa.Status=:s"; $params[':s']=$filters['status']; }
-        if (!empty($filters['department_id'])) { $sql .= " AND sa.DepartmentID=:d"; $params[':d']=$filters['department_id']; }
+        if (!empty($filters['department_id'])) { 
+            $sql .= " AND (sa.DepartmentID=:d OR e.DepartmentID=:d)"; 
+            $params[':d']=$filters['department_id']; 
+        }
         if (!empty($filters['start_date'])) { $sql .= " AND sa.EffectiveDate>=:sd"; $params[':sd']=$filters['start_date']; }
         if (!empty($filters['end_date'])) { $sql .= " AND sa.EffectiveDate<=:ed"; $params[':ed']=$filters['end_date']; }
         $sql .= " ORDER BY sa.CreatedAt DESC";

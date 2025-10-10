@@ -4,8 +4,8 @@
  * Validates current session and returns user information
  */
 
-// Use simplified session configuration
-require_once __DIR__ . '/../session_config_simple.php';
+// Use stable session configuration
+require_once __DIR__ . '/../session_config_stable.php';
 
 // Set JSON response headers
 header('Content-Type: application/json');

@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../../utils.js';
+import { REST_API_URL } from '../../utils.js';
 
 export async function renderHMOEnrollments(containerId='main-content-area'){
     const container = document.getElementById(containerId); 
@@ -15,7 +15,7 @@ export async function renderHMOEnrollments(containerId='main-content-area'){
     `;
 
     try{
-        const res = await fetch(`${API_BASE_URL}hmo_enrollments.php`, { credentials:'include' });
+        const res = await fetch(`${REST_API_URL}hmo/enrollments`, { credentials:'include' });
         if (!res.ok) {
             const text = await res.text();
             console.error('API Error Response:', text);
@@ -164,14 +164,14 @@ export async function renderHMOEnrollments(containerId='main-content-area'){
         document.getElementById('export-enrollments')?.addEventListener('click', ()=>exportEnrollmentsToCSV(enrollments));
         container.querySelectorAll('.edit-enrollment').forEach(b=>b.addEventListener('click', async ev=>{ const id = ev.target.dataset.id; if (!id) return; showEditEnrollmentModal(id, containerId); }));
         container.querySelectorAll('.terminate-enrollment').forEach(b=>b.addEventListener('click', async ev=>{
-            const id = ev.target.dataset.id; if (!confirm('Terminate enrollment?')) return; const r = await fetch(`${API_BASE_URL}hmo_enrollments.php?id=${id}`, { method:'PUT', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({status:'Terminated'}) }); const j = await r.json(); if (j.success) renderHMOEnrollments(containerId); else alert(j.error||'Failed');
+            const id = ev.target.dataset.id; if (!confirm('Terminate enrollment?')) return; const r = await fetch(`${REST_API_URL}hmo/enrollments?id=${id}`, { method:'PUT', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify({status:'Terminated'}) }); const j = await r.json(); if (j.success) renderHMOEnrollments(containerId); else alert(j.error||'Failed');
         }));
         container.querySelectorAll('.delete-enrollment').forEach(b=>b.addEventListener('click', async ev=>{
             const id = ev.target.dataset.id;
             
             // Get enrollment details first
             try {
-                const response = await fetch(`${API_BASE_URL}hmo_enrollments.php?id=${id}`, { 
+                const response = await fetch(`${REST_API_URL}hmo/enrollments?id=${id}`, { 
                     credentials: 'include' 
                 });
                 const data = await response.json();
@@ -190,7 +190,7 @@ export async function renderHMOEnrollments(containerId='main-content-area'){
                 }
 
                 try {
-                    const r = await fetch(`${API_BASE_URL}hmo_enrollments.php?id=${id}`, { 
+                    const r = await fetch(`${REST_API_URL}hmo/enrollments?id=${id}`, { 
                         method: 'DELETE', 
                         credentials: 'include' 
                     });
@@ -280,8 +280,8 @@ function exportEnrollmentsToCSV(enrollments) {
 
 export async function showAddEnrollmentModal(containerId='main-content-area'){
     // Load plans list and employees for selection
-    const pres = await fetch(`${API_BASE_URL}hmo_plans.php`, { credentials:'include' }); const pdata = await pres.json(); const plans = pdata.plans||[];
-    const eres = await fetch(`${API_BASE_URL}get_employees.php`, { credentials:'include' }); const employees = await eres.json();
+    const pres = await fetch(`${REST_API_URL}hmo/plans`, { credentials:'include' }); const pdata = await pres.json(); const plans = pdata.plans||[];
+    const eres = await fetch(`${LEGACY_API_URL}get_employees.php`, { credentials:'include' }); const employees = await eres.json();
     const container = document.getElementById('modalContainer'); if (!container) return;
     container.innerHTML = `
         <div id="add-enrollment-overlay" class="fixed inset-0 z-60 flex items-center justify-center bg-black/40">
@@ -325,18 +325,18 @@ export async function showAddEnrollmentModal(containerId='main-content-area'){
     document.getElementById('add-enrollment-cancel')?.addEventListener('click', ()=>{ document.getElementById('add-enrollment-overlay')?.remove(); });
     document.getElementById('addEnrollmentForm')?.addEventListener('submit', async e=>{
         e.preventDefault(); const fd = new FormData(e.target); const payload = {}; fd.forEach((v,k)=>payload[k]=v);
-        const res = await fetch(`${API_BASE_URL}hmo_enrollments.php`, { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); const j = await res.json(); if (j.success) { document.getElementById('add-enrollment-overlay')?.remove(); renderHMOEnrollments(containerId); } else alert(j.error||'Failed');
+        const res = await fetch(`${REST_API_URL}hmo/enrollments`, { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); const j = await res.json(); if (j.success) { document.getElementById('add-enrollment-overlay')?.remove(); renderHMOEnrollments(containerId); } else alert(j.error||'Failed');
     });
 }
 
 export async function showEditEnrollmentModal(id, containerId='main-content-area'){
     const container = document.getElementById('modalContainer'); if (!container) return;
     try{
-        const r = await fetch(`${API_BASE_URL}hmo_enrollments.php?id=${id}`, { credentials:'include' }); const data = await r.json(); const e = data.enrollment||{};
-        const pres = await fetch(`${API_BASE_URL}hmo_plans.php`, { credentials:'include' }); const pdata = await pres.json(); const plans = pdata.plans||[];
+        const r = await fetch(`${REST_API_URL}hmo/enrollments?id=${id}`, { credentials:'include' }); const data = await r.json(); const e = data.enrollment||{};
+        const pres = await fetch(`${REST_API_URL}hmo/plans`, { credentials:'include' }); const pdata = await pres.json(); const plans = pdata.plans||[];
         const planOptions = plans.map(p=>`<option value="${p.PlanID}" ${p.PlanID==e.PlanID?'selected':''}>${p.PlanName} (${p.ProviderName||''})</option>`).join('');
         // fetch employees for dropdown
-        const eres = await fetch(`${API_BASE_URL}get_employees.php`, { credentials:'include' });
+        const eres = await fetch(`${LEGACY_API_URL}get_employees.php`, { credentials:'include' });
         const employees = await eres.json();
         const employeeOptions = (Array.isArray(employees)?employees:[]).map(emp => {
             const name = (emp.FirstName?emp.FirstName:'') + (emp.LastName?(' '+emp.LastName):'');
@@ -390,7 +390,7 @@ export async function showEditEnrollmentModal(id, containerId='main-content-area
         document.getElementById('edit-enrollment-cancel')?.addEventListener('click', ()=>{ document.getElementById('edit-enrollment-overlay')?.remove(); });
         document.getElementById('editEnrollmentForm')?.addEventListener('submit', async e2=>{
             e2.preventDefault(); const fd = new FormData(e2.target); const payload = {}; fd.forEach((v,k)=>payload[k]=v);
-            const res2 = await fetch(`${API_BASE_URL}hmo_enrollments.php?id=${id}`, { method:'PUT', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); const j2 = await res2.json(); if (j2.success) { document.getElementById('edit-enrollment-overlay')?.remove(); renderHMOEnrollments(containerId); } else alert(j2.error||'Failed');
+            const res2 = await fetch(`${REST_API_URL}hmo/enrollments?id=${id}`, { method:'PUT', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); const j2 = await res2.json(); if (j2.success) { document.getElementById('edit-enrollment-overlay')?.remove(); renderHMOEnrollments(containerId); } else alert(j2.error||'Failed');
         });
     }catch(e){console.error(e); alert('Failed to load enrollment');}
 }

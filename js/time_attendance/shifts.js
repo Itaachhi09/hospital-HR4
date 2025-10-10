@@ -3,7 +3,7 @@
  * v2.1 - Integrated SweetAlert for notifications in Add Shift modal.
  * v2.0 - Integrated modal for adding new shifts.
  */
-import { API_BASE_URL } from '../utils.js'; // Import base URL
+import { LEGACY_API_URL } from '../utils.js'; // Import base URL
 
 // --- DOM Element References ---
 let pageTitleElement;
@@ -135,7 +135,7 @@ async function loadShifts() {
     const container = document.getElementById('shifts-list-container');
     if (!container) return;
     container.innerHTML = '<p class="text-center py-4">Loading shifts...</p>';
-    const url = `${API_BASE_URL}get_shifts.php`;
+    const url = `${LEGACY_API_URL}get_shifts.php`;
     try {
         const response = await fetch(url);
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -234,7 +234,7 @@ async function handleAddShift(event) {
     submitButton.disabled = true;
 
     try {
-        const response = await fetch(`${API_BASE_URL}add_shift.php`, {
+        const response = await fetch(`${LEGACY_API_URL}add_shift.php`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData)
         });
         const result = await response.json();

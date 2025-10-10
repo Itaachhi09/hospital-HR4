@@ -110,7 +110,7 @@ async function populateClaimTypeDropdown(selectElementId) {
     selectElement.innerHTML = '<option value="" disabled selected>Loading claim types...</option>';
 
     try {
-        const response = await fetch(`${API_BASE_URL}get_claim_types.php`);
+        const response = await fetch(`${LEGACY_API_URL}get_claim_types.php`);
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         const claimTypes = await response.json();
 
@@ -151,7 +151,7 @@ async function handleSubmitClaim(event) {
     submitButton.disabled = true;
 
     try {
-        const response = await fetch(`${API_BASE_URL}submit_claim.php`, {
+        const response = await fetch(`${LEGACY_API_URL}submit_claim.php`, {
             method: 'POST',
             body: formData
         });
@@ -303,7 +303,7 @@ async function loadMyClaims(status = null) {
         params.append('status', status);
     }
 
-    const url = `${API_BASE_URL}get_claims.php?${params.toString()}`;
+    const url = `${LEGACY_API_URL}get_claims.php?${params.toString()}`;
 
     try {
         const response = await fetch(url);
@@ -467,7 +467,7 @@ async function loadClaimsForApproval(employeeId = null) {
         params.append('employee_id', employeeId);
     }
 
-    const url = `${API_BASE_URL}get_claims.php?${params.toString()}`;
+    const url = `${LEGACY_API_URL}get_claims.php?${params.toString()}`;
     
     try {
         const response = await fetch(url);
@@ -643,7 +643,7 @@ async function updateClaimStatus(claimId, newStatus, comments = null) {
     });
 
     try {
-        const response = await fetch(`${API_BASE_URL}update_claims_status.php`, {
+        const response = await fetch(`${LEGACY_API_URL}update_claims_status.php`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -789,7 +789,7 @@ async function loadClaimTypesForAdmin() {
     if (!container) return;
     container.innerHTML = '<p class="text-center py-4">Loading claim types...</p>';
 
-    const url = `${API_BASE_URL}get_claim_types.php`;
+    const url = `${LEGACY_API_URL}get_claim_types.php`;
 
     try {
         const response = await fetch(url);
@@ -953,7 +953,7 @@ async function handleSaveClaimType(event) {
     }
 
     const isEditing = !!claimTypeId;
-    const url = isEditing ? `${API_BASE_URL}update_claim_type.php` : `${API_BASE_URL}add_claim_type.php`;
+    const url = isEditing ? `${LEGACY_API_URL}update_claim_type.php` : `${LEGACY_API_URL}add_claim_type.php`;
     const method = 'POST';
 
     const formData = {
@@ -1034,7 +1034,7 @@ async function deleteClaimType(claimTypeId) {
     });
 
     try {
-        const response = await fetch(`${API_BASE_URL}delete_claim_type.php`, {
+        const response = await fetch(`${LEGACY_API_URL}delete_claim_type.php`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ claim_type_id: parseInt(claimTypeId) })

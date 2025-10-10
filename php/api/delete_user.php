@@ -10,7 +10,8 @@ ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 // ini_set('error_log', '/path/to/your/php-error.log');
 
-session_start(); // Needed for authorization check
+// Use stable session configuration (BEFORE any output)
+require_once __DIR__ . '/../session_config_stable.php';
 
 // Check if user is authenticated
 if (!isset($_SESSION['user_id']) || $_SESSION['user_id'] <= 0) {

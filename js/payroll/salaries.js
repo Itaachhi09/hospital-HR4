@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../config.js';
+import { REST_API_URL } from '../config.js';
 import './shared-modals.js';
 
 /**
@@ -261,7 +261,7 @@ async function loadSalaries() {
     params.set('limit', '50');
 
     try {
-        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/salaries?${params}`, {
+        const response = await fetch(`${REST_API_URL}salaries?${params}`, {
             credentials: 'include',
             headers: {
                 'Content-Type': 'application/json',
@@ -455,7 +455,7 @@ async function loadFilterOptions() {
  */
 async function viewSalaryDetails(employeeId) {
     try {
-        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/salaries/${employeeId}/summary`, {
+        const response = await fetch(`${REST_API_URL}salaries/${employeeId}/summary`, {
             credentials: 'include',
             headers: {
                 'Content-Type': 'application/json',
@@ -571,7 +571,7 @@ async function viewSalaryDetails(employeeId) {
  */
 async function viewEmployeeDeductions(employeeId) {
     try {
-        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/salaries/${employeeId}/deductions`, {
+        const response = await fetch(`${REST_API_URL}salaries/${employeeId}/deductions`, {
             credentials: 'include',
              headers: {
                 'Content-Type': 'application/json',
@@ -632,7 +632,7 @@ async function viewEmployeeDeductions(employeeId) {
  */
 async function showSalaryComparison() {
     try {
-        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/salaries/comparison`, {
+        const response = await fetch(`${REST_API_URL}salaries/comparison`, {
             credentials: 'include',
             headers: {
                 'Content-Type': 'application/json',
@@ -846,7 +846,7 @@ function showSalaryComparisonModal() {
 
 async function loadSalaryComparison() {
     try {
-        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/salaries/comparison`, {
+        const response = await fetch(`${REST_API_URL}salaries/comparison`, {
             credentials: 'include',
             headers: {
                 'Content-Type': 'application/json',

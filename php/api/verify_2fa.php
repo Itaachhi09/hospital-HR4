@@ -10,8 +10,8 @@ ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 // ini_set('error_log', '/path/to/your/php-error.log');
 
-// Use simplified session configuration
-require_once __DIR__ . '/../session_config_simple.php';
+// Use stable session configuration
+require_once __DIR__ . '/../session_config_stable.php';
 
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *'); // Adjust for production
@@ -122,8 +122,8 @@ try {
         // Regenerate session ID for security (prevent session fixation)
         session_regenerate_id(true);
         
-        // Clear any previous session data
-        $_SESSION = array();
+        // Don't clear session data - just set the new user data
+        // $_SESSION = array(); // REMOVED - this was clearing session config data
         
         // Store user information in session
         $_SESSION['user_id'] = $user['UserID'];

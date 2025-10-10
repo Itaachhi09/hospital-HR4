@@ -1,40 +1,160 @@
-import { API_BASE_URL } from '../../utils.js';
+import { REST_API_URL } from '../../utils.js';
 
 export async function renderHMODashboard(containerId='main-content-area'){
     const container = document.getElementById(containerId); if (!container) return;
+    
+    // Show loading state
+    container.innerHTML = `
+        <div class="flex items-center justify-center py-12">
+            <div class="text-center">
+                <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+                <p class="text-gray-500 mt-4">Loading HMO dashboard...</p>
+            </div>
+        </div>
+    `;
+    
     try{
-    const res = await fetch(`${API_BASE_URL}hmo_dashboard.php`, { credentials:'include' }); const data = await res.json(); const s = data.summary||{};
+        const res = await fetch(`${REST_API_URL}hmo/dashboard`, { credentials:'include' }); 
+        if (!res.ok) {
+            throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        }
+        const response = await res.json(); 
+        const s = response.data || response.summary || {};
+        
         container.innerHTML = `
-            <div class="p-6">
-                <h2 class="text-2xl font-semibold mb-4">HMO Dashboard</h2>
-                <div class="grid grid-cols-4 gap-4">
-                    <div id="hmo-active-providers-card" class="p-4 bg-white rounded shadow cursor-pointer" title="View Providers">Active Providers<br/><strong>${s.total_active_providers||s.providers||0}</strong></div>
-                    <div id="hmo-active-plans-card" class="p-4 bg-white rounded shadow cursor-pointer" title="View Plans">Active Plans<br/><strong>${s.total_active_plans||s.plans||0}</strong></div>
-                    <div id="hmo-enrolled-employees-card" class="p-4 bg-white rounded shadow cursor-pointer" title="View Enrollments">Enrolled Employees<br/><strong>${s.total_enrolled_employees||s.active_enrollments||0}</strong></div>
-                    <div id="hmo-pending-claims-card" class="p-4 bg-white rounded shadow cursor-pointer" title="View Pending Claims">Pending Claims<br/><strong>${(s.claims&&s.claims.pending)||s.pending_claims||0}</strong></div>
-                </div>
-                <div class="mt-6 bg-white p-4 rounded shadow"><h3 class="font-semibold">Claims Summary</h3>
-                    <div>Approved: ${(s.claims&&s.claims.approved)||s.approved_claims||0} | Pending: ${(s.claims&&s.claims.pending)||s.pending_claims||0} | Denied: ${(s.claims&&s.claims.denied)||s.denied_claims||0}</div>
-                </div>
-                <div class="mt-6 grid grid-cols-2 gap-4">
-                    <div class="bg-white p-4 rounded shadow">
-                        <h4 class="font-semibold">Monthly Claims Trend</h4>
-                        <canvas id="hmo-monthly-claims-chart" height="160"></canvas>
-                    </div>
-                    <div class="bg-white p-4 rounded shadow">
-                        <h4 class="font-semibold">Top Hospitals</h4>
-                        <canvas id="hmo-top-hospitals-chart" height="160"></canvas>
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                <!-- Enhanced Header -->
+                <div class="bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-6 py-4 rounded-t-lg">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <h2 class="text-2xl font-bold mb-1">HMO Dashboard</h2>
+                            <p class="text-sm text-purple-100">Overview of health insurance benefits and claims</p>
+                        </div>
+                        <div class="flex items-center space-x-3">
+                            <button id="refresh-dashboard" class="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition duration-150 ease-in-out flex items-center space-x-2">
+                                <i class="fas fa-sync-alt"></i>
+                                <span>Refresh</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
-                <div class="mt-6 bg-white p-4 rounded shadow">
-                    <h4 class="font-semibold">Plan Utilization</h4>
-                    <canvas id="hmo-plan-utilization-chart" height="80"></canvas>
+
+                <!-- Key Metrics Cards -->
+                <div class="px-6 py-6 bg-gray-50 border-b border-gray-200">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div id="hmo-active-providers-card" class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 cursor-pointer hover:shadow-md transition duration-150 ease-in-out" title="View Providers">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-600 mb-1">Active Providers</p>
+                                    <p class="text-2xl font-bold text-gray-900">${s.total_providers||0}</p>
+                                </div>
+                                <div class="bg-purple-100 rounded-full p-3">
+                                    <i class="fas fa-hospital text-purple-600 text-xl"></i>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div id="hmo-active-plans-card" class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 cursor-pointer hover:shadow-md transition duration-150 ease-in-out" title="View Plans">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-600 mb-1">Active Plans</p>
+                                    <p class="text-2xl font-bold text-gray-900">${s.total_plans||0}</p>
+                                </div>
+                                <div class="bg-blue-100 rounded-full p-3">
+                                    <i class="fas fa-file-medical text-blue-600 text-xl"></i>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div id="hmo-enrolled-employees-card" class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 cursor-pointer hover:shadow-md transition duration-150 ease-in-out" title="View Enrollments">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-600 mb-1">Enrolled Employees</p>
+                                    <p class="text-2xl font-bold text-gray-900">${s.total_enrollments||0}</p>
+                                </div>
+                                <div class="bg-green-100 rounded-full p-3">
+                                    <i class="fas fa-users text-green-600 text-xl"></i>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div id="hmo-pending-claims-card" class="bg-white rounded-lg shadow-sm border border-gray-200 p-4 cursor-pointer hover:shadow-md transition duration-150 ease-in-out" title="View Pending Claims">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-600 mb-1">Pending Claims</p>
+                                    <p class="text-2xl font-bold text-yellow-600">${s.pending_claims||0}</p>
+                                </div>
+                                <div class="bg-yellow-100 rounded-full p-3">
+                                    <i class="fas fa-clock text-yellow-600 text-xl"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                ${( (s.total_active_providers||s.providers||0) === 0 ) && ( (s.total_active_plans||s.plans||0) === 0 ) ? `
-                    <div class="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded text-sm text-yellow-800">No HMO providers or plans found. Import <code>database/hmo_schema_and_seed.sql</code> or add providers & plans from the HMO module to populate data for the dashboard.</div>
+
+                <!-- Claims Summary -->
+                <div class="px-6 py-4 bg-white border-b border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-3">Claims Summary</h3>
+                    <div class="flex items-center space-x-6">
+                        <div class="flex items-center space-x-2">
+                            <i class="fas fa-check-circle text-green-600"></i>
+                            <span class="text-sm text-gray-600">Approved:</span>
+                            <span class="font-semibold text-green-600">${s.approved_claims||0}</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <i class="fas fa-clock text-yellow-600"></i>
+                            <span class="text-sm text-gray-600">Pending:</span>
+                            <span class="font-semibold text-yellow-600">${s.pending_claims||0}</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <i class="fas fa-times-circle text-red-600"></i>
+                            <span class="text-sm text-gray-600">Denied:</span>
+                            <span class="font-semibold text-red-600">${s.denied_claims||0}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Section -->
+                <div class="px-6 py-6">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                            <h4 class="text-md font-semibold text-gray-900 mb-3">Monthly Claims Trend</h4>
+                            <div style="height: 220px;">
+                                <canvas id="hmo-monthly-claims-chart"></canvas>
+                            </div>
+                        </div>
+                        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                            <h4 class="text-md font-semibold text-gray-900 mb-3">Top Hospitals</h4>
+                            <div style="height: 220px;">
+                                <canvas id="hmo-top-hospitals-chart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                        <h4 class="text-md font-semibold text-gray-900 mb-3">Plan Utilization</h4>
+                        <div style="height: 180px;">
+                            <canvas id="hmo-plan-utilization-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                ${( (s.total_providers||0) === 0 ) && ( (s.total_plans||0) === 0 ) ? `
+                    <div class="mx-6 mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <div class="flex items-center space-x-3">
+                            <i class="fas fa-info-circle text-yellow-600 text-xl"></i>
+                            <div>
+                                <p class="text-sm font-medium text-yellow-800">No HMO Data Found</p>
+                                <p class="text-xs text-yellow-700 mt-1">Import <code class="bg-yellow-100 px-1 rounded">database/hmo_schema_and_seed.sql</code> or add providers & plans from the HMO module.</p>
+                            </div>
+                        </div>
+                    </div>
                 `: ''}
             </div>
         `;
+        // Wire refresh button
+        document.getElementById('refresh-dashboard')?.addEventListener('click', () => renderHMODashboard(containerId));
+        
         // draw charts after DOM updated
         setTimeout(()=>{ if (document.getElementById('hmo-monthly-claims-chart')) drawHMOCharts(); }, 250);
 
@@ -94,12 +214,25 @@ export async function renderHMODashboard(containerId='main-content-area'){
         } catch (e) {
             console.warn('HMO dashboard handler attachment failed:', e);
         }
-    }catch(e){console.error(e); container.innerHTML='<div class="p-6">Error loading dashboard</div>'}
+    }catch(e){
+        console.error(e); 
+        container.innerHTML = `
+            <div class="bg-white rounded-lg shadow-sm border border-red-200 p-6">
+                <div class="flex items-center space-x-3 text-red-600">
+                    <i class="fas fa-exclamation-circle text-2xl"></i>
+                    <div>
+                        <h3 class="text-lg font-semibold">Error Loading Dashboard</h3>
+                        <p class="text-sm text-red-500 mt-1">${e.message}</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
 }
 // chart bootstrapper
 async function drawHMOCharts(){
     try{
-        const base = `${API_BASE_URL}hmo_dashboard.php`;
+        const base = `${REST_API_URL}hmo/dashboard`;
         const mc = await fetch(base+'?mode=monthly_claims', { credentials:'include' }); const mcj = await mc.json(); const monthly = mcj.monthly_claims||[];
         const th = await fetch(base+'?mode=top_hospitals', { credentials:'include' }); const thj = await th.json(); const top = thj.top_hospitals||[];
         const pu = await fetch(base+'?mode=plan_utilization', { credentials:'include' }); const puj = await pu.json(); const plans = puj.plan_utilization||[];

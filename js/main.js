@@ -865,8 +865,8 @@ export async function initializeApp() {
         console.log("Logout initiated...");
 
         try {
-            console.log("Making logout request to:", `${API_BASE_URL}logout.php`);
-            const response = await fetch(`${API_BASE_URL}logout.php`, {
+            console.log("Making logout request to:", `${API_BASE_URL}auth/logout`);
+            const response = await fetch(`${API_BASE_URL}auth/logout`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -1581,8 +1581,8 @@ export async function initializeApp() {
 
     // --- SESSION CHECK AND APP INITIALIZATION ---
     // Check if user has an active session
-    console.log("Checking session at:", `${API_BASE_URL}check_session.php`);
-    fetch(`${API_BASE_URL}check_session.php`, {
+    console.log("Checking session at:", `${API_BASE_URL}auth/check-session`);
+    fetch(`${API_BASE_URL}auth/check-session`, {
         method: 'GET',
         credentials: 'include'
     })
@@ -1592,15 +1592,29 @@ export async function initializeApp() {
         })
         .then(data => {
             console.log("Session check data:", data);
-            if (data && data.logged_in && data.user && data.user.user_id) {
+            // Handle both legacy and new API response formats
+            let loggedIn = false;
+            let userData = null;
+            
+            if (data && data.logged_in !== undefined) {
+                // Legacy API format: {logged_in: true, user: {...}}
+                loggedIn = data.logged_in;
+                userData = data.user;
+            } else if (data && data.success && data.data && data.data.logged_in !== undefined) {
+                // New API format: {success: true, data: {logged_in: true, user: {...}}}
+                loggedIn = data.data.logged_in;
+                userData = data.data.user;
+            }
+            
+            if (loggedIn && userData && userData.user_id) {
                 window.currentUser = {
-                    user_id: data.user.user_id,
-                    employee_id: data.user.employee_id,
-                    username: data.user.username,
-                    full_name: data.user.full_name,
-                    role_id: data.user.role_id,
-                    role_name: data.user.role_name,
-                    hmo_enrollment: data.user.hmo_enrollment
+                    user_id: userData.user_id,
+                    employee_id: userData.employee_id,
+                    username: userData.username,
+                    full_name: userData.full_name,
+                    role_id: userData.role_id,
+                    role_name: userData.role_name,
+                    hmo_enrollment: userData.hmo_enrollment
                 };
                 showAppUI();
                 updateUserDisplay(window.currentUser);

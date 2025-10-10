@@ -25,10 +25,8 @@ class HRCoreController {
     }
 
     public function handleRequest($method, $id = null, $subResource = null) {
-        // Start session for authentication
-        if (session_status() !== PHP_SESSION_ACTIVE) {
-            session_start();
-        }
+        // Session already started by main API router (index.php)
+        // No need to start it here
         
         // Temporarily bypass authentication for testing
         // TODO: Re-enable authentication once session sharing is fixed
@@ -84,12 +82,11 @@ class HRCoreController {
     }
 
     private function listDocuments() {
-        $request = new Request();
         $filters = [
-            'module_origin' => $request->getData('module_origin'),
-            'category' => $request->getData('category'),
-            'search' => $request->getData('search'),
-            'status' => $request->getData('status', 'active')
+            'module_origin' => Request::getQueryParam('module_origin'),
+            'category' => Request::getQueryParam('category'),
+            'search' => Request::getQueryParam('search'),
+            'status' => Request::getQueryParam('status', 'active')
         ];
 
         $documents = $this->hrCoreModel->listAll($filters);

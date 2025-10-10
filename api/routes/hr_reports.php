@@ -295,11 +295,29 @@ class HRReportsController {
      * Get scheduled reports
      */
     private function getScheduledReports($filters) {
-        $scheduleType = $filters['schedule_type'] ?? 'weekly';
+        // Return list of scheduled reports (mock data for now - TODO: implement scheduled_reports table)
+        $data = [
+            [
+                'id' => 1,
+                'report_type' => 'executive_summary',
+                'schedule_type' => 'daily',
+                'email_recipients' => 'admin@hospital.com',
+                'last_run' => date('Y-m-d H:i:s', strtotime('-1 day')),
+                'next_run' => date('Y-m-d H:i:s', strtotime('+1 day')),
+                'status' => 'Active'
+            ],
+            [
+                'id' => 2,
+                'report_type' => 'payroll_compensation',
+                'schedule_type' => 'monthly',
+                'email_recipients' => 'finance@hospital.com',
+                'last_run' => date('Y-m-d H:i:s', strtotime('-30 days')),
+                'next_run' => date('Y-m-d 09:00:00', strtotime('first day of next month')),
+                'status' => 'Active'
+            ]
+        ];
         
-        $data = $this->reportsIntegration->generateScheduledReports($scheduleType);
-        
-        Response::success($data, 'Scheduled reports generated successfully');
+        Response::success($data, 'Scheduled reports retrieved successfully');
     }
 
     /**

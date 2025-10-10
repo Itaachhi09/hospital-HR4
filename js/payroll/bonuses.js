@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../config.js';
+import { REST_API_URL } from '../config.js';
 import './shared-modals.js';
 
 /**
@@ -343,7 +343,7 @@ async function loadBonuses() {
     params.set('limit', '50');
 
     try {
-        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/bonuses?${params}`, {
+        const response = await fetch(`${REST_API_URL}bonuses?${params}`, {
             credentials: 'include',
             headers: {
                 'Content-Type': 'application/json',
@@ -558,7 +558,7 @@ function getBonusTypeBadgeClass(bonusType) {
  */
 async function viewBonusDetails(bonusId) {
     try {
-        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/bonuses/${bonusId}`, {
+        const response = await fetch(`${REST_API_URL}bonuses/${bonusId}`, {
             credentials: 'include',
             headers: {
                 'Content-Type': 'application/json',
@@ -638,7 +638,7 @@ async function handleAddBonus(event) {
     const data = Object.fromEntries(formData.entries());
     
     try {
-        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/bonuses/manual`, {
+        const response = await fetch(`${REST_API_URL}bonuses/manual`, {
             method: 'POST',
             credentials: 'include',
              headers: {
@@ -680,7 +680,7 @@ async function executeBonusComputation() {
     }
     
     try {
-        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/bonuses/compute`, {
+        const response = await fetch(`${REST_API_URL}bonuses/compute`, {
             method: 'POST',
             credentials: 'include',
             headers: {

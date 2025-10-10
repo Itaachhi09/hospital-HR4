@@ -7,9 +7,13 @@
 class Department {
     private $pdo;
 
-    public function __construct() {
-        global $pdo;
-        $this->pdo = $pdo;
+    public function __construct($pdo = null) {
+        if ($pdo) {
+            $this->pdo = $pdo;
+        } else {
+            global $pdo;
+            $this->pdo = $pdo;
+        }
     }
 
     /**

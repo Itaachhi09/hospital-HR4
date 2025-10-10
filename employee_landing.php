@@ -1,6 +1,6 @@
 <?php
-// Use simplified session configuration
-require_once __DIR__ . '/php/session_config_simple.php';
+// Use stable session configuration
+require_once __DIR__ . '/php/session_config_stable.php';
 
 // Require authentication - redirect to login if not authenticated
 require_auth('index.php');

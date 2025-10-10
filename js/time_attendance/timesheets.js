@@ -202,7 +202,7 @@ async function loadTimesheets(employeeId = null, status = null) {
     if (employeeId) params.append('employee_id', employeeId);
     if (status) params.append('status', status);
     
-    const url = `${API_BASE_URL}get_timesheets.php?${params.toString()}`;
+    const url = `${LEGACY_API_URL}get_timesheets.php?${params.toString()}`;
 
     try {
         const response = await fetch(url);
@@ -342,7 +342,7 @@ async function handleAddTimesheet(event) {
     submitButton.disabled = true;
 
     try {
-        const response = await fetch(`${API_BASE_URL}add_timesheet.php`, {
+        const response = await fetch(`${LEGACY_API_URL}add_timesheet.php`, {
             method: 'POST',
              headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(formData) 
@@ -422,7 +422,7 @@ async function handleViewTimesheet(timesheetId) {
     modal.classList.add('flex'); 
 
     try {
-        const response = await fetch(`${API_BASE_URL}get_timesheet_details.php?id=${timesheetId}`);
+        const response = await fetch(`${LEGACY_API_URL}get_timesheet_details.php?id=${timesheetId}`);
         const details = await handleApiResponse(response); // Use centralized handler
         console.log("Fetched Timesheet Details:", details); // Log the details
 
@@ -496,7 +496,7 @@ async function updateTimesheetStatus(timesheetId, status) {
         didOpen: () => { Swal.showLoading(); }
     });
     try {
-        const response = await fetch(`${API_BASE_URL}update_timesheet_status.php`, {
+        const response = await fetch(`${LEGACY_API_URL}update_timesheet_status.php`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ timesheet_id: parseInt(timesheetId), status: status }) 

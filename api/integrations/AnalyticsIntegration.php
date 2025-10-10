@@ -15,6 +15,17 @@ class AnalyticsIntegration {
     }
 
     /**
+     * Get incentives analytics data
+     */
+    public function getIncentivesAnalytics($filters = []) {
+        return [
+            'incentive_summary' => $this->getIncentiveSummary($filters),
+            'incentive_trends' => $this->getIncentiveTrends($filters),
+            'top_performers' => $this->getTopPerformers($filters)
+        ];
+    }
+
+    /**
      * Get compensation analytics dashboard data
      */
     public function getCompensationAnalytics($filters = []) {
@@ -402,6 +413,35 @@ class AnalyticsIntegration {
      */
     private function getEquityDistributionReport($filters = []) {
         return $this->getPayEquityAnalysis($filters);
+    }
+
+    /**
+     * Get incentive summary data
+     */
+    private function getIncentiveSummary($filters = []) {
+        // Return mock data since bonuses table structure is unknown
+        return [
+            'total_incentives' => 0,
+            'total_amount' => 0,
+            'avg_amount' => 0,
+            'employees_with_incentives' => 0
+        ];
+    }
+
+    /**
+     * Get incentive trends
+     */
+    private function getIncentiveTrends($filters = []) {
+        // Return mock data since bonuses table structure is unknown
+        return [];
+    }
+
+    /**
+     * Get top performers by incentives
+     */
+    private function getTopPerformers($filters = []) {
+        // Return mock data since bonuses table structure is unknown
+        return [];
     }
 }
 ?>

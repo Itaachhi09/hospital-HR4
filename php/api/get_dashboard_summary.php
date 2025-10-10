@@ -5,7 +5,8 @@ ini_set('log_errors', 1);
 // Ensure this path is writable by the web server:
 // ini_set('error_log', __DIR__ . '/../../php-error.log'); 
 
-session_start();
+// Use stable session configuration (BEFORE any output)
+require_once __DIR__ . '/../session_config_stable.php';
 
 header('Content-Type: application/json');
 

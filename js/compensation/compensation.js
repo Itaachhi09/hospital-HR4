@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../config.js';
+import { API_BASE_URL, REST_API_URL } from '../config.js';
 
 // Helper: set page title and main container reference
 function setPage(title) {
@@ -10,7 +10,7 @@ function setPage(title) {
 
 // Helper: generic fetch wrapper for API v2 router (api/index.php)
 async function apiFetch(path, options = {}) {
-    const url = `${API_BASE_URL.replace('php/api/', 'api')}${path}`;
+    const url = `${REST_API_URL}${path}`;
     const resp = await fetch(url, {
         credentials: 'include',
         headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
@@ -79,10 +79,10 @@ async function loadPlansIntoUI() {
         // Prefer REST api if available; fallback to legacy php endpoints
         let plans = [];
         try {
-            const rest = await apiFetch('/compensation-planning/plans');
+            const rest = await apiFetch('compensation-planning/plans');
             plans = Array.isArray(rest) ? rest : (rest?.data || []);
         } catch (e) {
-            const resp = await fetch(`${API_BASE_URL}get_compensation_plans.php`, { credentials:'include' });
+            const resp = await fetch(`${LEGACY_API_URL}get_compensation_plans.php`, { credentials:'include' });
             if (resp.ok) plans = await resp.json();
         }
 
@@ -174,9 +174,9 @@ function openCreatePlanModal() {
             };
             // Prefer REST; fallback to php endpoint
             try {
-                await apiFetch('/compensation-planning/plans', { method: 'POST', body: JSON.stringify(payload) });
+                await apiFetch('compensation-planning/plans', { method: 'POST', body: JSON.stringify(payload) });
             } catch (e) {
-                const resp = await fetch(`${API_BASE_URL}add_compensation_plan.php`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload), credentials:'include' });
+                const resp = await fetch(`${LEGACY_API_URL}add_compensation_plan.php`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload), credentials:'include' });
                 if (!resp.ok) throw new Error(`Legacy add plan failed (${resp.status})`);
             }
             wrapper.remove();
@@ -255,7 +255,7 @@ async function loadGrades() {
     if (!container) return;
     container.innerHTML = `<div class="py-6 text-center text-gray-500">Loading grades...</div>`;
     try {
-        const result = await apiFetch('/compensation-planning/salary-grades');
+        const result = await apiFetch('compensation-planning/salary-grades');
         const rows = Array.isArray(result) ? result : result?.data || [];
         if (!rows.length) {
             container.innerHTML = `<div class="py-8 text-center text-gray-500">No salary grades found.</div>`;
@@ -322,12 +322,12 @@ async function saveGrade() {
             created_by: window.currentUser?.employee_id || 1
         };
         if (editingGradeId) {
-            await apiFetch('/compensation-planning/salary-grades', { method: 'PUT', body: JSON.stringify({ id: editingGradeId, ...payload }) });
+            await apiFetch('compensation-planning/salary-grades', { method: 'PUT', body: JSON.stringify({ id: editingGradeId, ...payload }) });
         } else {
-            const res = await apiFetch('/compensation-planning/salary-grades', { method: 'POST', body: JSON.stringify(payload) });
+            const res = await apiFetch('compensation-planning/salary-grades', { method: 'POST', body: JSON.stringify(payload) });
             const newId = res?.id || res?.GradeID || null;
             if (newId && activePlanId) {
-                try { await fetch(`${API_BASE_URL}link_compensation_plan_item.php`, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({ plan_id: Number(activePlanId), item_type:'grade', item_id: Number(newId) }) }); } catch(e){}
+                try { await fetch(`${LEGACY_API_URL}link_compensation_plan_item.php`, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({ plan_id: Number(activePlanId), item_type:'grade', item_id: Number(newId) }) }); } catch(e){}
             }
         }
         toggleGradeModal(false);
@@ -355,7 +355,7 @@ function openEditGradeModal(grade) {
 async function deleteGrade(gradeId) {
     if (!confirm('Delete this salary grade? This cannot be undone.')) return;
     try {
-        await apiFetch('/compensation-planning/salary-grades?id=' + encodeURIComponent(gradeId), { method: 'DELETE' });
+        await apiFetch('compensation-planning/salary-grades?id=' + encodeURIComponent(gradeId), { method: 'DELETE' });
         await loadGrades();
     } catch (e) { alert('Delete failed: ' + e.message); }
 }
@@ -363,7 +363,7 @@ async function deleteGrade(gradeId) {
 async function approveGrade(gradeId) {
     try {
         const payload = { id: gradeId, approved_by: window.currentUser?.employee_id || 1 };
-        await apiFetch('/compensation-planning/salary-grades-approve', { method: 'PUT', body: JSON.stringify(payload) });
+        await apiFetch('compensation-planning/salary-grades-approve', { method: 'PUT', body: JSON.stringify(payload) });
         await loadGrades();
     } catch (e) { alert('Approval failed: ' + e.message); }
 }
@@ -401,7 +401,7 @@ async function loadSteps(gradeId) {
     if (!list) return;
     list.innerHTML = `<div class="py-4 text-center text-gray-500">Loading steps...</div>`;
     try {
-        const result = await apiFetch(`/compensation-planning/salary-grades-steps?grade_id=${encodeURIComponent(gradeId)}`);
+        const result = await apiFetch(`compensation-planning/salary-grades-steps?grade_id=${encodeURIComponent(gradeId)}`);
         const steps = Array.isArray(result) ? result : result?.data || [];
         if (!steps.length) { list.innerHTML = `<div class="py-4 text-center text-gray-500">No steps found.</div>`; return; }
         const table = document.createElement('table');
@@ -444,13 +444,13 @@ async function createStep(gradeId) {
     const maxRate = prompt('Max Rate (PHP)');
     const effectiveDate = prompt('Effective Date (YYYY-MM-DD)', new Date().toISOString().slice(0,10));
     try {
-        const res = await apiFetch('/compensation-planning/salary-grades-steps', {
+        const res = await apiFetch('compensation-planning/salary-grades-steps', {
             method: 'POST',
             body: JSON.stringify({ grade_id: gradeId, step_number: Number(stepNumber), base_rate: Number(baseRate||0), min_rate: Number(minRate||0), max_rate: Number(maxRate||0), effective_date: effectiveDate })
         });
         const newId = res?.id || res?.StepID || null;
         if (newId && activePlanId) {
-            try { await fetch(`${API_BASE_URL}link_compensation_plan_item.php`, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({ plan_id: Number(activePlanId), item_type:'step', item_id: Number(newId), metadata:{ grade_id: gradeId } }) }); } catch(e){}
+            try { await fetch(`${LEGACY_API_URL}link_compensation_plan_item.php`, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({ plan_id: Number(activePlanId), item_type:'step', item_id: Number(newId), metadata:{ grade_id: gradeId } }) }); } catch(e){}
         }
         await loadSteps(gradeId);
     } catch (e) { alert('Create step failed: ' + e.message); }
@@ -464,7 +464,7 @@ async function editStep(gradeId, step) {
     const maxRate = prompt('Max Rate (PHP)', step.MaxRate);
     const effectiveDate = prompt('Effective Date (YYYY-MM-DD)', (step.EffectiveDate || '').slice(0,10));
     try {
-        await apiFetch('/compensation-planning/salary-grades-steps', {
+        await apiFetch('compensation-planning/salary-grades-steps', {
             method: 'PUT',
             body: JSON.stringify({ id: step.StepID, step_number: Number(stepNumber||0), base_rate: Number(baseRate||0), min_rate: Number(minRate||0), max_rate: Number(maxRate||0), effective_date: effectiveDate })
         });
@@ -475,7 +475,7 @@ async function editStep(gradeId, step) {
 async function deleteStep(stepId) {
     if (!confirm('Delete this step?')) return;
     try {
-        await apiFetch('/compensation-planning/salary-grades-steps?id=' + encodeURIComponent(stepId), { method: 'DELETE' });
+        await apiFetch('compensation-planning/salary-grades-steps?id=' + encodeURIComponent(stepId), { method: 'DELETE' });
         // reload current list by closing and re-opening handled by caller's refresh
         document.getElementById('btn-refresh-steps')?.click();
     } catch (e) { alert('Delete step failed: ' + e.message); }
@@ -510,13 +510,13 @@ export async function displayPayBandsSection() {
         const maxSalary = prompt('Max Salary (PHP)');
         const effectiveDate = prompt('Effective Date (YYYY-MM-DD)', new Date().toISOString().slice(0,10));
         try {
-            const res = await apiFetch('/compensation-planning/pay-bands', {
+            const res = await apiFetch('compensation-planning/pay-bands', {
                 method: 'POST',
                 body: JSON.stringify({ band_name: bandName, min_salary: Number(minSalary||0), max_salary: Number(maxSalary||0), effective_date: effectiveDate, status: 'Active' })
             });
             const newId = res?.id || res?.BandID || null;
             if (newId && activePlanId) {
-                try { await fetch(`${API_BASE_URL}link_compensation_plan_item.php`, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({ plan_id: Number(activePlanId), item_type:'band', item_id: Number(newId) }) }); } catch(e){}
+                try { await fetch(`${LEGACY_API_URL}link_compensation_plan_item.php`, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({ plan_id: Number(activePlanId), item_type:'band', item_id: Number(newId) }) }); } catch(e){}
             }
             await loadBands();
         } catch (e) { alert('Create band failed: ' + e.message); }
@@ -532,7 +532,7 @@ async function loadBands() {
     if (!container) return;
     container.innerHTML = `<div class="py-6 text-center text-gray-500">Loading pay bands...</div>`;
     try {
-        const result = await apiFetch('/compensation-planning/pay-bands');
+        const result = await apiFetch('compensation-planning/pay-bands');
         const rows = Array.isArray(result) ? result : result?.data || [];
         if (!rows.length) { container.innerHTML = `<div class="py-8 text-center text-gray-500">No pay bands found.</div>`; return; }
         const table = document.createElement('table');
@@ -577,7 +577,7 @@ async function editBand(band) {
     const effectiveDate = prompt('Effective Date (YYYY-MM-DD)', (band.EffectiveDate || '').slice(0,10));
     const status = prompt('Status (Active/Inactive)', band.Status || 'Active') || 'Active';
     try {
-        await apiFetch('/compensation-planning/pay-bands', {
+        await apiFetch('compensation-planning/pay-bands', {
             method: 'PUT',
             body: JSON.stringify({ id: band.BandID, band_name: bandName, min_salary: Number(minSalary||0), max_salary: Number(maxSalary||0), effective_date: effectiveDate, status })
         });
@@ -588,7 +588,7 @@ async function editBand(band) {
 async function deleteBand(bandId) {
     if (!confirm('Delete this pay band?')) return;
     try {
-        await apiFetch('/compensation-planning/pay-bands?id=' + encodeURIComponent(bandId), { method: 'DELETE' });
+        await apiFetch('compensation-planning/pay-bands?id=' + encodeURIComponent(bandId), { method: 'DELETE' });
         await loadBands();
     } catch (e) { alert('Delete band failed: ' + e.message); }
 }
@@ -695,7 +695,7 @@ async function loadEmployeeMapping() {
         const d = document.getElementById('map-filter-dept')?.value; if (d) params.set('department_id', d);
         const g = document.getElementById('map-filter-grade')?.value; if (g) params.set('grade_id', g);
         const st = document.getElementById('map-filter-status')?.value; if (st) params.set('status', st);
-        const result = await apiFetch(`/compensation-planning/employee-mappings?${params}`);
+        const result = await apiFetch(`compensation-planning/employee-mappings?${params}`);
         const rows = Array.isArray(result) ? result : result?.data || [];
         if (!rows.length) { container.innerHTML = `<div class="py-8 text-center text-gray-500">No mappings found.</div>`; return; }
         const table = document.createElement('table');
@@ -767,7 +767,7 @@ async function reclassifyEmployee(row) {
             end_previous: true,
             created_by: window.currentUser?.employee_id || 1
         };
-        await apiFetch('/compensation-planning/employee-mappings', { method: 'POST', body: JSON.stringify(payload) });
+        await apiFetch('compensation-planning/employee-mappings', { method: 'POST', body: JSON.stringify(payload) });
         alert('Reclassification proposed.');
         await loadEmployeeMapping();
     } catch (e) { alert('Reclassification failed: ' + e.message); }
@@ -775,7 +775,7 @@ async function reclassifyEmployee(row) {
 
 async function loadMappingKpis() {
     try {
-        const res = await fetch(`${API_BASE_URL.replace('php/api/','api')}/compensation-planning/employee-mapping-overview`, { credentials:'include' });
+        const res = await fetch(`${REST_API_URL}compensation-planning/employee-mapping-overview`, { credentials:'include' });
         if (!res.ok) return; const payload = await res.json(); const d = payload?.data || {};
         const set=(id,v)=>{ const el=document.getElementById(id); if (el) el.textContent=v; };
         set('map-kpi-total', d.total_mapped ?? '—');
@@ -829,7 +829,7 @@ async function submitMapNewEmployee() {
         try {
             const gid = document.getElementById('map-grade')?.value;
             if (gid) {
-                const res = await fetch(`${API_BASE_URL.replace('php/api/','api')}/compensation-planning/salary-grades-steps?grade_id=${encodeURIComponent(gid)}`, { credentials:'include' });
+                const res = await fetch(`${REST_API_URL}compensation-planning/salary-grades-steps?grade_id=${encodeURIComponent(gid)}`, { credentials:'include' });
                 if (res.ok) {
                     const list = await res.json(); const steps = Array.isArray(list)? list:(list?.data||[]);
                     const min = Math.min(...steps.map(s=>Number(s.MinRate||s.BaseRate||Infinity)));
@@ -855,7 +855,7 @@ async function submitMapNewEmployee() {
             created_by: window.currentUser?.employee_id || null,
             end_previous: true
         };
-        const res = await fetch(`${API_BASE_URL.replace('php/api/','api')}/compensation-planning/employee-mappings`, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify(payload) });
+        const res = await fetch(`${REST_API_URL}compensation-planning/employee-mappings`, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify(payload) });
         if (!res.ok) throw new Error('Failed to submit mapping');
         document.getElementById('map-modal')?.remove();
         await loadEmployeeMapping();
@@ -893,7 +893,7 @@ function openUpdateMappingModal(row) {
             try {
                 const gid = document.getElementById('upd-map-grade')?.value;
                 if (gid) {
-                    const res = await fetch(`${API_BASE_URL.replace('php/api/','api')}/compensation-planning/salary-grades-steps?grade_id=${encodeURIComponent(gid)}`, { credentials:'include' });
+                    const res = await fetch(`${REST_API_URL}compensation-planning/salary-grades-steps?grade_id=${encodeURIComponent(gid)}`, { credentials:'include' });
                     if (res.ok) {
                         const list = await res.json(); const steps = Array.isArray(list)? list:(list?.data||[]);
                         const min = Math.min(...steps.map(s=>Number(s.MinRate||s.BaseRate||Infinity)));
@@ -918,7 +918,7 @@ function openUpdateMappingModal(row) {
                 created_by: window.currentUser?.employee_id || null,
                 end_previous: true
             };
-            const res = await fetch(`${API_BASE_URL.replace('php/api/','api')}/compensation-planning/employee-mappings`, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify(payload) });
+            const res = await fetch(`${REST_API_URL}compensation-planning/employee-mappings`, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify(payload) });
             if (!res.ok) throw new Error('Failed to submit mapping update');
             document.getElementById('upd-map-modal')?.remove();
             await loadEmployeeMapping();
@@ -931,12 +931,12 @@ function openUpdateMappingModal(row) {
 
 async function approveMapping(mappingId, employeeId) {
     try {
-        const res = await fetch(`${API_BASE_URL.replace('php/api/','api')}/compensation-planning/employee-mappings-approve`, { method:'PUT', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({ id: mappingId, user_id: window.currentUser?.employee_id || null }) });
+        const res = await fetch(`${REST_API_URL}compensation-planning/employee-mappings-approve`, { method:'PUT', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({ id: mappingId, user_id: window.currentUser?.employee_id || null }) });
         if (!res.ok) throw new Error('Approve failed');
         // HR Core sync best-effort
-        try { await fetch(`${API_BASE_URL.replace('php/api/','api')}/integrations/hrcore/sync`, { method:'POST', credentials:'include', body: new URLSearchParams({ employee_id: employeeId }) }); } catch(e){}
+        try { await fetch(`${REST_API_URL}integrations/hrcore/sync`, { method:'POST', credentials:'include', body: new URLSearchParams({ employee_id: employeeId }) }); } catch(e){}
         // Analytics refresh best-effort
-        try { await apiFetch('/integrations/analytics/compensation'); } catch(e){}
+        try { await apiFetch('integrations/analytics/compensation'); } catch(e){}
         await loadEmployeeMapping();
         alert('Mapping approved');
     } catch(e) { alert('Approve failed: ' + e.message); }
@@ -970,7 +970,7 @@ async function handleBulkMappingImport(ev) {
                 end_previous: true
             };
             try {
-                const res = await fetch(`${API_BASE_URL.replace('php/api/','api')}/compensation-planning/employee-mappings`, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify(payload) });
+                const res = await fetch(`${REST_API_URL}compensation-planning/employee-mappings`, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify(payload) });
                 if (!res.ok) throw new Error('HTTP '+res.status);
                 ok++;
             } catch(e) { fail++; }
@@ -1012,7 +1012,7 @@ async function loadWorkflows() {
     if (!container) return;
     container.innerHTML = `<div class="py-6 text-center text-gray-500">Loading workflows...</div>`;
     try {
-        const result = await apiFetch('/compensation-planning/workflows');
+        const result = await apiFetch('compensation-planning/workflows');
         const rows = Array.isArray(result) ? result : result?.data || [];
         if (!rows.length) { container.innerHTML = `<div class="py-8 text-center text-gray-500">No workflows found.</div>`; return; }
         const table = document.createElement('table');
@@ -1058,13 +1058,13 @@ async function createWorkflowPrompt() {
     const value = prompt('Adjustment Value (number)'); if (value == null) return;
     const effective = prompt('Effective Date (YYYY-MM-DD)', new Date().toISOString().slice(0,10));
     try {
-        const res = await apiFetch('/compensation-planning/workflows', {
+        const res = await apiFetch('compensation-planning/workflows', {
             method: 'POST',
             body: JSON.stringify({ workflow_name: name, adjustment_type: type, adjustment_value: Number(value||0), effective_date: effective, status: 'Draft', created_by: window.currentUser?.employee_id || 1 })
         });
         const newId = res?.id || res?.WorkflowID || null;
         if (newId && activePlanId) {
-            try { await fetch(`${API_BASE_URL}link_compensation_plan_item.php`, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({ plan_id: Number(activePlanId), item_type:'workflow', item_id: Number(newId) }) }); } catch(e){}
+            try { await fetch(`${LEGACY_API_URL}link_compensation_plan_item.php`, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({ plan_id: Number(activePlanId), item_type:'workflow', item_id: Number(newId) }) }); } catch(e){}
         }
         await loadWorkflows();
     } catch (e) { alert('Create workflow failed: ' + e.message); }
@@ -1072,14 +1072,14 @@ async function createWorkflowPrompt() {
 
 async function previewWorkflowImpact(workflowId) {
     try {
-        const result = await apiFetch('/compensation-planning/workflows-calculate-impact', { method: 'POST', body: JSON.stringify({ workflow_id: workflowId }) });
+        const result = await apiFetch('compensation-planning/workflows-calculate-impact', { method: 'POST', body: JSON.stringify({ workflow_id: workflowId }) });
         alert(`Estimated total payroll impact: ${currency(result.total_impact || 0)}\nAffected employees: ${result.affected_employees || 0}`);
     } catch (e) { alert('Preview failed: ' + e.message); }
 }
 
 async function approveWorkflow(workflowId) {
     try {
-        await apiFetch('/compensation-planning/workflows-approve', { method: 'PUT', body: JSON.stringify({ id: workflowId, approved_by: window.currentUser?.employee_id || 1 }) });
+        await apiFetch('compensation-planning/workflows-approve', { method: 'PUT', body: JSON.stringify({ id: workflowId, approved_by: window.currentUser?.employee_id || 1 }) });
         await loadWorkflows();
     } catch (e) { alert('Approve failed: ' + e.message); }
 }
@@ -1087,17 +1087,17 @@ async function approveWorkflow(workflowId) {
 async function implementWorkflow(workflowId) {
     try {
         // Implement in compensation module
-        await apiFetch('/compensation-planning/workflows-implement', { method: 'PUT', body: JSON.stringify({ id: workflowId, implemented_by: window.currentUser?.employee_id || 1 }) });
+        await apiFetch('compensation-planning/workflows-implement', { method: 'PUT', body: JSON.stringify({ id: workflowId, implemented_by: window.currentUser?.employee_id || 1 }) });
         // Ensure details exist; if not, generate based on current workflow settings
-        let details = await apiFetch('/compensation-planning/workflow-details?workflow_id=' + encodeURIComponent(workflowId));
+        let details = await apiFetch('compensation-planning/workflow-details?workflow_id=' + encodeURIComponent(workflowId));
         if (!Array.isArray(details) || details.length === 0) {
             await generateWorkflowDetails(workflowId);
-            details = await apiFetch('/compensation-planning/workflow-details?workflow_id=' + encodeURIComponent(workflowId));
+            details = await apiFetch('compensation-planning/workflow-details?workflow_id=' + encodeURIComponent(workflowId));
         }
         const changes = (details || []).map(d => ({ employee_id: d.EmployeeID, new_salary: d.NewSalary, adjustment_amount: d.AdjustmentAmount }));
-        await apiFetch('/integrations/payroll/update', { method: 'POST', body: JSON.stringify({ changes, effective_date: new Date().toISOString().slice(0,10), reason: `Workflow ${workflowId} Implementation` }) });
+        await apiFetch('integrations/payroll/update', { method: 'POST', body: JSON.stringify({ changes, effective_date: new Date().toISOString().slice(0,10), reason: `Workflow ${workflowId} Implementation` }) });
         // Notify analytics to refresh salary insights (best-effort)
-        try { await apiFetch('/integrations/analytics/compensation'); } catch(e) {}
+        try { await apiFetch('integrations/analytics/compensation'); } catch(e) {}
         alert('Workflow implemented and pushed to Payroll.');
         await loadWorkflows();
     } catch (e) { alert('Implement failed: ' + e.message); }
@@ -1106,15 +1106,15 @@ async function implementWorkflow(workflowId) {
 async function generateWorkflowDetails(workflowId) {
     try {
         // find workflow data
-        const list = await apiFetch('/compensation-planning/workflows');
+        const list = await apiFetch('compensation-planning/workflows');
         const workflows = Array.isArray(list) ? list : list?.data || [];
         const wf = workflows.find(w => String(w.WorkflowID) === String(workflowId));
         if (!wf) throw new Error('Workflow not found');
         // compute impacted employees
-        const impact = await apiFetch('/compensation-planning/workflows-calculate-impact', { method: 'POST', body: JSON.stringify({ workflow_id: workflowId }) });
+        const impact = await apiFetch('compensation-planning/workflows-calculate-impact', { method: 'POST', body: JSON.stringify({ workflow_id: workflowId }) });
         const employees = impact?.employees || [];
         // create details with chosen parameters
-        await apiFetch('/compensation-planning/workflows-create-details', {
+        await apiFetch('compensation-planning/workflows-create-details', {
             method: 'POST',
             body: JSON.stringify({ workflow_id: workflowId, employees, adjustment_value: Number(wf.AdjustmentValue||0), adjustment_type: wf.AdjustmentType || 'Percentage' })
         });
@@ -1164,12 +1164,12 @@ async function runSimulation() {
     const params = { simulation_type: type, parameters: { grades, adjustment_value: value } };
     const out = document.getElementById('sim-output'); if (out) out.innerHTML = '<div class="py-4 text-center text-gray-500">Running simulation...</div>';
     try {
-        const result = await apiFetch('/compensation-planning/simulations-run', { method: 'POST', body: JSON.stringify(params) });
+        const result = await apiFetch('compensation-planning/simulations-run', { method: 'POST', body: JSON.stringify(params) });
         lastSimulationResult = result;
         // Best-effort link simulation run to active plan for reporting context
         try {
             if (activePlanId) {
-                await fetch(`${API_BASE_URL}link_compensation_plan_item.php`, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({ plan_id: Number(activePlanId), item_type:'simulation', item_id: Number(Date.now()%2147483647), metadata: { parameters: params, totals: { total_impact: result?.total_impact, affected: result?.affected_employees } } }) });
+                await fetch(`${LEGACY_API_URL}link_compensation_plan_item.php`, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({ plan_id: Number(activePlanId), item_type:'simulation', item_id: Number(Date.now()%2147483647), metadata: { parameters: params, totals: { total_impact: result?.total_impact, affected: result?.affected_employees } } }) });
             }
         } catch(e){}
         renderSimulation(result);
@@ -1229,7 +1229,7 @@ async function sendSimulationToFinance() {
     try {
         const tag = prompt('Version tag for Finance (e.g., FY2025 Adjustment Set 1)', `FY${new Date().getFullYear()} Adjustment`);
         const payload = { impact_data: lastSimulationResult, report_type: 'salary_adjustment', version_tag: tag };
-        const resp = await apiFetch('/integrations/finance/budget-impact', { method: 'POST', body: JSON.stringify(payload) });
+        const resp = await apiFetch('integrations/finance/budget-impact', { method: 'POST', body: JSON.stringify(payload) });
         alert(resp?.message || 'Sent to Finance');
     } catch (e) { alert('Finance sync failed: ' + e.message); }
 }
@@ -1279,7 +1279,7 @@ export async function displaySalaryAdjustmentsSection() {
 
 async function populateDepartments(selectId) {
     try {
-        const res = await fetch(`${API_BASE_URL.replace('php/api/','api')}/departments`, { credentials:'include' });
+        const res = await fetch(`${REST_API_URL}departments`, { credentials:'include' });
         if (!res.ok) return;
         const payload = await res.json();
         const sel = document.getElementById(selectId);
@@ -1291,7 +1291,7 @@ async function populateDepartments(selectId) {
 
 async function populateReasons(selectId) {
     try {
-        const res = await fetch(`${API_BASE_URL.replace('php/api/','api')}/compensation-planning/adjustment-reasons`, { credentials:'include' });
+        const res = await fetch(`${REST_API_URL}compensation-planning/adjustment-reasons`, { credentials:'include' });
         if (!res.ok) return;
         const payload = await res.json();
         const sel = document.getElementById(selectId);
@@ -1311,7 +1311,7 @@ async function loadSalaryAdjustments() {
     const sd = document.getElementById('sa-filter-start')?.value; if (sd) params.set('start_date', sd);
     const ed = document.getElementById('sa-filter-end')?.value; if (ed) params.set('end_date', ed);
     try {
-        const res = await fetch(`${API_BASE_URL.replace('php/api/','api')}/compensation-planning/salary-adjustments?${params}`, { credentials:'include' });
+        const res = await fetch(`${REST_API_URL}compensation-planning/salary-adjustments?${params}`, { credentials:'include' });
         if (!res.ok) throw new Error('Failed to load adjustments');
         const payload = await res.json();
         const list = payload?.data || payload || [];
@@ -1386,7 +1386,7 @@ function renderSalaryAdjustments(list) {
 
 async function setAdjustmentStatus(id, status) {
     try {
-        await fetch(`${API_BASE_URL.replace('php/api/','api')}/compensation-planning/salary-adjustments-status`, { method:'PUT', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({ id, status, user_id: window.currentUser?.employee_id||null }) });
+        await fetch(`${REST_API_URL}compensation-planning/salary-adjustments-status`, { method:'PUT', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({ id, status, user_id: window.currentUser?.employee_id||null }) });
         await loadSalaryAdjustments();
     } catch(e) { alert('Status update failed: '+e.message); }
 }
@@ -1396,7 +1396,7 @@ async function implementAdjustment(adj) {
         // Baseline verification
         let baselineOk = true; let retroTag = '';
         try {
-            const res = await fetch(`${API_BASE_URL.replace('php/api/','api')}/salaries/${adj.EmployeeID}/summary`, { credentials:'include' });
+            const res = await fetch(`${REST_API_URL}salaries/${adj.EmployeeID}/summary`, { credentials:'include' });
             if (res.ok) {
                 const payload = await res.json(); const cur = payload?.data?.BaseSalary || payload?.data?.base_salary || null;
                 if (cur !== null && Math.abs(Number(cur) - Number(adj.OldSalary)) > 0.009) {
@@ -1411,13 +1411,13 @@ async function implementAdjustment(adj) {
         const todayStr = new Date().toISOString().slice(0,10);
         if (adj.EffectiveDate && adj.EffectiveDate < todayStr) retroTag = ' [Retroactive]';
         const changes = [{ employee_id: adj.EmployeeID, new_salary: adj.NewSalary }];
-        await apiFetch('/integrations/payroll/update', { method:'POST', body: JSON.stringify({ changes, effective_date: adj.EffectiveDate, reason: `Salary Adjustment (${adj.ReasonLabel||'Reason'})${retroTag}` }) });
+        await apiFetch('integrations/payroll/update', { method:'POST', body: JSON.stringify({ changes, effective_date: adj.EffectiveDate, reason: `Salary Adjustment (${adj.ReasonLabel||'Reason'})${retroTag}` }) });
         // 3) HR Core sync (best-effort)
-        try { await fetch(`${API_BASE_URL.replace('php/api/','api')}/integrations/hrcore/sync`, { method:'POST', credentials:'include', body: new URLSearchParams({ employee_id: adj.EmployeeID }) }); } catch(e){}
+        try { await fetch(`${REST_API_URL}integrations/hrcore/sync`, { method:'POST', credentials:'include', body: new URLSearchParams({ employee_id: adj.EmployeeID }) }); } catch(e){}
         // 4) Analytics refresh (best-effort)
-        try { await apiFetch('/integrations/analytics/compensation'); } catch(e){}
+        try { await apiFetch('integrations/analytics/compensation'); } catch(e){}
         // 5) Finance optional (best-effort)
-        try { await apiFetch('/integrations/finance/budget-impact', { method:'POST', body: JSON.stringify({ impact_data: { employee_id: adj.EmployeeID, old: adj.OldSalary, new: adj.NewSalary }, report_type: 'salary_adjustment' }) }); } catch(e){}
+        try { await apiFetch('integrations/finance/budget-impact', { method:'POST', body: JSON.stringify({ impact_data: { employee_id: adj.EmployeeID, old: adj.OldSalary, new: adj.NewSalary }, report_type: 'salary_adjustment' }) }); } catch(e){}
         await loadSalaryAdjustments();
         alert('Adjustment implemented and pushed to Payroll.');
     } catch(e) { alert('Implement failed: '+e.message); }
@@ -1492,7 +1492,7 @@ async function openSalaryAdjustmentModal() {
 
 async function populateEmployeesForAdjustment(selectId) {
     try {
-        const res = await fetch(`${API_BASE_URL.replace('php/api/','api')}/integrations/hrcore`, { credentials:'include' });
+        const res = await fetch(`${REST_API_URL}integrations/hrcore`, { credentials:'include' });
         if (!res.ok) return; const payload = await res.json(); const list = payload?.data || payload || [];
         const sel = document.getElementById(selectId); if (!sel) return; sel.innerHTML='';
         list.forEach(e=>{ const o=document.createElement('option'); o.value=e.EmployeeID; o.textContent=`${e.employee_name || (e.FirstName? (e.FirstName+' '+(e.LastName||'')) : '')} (${e.EmployeeNumber||''})`; o.setAttribute('data-json', JSON.stringify(e)); sel.appendChild(o); });
@@ -1501,7 +1501,7 @@ async function populateEmployeesForAdjustment(selectId) {
 
 async function populateGrades(selectId) {
     try {
-        const res = await fetch(`${API_BASE_URL.replace('php/api/','api')}/compensation-planning/salary-grades`, { credentials:'include' });
+        const res = await fetch(`${REST_API_URL}compensation-planning/salary-grades`, { credentials:'include' });
         if (!res.ok) return; const list = await res.json();
         const sel = document.getElementById(selectId); if (!sel) return; sel.innerHTML = '<option value="">—</option>';
         (Array.isArray(list)? list : (list?.data||[])).forEach(g=>{ const o=document.createElement('option'); o.value=g.GradeID; o.textContent=`${g.GradeCode} - ${g.GradeName}`; sel.appendChild(o); });
@@ -1509,7 +1509,7 @@ async function populateGrades(selectId) {
 }
 
 async function populateSteps(selectId, gradeId) {
-    try { const sel=document.getElementById(selectId); if (!sel) return; sel.innerHTML='<option value="">—</option>'; if (!gradeId) return; const res=await fetch(`${API_BASE_URL.replace('php/api/','api')}/compensation-planning/salary-grades-steps?grade_id=${encodeURIComponent(gradeId)}`, { credentials:'include' }); if (!res.ok) return; const list=await res.json(); (Array.isArray(list)? list:(list?.data||[])).forEach(s=>{ const o=document.createElement('option'); o.value=s.StepID; o.textContent=`Step ${s.StepNumber} (${currency(s.BaseRate)})`; sel.appendChild(o); }); } catch(e){}
+    try { const sel=document.getElementById(selectId); if (!sel) return; sel.innerHTML='<option value="">—</option>'; if (!gradeId) return; const res=await fetch(`${REST_API_URL}compensation-planning/salary-grades-steps?grade_id=${encodeURIComponent(gradeId)}`, { credentials:'include' }); if (!res.ok) return; const list=await res.json(); (Array.isArray(list)? list:(list?.data||[])).forEach(s=>{ const o=document.createElement('option'); o.value=s.StepID; o.textContent=`Step ${s.StepNumber} (${currency(s.BaseRate)})`; sel.appendChild(o); }); } catch(e){}
 }
 
 function onAdjustmentEmployeeChange(ev) {
@@ -1547,7 +1547,7 @@ async function submitSalaryAdjustment() {
             effective_date: document.getElementById('sa-eff')?.value || new Date().toISOString().slice(0,10),
             initiated_by: window.currentUser?.employee_id || null
         };
-        const res = await fetch(`${API_BASE_URL.replace('php/api/','api')}/compensation-planning/salary-adjustments`, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify(payload) });
+        const res = await fetch(`${REST_API_URL}compensation-planning/salary-adjustments`, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify(payload) });
         if (!res.ok) throw new Error('Failed to create adjustment');
         document.getElementById('sa-modal')?.remove();
         await loadSalaryAdjustments();
@@ -1562,7 +1562,7 @@ async function uploadAdjustmentFile(ev) {
         ev.preventDefault();
         const input = document.getElementById('sa-file'); const file = input?.files?.[0]; if (!file) { alert('Choose a file first'); return; }
         const fd = new FormData(); fd.append('file', file);
-        const res = await fetch(`${API_BASE_URL}upload_attachment.php`, { method:'POST', body: fd });
+        const res = await fetch(`${LEGACY_API_URL}upload_attachment.php`, { method:'POST', body: fd });
         const payload = await res.json(); if (!res.ok || !payload?.success) throw new Error(payload?.error || 'Upload failed');
         const urlInput = document.getElementById('sa-attach'); if (urlInput) urlInput.value = payload.url;
         alert('Uploaded: ' + payload.filename);
@@ -1624,7 +1624,7 @@ async function loadIncentiveCards() {
         <div class="p-4 bg-white border rounded shadow-sm"><div class="text-xs text-gray-500">Most Common Non-Cash</div><div id="inc-card-common" class="text-lg font-semibold">—</div></div>`;
     try {
         // If analytics endpoint exists, use it. Otherwise leave placeholders.
-        const analytics = await fetch(`${API_BASE_URL.replace('php/api/','api')}/integrations/analytics?type=incentives`).then(r=>r.ok?r.json():null).catch(()=>null);
+        const analytics = await fetch(`${REST_API_URL}integrations/analytics?type=incentives`).then(r=>r.ok?r.json():null).catch(()=>null);
         if (analytics?.data) {
             const d = analytics.data;
             const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
@@ -1643,7 +1643,7 @@ async function loadIncentiveTypes() {
         const params = new URLSearchParams();
         const cat = document.getElementById('inc-filter-category')?.value; if (cat) params.set('category', cat);
         const dept = document.getElementById('inc-filter-dept')?.value; if (dept) params.set('department_id', dept);
-        const res = await fetch(`${API_BASE_URL.replace('php/api/','api')}/compensation-planning/incentive-types?${params}`, { credentials:'include' });
+        const res = await fetch(`${REST_API_URL}compensation-planning/incentive-types?${params}`, { credentials:'include' });
         if (!res.ok) throw new Error('Failed to load incentive types');
         const payload = await res.json();
         const list = payload?.data || payload || [];
@@ -1724,7 +1724,7 @@ function openAddIncentiveTypeModal() {
                 taxable: document.getElementById('it-taxable')?.checked ? 1 : 0,
                 status: document.getElementById('it-status')?.value || 'Active'
             };
-            const res = await fetch(`${API_BASE_URL.replace('php/api/','api')}/compensation-planning/incentive-types`, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify(payload) });
+            const res = await fetch(`${REST_API_URL}compensation-planning/incentive-types`, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify(payload) });
             if (!res.ok) throw new Error('Failed to create incentive type');
             w.remove();
             await loadIncentiveTypes();
@@ -1781,7 +1781,7 @@ function openEditIncentiveTypeModal(item) {
                 taxable: document.getElementById('it-taxable')?.checked ? 1 : 0,
                 status: document.getElementById('it-status')?.value || 'Active'
             };
-            const res = await fetch(`${API_BASE_URL.replace('php/api/','api')}/compensation-planning/incentive-types`, { method:'PUT', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify(payload) });
+            const res = await fetch(`${REST_API_URL}compensation-planning/incentive-types`, { method:'PUT', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify(payload) });
             if (!res.ok) throw new Error('Failed to update incentive type');
             w.remove();
             await loadIncentiveTypes();
@@ -1792,7 +1792,7 @@ function openEditIncentiveTypeModal(item) {
 async function deleteIncentiveType(id) {
     if (!confirm('Delete this incentive type?')) return;
     try {
-        const res = await fetch(`${API_BASE_URL.replace('php/api/','api')}/compensation-planning/incentive-types?id=${encodeURIComponent(id)}`, { method:'DELETE', credentials:'include' });
+        const res = await fetch(`${REST_API_URL}compensation-planning/incentive-types?id=${encodeURIComponent(id)}`, { method:'DELETE', credentials:'include' });
         if (!res.ok) throw new Error('Failed to delete incentive type');
         await loadIncentiveTypes();
     } catch(e) { alert('Delete failed: ' + e.message); }
@@ -1864,7 +1864,7 @@ async function openGrantIncentiveModal() {
 
 async function populateIncentiveTypeSelect(selectId) {
     try {
-        const res = await fetch(`${API_BASE_URL.replace('php/api/','api')}/compensation-planning/incentive-types`, { credentials:'include' });
+        const res = await fetch(`${REST_API_URL}compensation-planning/incentive-types`, { credentials:'include' });
         if (!res.ok) throw new Error('Failed to load incentive types');
         const payload = await res.json();
         const list = payload?.data || payload || [];
@@ -1882,7 +1882,7 @@ async function loadGrantIncentiveEmployees() {
     const search = document.getElementById('gi-search')?.value?.trim()?.toLowerCase();
     try {
         const params = new URLSearchParams(); if (dept) params.set('department_id', dept);
-        const res = await fetch(`${API_BASE_URL.replace('php/api/','api')}/integrations/hrcore?${params}`, { credentials:'include' });
+        const res = await fetch(`${REST_API_URL}integrations/hrcore?${params}`, { credentials:'include' });
         if (!res.ok) throw new Error('Failed to load HR Core employees');
         let list = await res.json(); list = list?.data || list || [];
         // Client-side filters if fields exist
@@ -1932,7 +1932,7 @@ async function approveGrantIncentive() {
             const emp = JSON.parse(cb.getAttribute('data-emp-json')||'{}');
             // 1) Save incentive record
             try {
-                const resp = await fetch(`${API_BASE_URL}add_incentive.php`, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({
+                const resp = await fetch(`${LEGACY_API_URL}add_incentive.php`, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({
                     employee_id: emp.EmployeeID,
                     plan_id: activePlanId ? Number(activePlanId) : null,
                     incentive_type: type.Name || type.name,
@@ -1949,13 +1949,13 @@ async function approveGrantIncentive() {
                 let pushed=false;
                 // Prefer bonuses route if available
                 try {
-                    const bres = await fetch(`${API_BASE_URL.replace('php/api/','api')}/bonuses`, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({ employee_id: emp.EmployeeID, bonus_type: `Incentive: ${(type.Name||type.name)}`, amount: amount, taxable: !!(type.Taxable||type.taxable), award_date: awardDate }) });
+                    const bres = await fetch(`${REST_API_URL}bonuses`, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({ employee_id: emp.EmployeeID, bonus_type: `Incentive: ${(type.Name||type.name)}`, amount: amount, taxable: !!(type.Taxable||type.taxable), award_date: awardDate }) });
                     if (bres.ok) { pushed=true; }
                 } catch(e){}
                 if (!pushed) {
                     // Fallback to payroll integration update with reason tag
                     const changes = [{ employee_id: emp.EmployeeID, new_salary: emp.BaseSalary||0, reason: `Incentive: ${(type.Name||type.name)}, taxable=${(type.Taxable||type.taxable)?1:0}, amount=${amount}` }];
-                    const presp = await fetch(`${API_BASE_URL.replace('php/api/','api')}/integrations/payroll/update`, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({ changes, effective_date: awardDate, reason: `Incentive grant ${(type.Name||type.name)}` }) });
+                    const presp = await fetch(`${REST_API_URL}integrations/payroll/update`, { method:'POST', headers:{'Content-Type':'application/json'}, credentials:'include', body: JSON.stringify({ changes, effective_date: awardDate, reason: `Incentive grant ${(type.Name||type.name)}` }) });
                     if (!presp.ok) throw new Error('payroll update failed');
                 }
                 payrollOk++;

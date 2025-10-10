@@ -195,7 +195,7 @@ class Payslips {
                     pr.Notes as PayrollRunNotes
                 FROM payslips_v2 p
                 LEFT JOIN employees e ON p.EmployeeID = e.EmployeeID
-                LEFT JOIN payroll_v2_runs pr ON p.PayrollRunID = pr.PayrollRunID
+                LEFT JOIN payroll_runs_v2 pr ON p.PayrollRunID = pr.PayrollRunID
                 WHERE p.PayslipID = :payslip_id";
 
         $stmt = $this->pdo->prepare($sql);
@@ -288,7 +288,7 @@ class Payslips {
                     AVG(p.NetIncome) as average_net_income,
                     MIN(p.GeneratedAt) as first_generated,
                     MAX(p.GeneratedAt) as last_generated
-                FROM payroll_v2_runs pr
+                FROM payroll_runs_v2 pr
                 LEFT JOIN payslips_v2 p ON pr.PayrollRunID = p.PayrollRunID
                 LEFT JOIN hospital_branches hb ON pr.BranchID = hb.BranchID
                 WHERE pr.PayrollRunID = :payroll_run_id
@@ -331,7 +331,7 @@ class Payslips {
      */
     public function generatePayslipsForPayrollRun($payrollRunId, $branchId) {
         // Get payroll run details
-        $payrollSql = "SELECT * FROM payroll_v2_runs WHERE PayrollRunID = :run_id AND BranchID = :branch_id";
+        $payrollSql = "SELECT * FROM payroll_runs_v2 WHERE PayrollRunID = :run_id AND BranchID = :branch_id";
         $payrollStmt = $this->pdo->prepare($payrollSql);
         $payrollStmt->bindValue(':run_id', $payrollRunId, PDO::PARAM_INT);
         $payrollStmt->bindValue(':branch_id', $branchId, PDO::PARAM_INT);
@@ -353,7 +353,7 @@ class Payslips {
             throw new Exception('Payslips already exist for this payroll run');
         }
 
-        // Get payslip data from payroll_v2_runs processing
+        // Get payslip data from payroll_runs_v2 processing
         $payslipsSql = "SELECT 
                             pv2.PayrollRunID,
                             pv2.EmployeeID,

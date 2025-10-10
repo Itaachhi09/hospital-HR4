@@ -10,7 +10,8 @@ ini_set('display_errors', 0); // Production: 0, Development: 1
 ini_set('log_errors', 1);
 // ini_set('error_log', '/path/to/your/php-error.log');
 
-session_start(); // Needed for authentication
+// Use stable session configuration (BEFORE any output)
+require_once __DIR__ . '/../session_config_stable.php';
 
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *'); // IMPORTANT: For production, restrict this.

@@ -1,4 +1,4 @@
-import { API_BASE_URL, BASE_URL } from '../config.js';
+import { LEGACY_API_URL, BASE_URL } from '../config.js';
 import { loadBranchesForFilter, populateEmployeeDropdown } from '../utils.js';
 import './shared-modals.js';
 
@@ -261,7 +261,9 @@ export async function displayPayslipsSection() {
     loadPayrollRunsForFilter('generate-payslips-payroll-run');
     loadPayrollRunsForFilter('batch-download-payroll-run');
     loadBranchesForFilter('generate-payslips-branch');
-    loadPayslips();
+    
+    // Defer loadPayslips to next event loop to ensure DOM is ready
+    setTimeout(() => loadPayslips(), 0);
 }
 
 function setupPayslipsEventListeners() {

@@ -100,5 +100,51 @@ class Request {
         }
         return htmlspecialchars(trim($data), ENT_QUOTES, 'UTF-8');
     }
+
+    /**
+     * Get pagination parameters from query string
+     * Returns array with page, limit, offset
+     */
+    public static function getPagination($defaultLimit = 20, $maxLimit = 100) {
+        $page = max(1, (int)(self::getQueryParam('page', 1)));
+        $limit = min($maxLimit, max(1, (int)(self::getQueryParam('limit', $defaultLimit))));
+        $offset = ($page - 1) * $limit;
+        
+        return [
+            'page' => $page,
+            'limit' => $limit,
+            'offset' => $offset
+        ];
+    }
+
+    /**
+     * Get all request data (combines GET, POST, and JSON body)
+     * Prioritizes JSON body over POST over GET
+     */
+    public static function getData() {
+        $data = [];
+        
+        // Start with GET parameters
+        $data = array_merge($data, $_GET);
+        
+        // Override with POST parameters
+        $data = array_merge($data, $_POST);
+        
+        // Override with JSON body if present
+        $jsonBody = self::getJsonBody();
+        if ($jsonBody && is_array($jsonBody)) {
+            $data = array_merge($data, $jsonBody);
+        }
+        
+        return $data;
+    }
+
+    /**
+     * Get a specific data parameter (checks GET, POST, and JSON body)
+     */
+    public static function get($key, $default = null) {
+        $data = self::getData();
+        return $data[$key] ?? $default;
+    }
 }
 ?>

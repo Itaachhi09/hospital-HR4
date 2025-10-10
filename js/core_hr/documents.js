@@ -11,7 +11,7 @@
  * - File preview for PDF, images, and docx files
  * - Hospital-blue theme with clean UI
  */
-import { API_BASE_URL, populateEmployeeDropdown } from '../utils.js'; // Import shared functions/constants
+import { REST_API_URL, LEGACY_API_URL, populateEmployeeDropdown } from '../utils.js'; // Import shared functions/constants
 
 /**
  * Displays the Employee Documents section.
@@ -160,8 +160,8 @@ async function loadDocuments(employeeId = null, extra = {}) {
     container.innerHTML = '<div class="text-center py-8"><div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div><p class="text-gray-500 mt-2">Loading HR Core documents...</p></div>'; 
 
     // Use HR Core API endpoint
-    console.log('API_BASE_URL:', API_BASE_URL);
-    let url = `${API_BASE_URL.replace('php/api/', 'api')}/hrcore/documents`;
+    console.log('REST_API_URL:', REST_API_URL);
+    let url = `${REST_API_URL}hrcore/documents`;
     console.log('Constructed URL:', url);
     
     const params = new URLSearchParams();
@@ -415,7 +415,7 @@ async function handleDocumentActionClick(event) {
  */
 async function downloadDocument(documentId) {
     try {
-        const url = `${API_BASE_URL.replace('php/api/', 'api')}/hrcore/documents/${encodeURIComponent(documentId)}/download`;
+        const url = `${REST_API_URL}hrcore/documents/${encodeURIComponent(documentId)}/download`;
         const response = await fetch(url, { 
             credentials: 'include',
             headers: {
@@ -444,7 +444,7 @@ async function downloadDocument(documentId) {
 
 async function previewDocument(documentId, documentName){
     try{
-        const url = `${API_BASE_URL.replace('php/api/', 'api')}/hrcore/documents/${encodeURIComponent(documentId)}/preview`;
+        const url = `${REST_API_URL}hrcore/documents/${encodeURIComponent(documentId)}/preview`;
         const res = await fetch(url, { 
             credentials: 'include',
             headers: {
@@ -481,12 +481,12 @@ async function previewDocument(documentId, documentName){
 async function issueSecureLink(documentId){
     try{
         const ttl = 600;
-        const res = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/hrcore/documents/${encodeURIComponent(documentId)}/token`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ttl }), credentials: 'include' });
+        const res = await fetch(`${REST_API_URL}hrcore/documents/${encodeURIComponent(documentId)}/token`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ ttl }), credentials: 'include' });
         const data = await res.json();
         if (!res.ok || !data || data.success === false) throw new Error(data?.message || `HTTP ${res.status}`);
         const token = data.data?.token || data.token;
         const expiresAt = data.data?.expires_at || data.expires_at;
-        const downloadUrl = `${window.location.origin}${API_BASE_URL.replace('php/api/', 'api')}/hrcore/documents/${encodeURIComponent(documentId)}/download?token=${encodeURIComponent(token)}`;
+        const downloadUrl = `${window.location.origin}${REST_API_URL}hrcore/documents/${encodeURIComponent(documentId)}/download?token=${encodeURIComponent(token)}`;
         await Swal.fire({
             icon: 'success',
             title: 'Secure Link Created',

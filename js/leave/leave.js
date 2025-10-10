@@ -167,7 +167,7 @@ async function populateLeaveTypeDropdown(selectElementId) {
     selectElement.innerHTML = '<option value="" disabled selected>Loading leave types...</option>';
 
     try {
-        const response = await fetch(`${API_BASE_URL}get_leave_types.php`);
+        const response = await fetch(`${LEGACY_API_URL}get_leave_types.php`);
         const leaveTypes = await handleApiResponse(response);
 
         selectElement.innerHTML = '<option value="">-- Select Leave Type --</option>';
@@ -233,7 +233,7 @@ async function handleLeaveRequestSubmit(event) {
     submitButton.disabled = true;
 
     try {
-        const response = await fetch(`${API_BASE_URL}submit_leave_request.php`, {
+        const response = await fetch(`${LEGACY_API_URL}submit_leave_request.php`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(formData)
@@ -287,7 +287,7 @@ async function loadLeaveRequests(employeeId = null, status = null) {
     if (employeeId) params.append('employee_id', employeeId);
     if (status) params.append('status', status);
 
-    const url = `${API_BASE_URL}get_leave_requests.php?${params.toString()}`;
+    const url = `${LEGACY_API_URL}get_leave_requests.php?${params.toString()}`;
 
     try {
         const response = await fetch(url);
@@ -520,7 +520,7 @@ async function updateLeaveRequestStatus(requestId, newStatus, comments = null) {
     }
 
     try {
-        const response = await fetch(`${API_BASE_URL}update_leave_request_status.php`, {
+        const response = await fetch(`${LEGACY_API_URL}update_leave_request_status.php`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -569,7 +569,7 @@ async function deleteLeaveRequest(requestId) {
     });
 
     try {
-        const response = await fetch(`${API_BASE_URL}delete_leave_request.php?id=${requestId}`, {
+        const response = await fetch(`${LEGACY_API_URL}delete_leave_request.php?id=${requestId}`, {
             method: 'DELETE',
             credentials: 'include'
         });
@@ -720,7 +720,7 @@ async function loadLeaveBalances(employeeId, year) {
     params.append('employee_id', employeeId);
     params.append('year', year);
 
-    const url = `${API_BASE_URL}get_leave_balances.php?${params.toString()}`;
+    const url = `${LEGACY_API_URL}get_leave_balances.php?${params.toString()}`;
 
     try {
         const response = await fetch(url);
@@ -882,7 +882,7 @@ async function loadLeaveTypesForAdmin() {
         return;
     }
     container.innerHTML = '<p class="text-center py-4">Loading leave types...</p>';
-    const url = `${API_BASE_URL}get_leave_types.php`; 
+    const url = `${LEGACY_API_URL}get_leave_types.php`; 
 
     try {
         const response = await fetch(url);
@@ -1071,7 +1071,7 @@ async function handleSaveLeaveType(event) {
     }
 
     const isEditing = !!leaveTypeId;
-    const url = isEditing ? `${API_BASE_URL}update_leave_type.php` : `${API_BASE_URL}add_leave_type.php`;
+    const url = isEditing ? `${LEGACY_API_URL}update_leave_type.php` : `${LEGACY_API_URL}add_leave_type.php`;
     const method = 'POST';
 
     const formData = {
@@ -1138,7 +1138,7 @@ async function deleteLeaveType(leaveTypeId) {
     });
 
     try {
-        const response = await fetch(`${API_BASE_URL}delete_leave_type.php`, {
+        const response = await fetch(`${LEGACY_API_URL}delete_leave_type.php`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ leave_type_id: parseInt(leaveTypeId) })

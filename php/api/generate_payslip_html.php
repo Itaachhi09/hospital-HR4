@@ -5,7 +5,8 @@ ini_set('display_errors', 0); // Keep errors hidden from user in production
 ini_set('log_errors', 1);
 // ini_set('error_log', '/path/to/your/php-error.log'); // Optional custom log file
 
-session_start(); // Required for authentication
+// Use stable session configuration (BEFORE any output)
+require_once __DIR__ . '/../session_config_stable.php';
 
 // --- Database Connection ---
 $pdo = null;

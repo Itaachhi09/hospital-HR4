@@ -6,7 +6,7 @@
  * v1.2 - Applied system color theme to dashboard cards and charts.
  * v1.1 - Added role-based dashboard views.
  */
-import { API_BASE_URL } from '../utils.js';
+import { LEGACY_API_URL } from '../utils.js';
 
 // --- DOM Element References ---
 let pageTitleElement;
@@ -60,7 +60,7 @@ export async function displayDashboardSection() {
 
 
     try {
-        const apiUrl = `${API_BASE_URL}get_dashboard_summary.php?role=${encodeURIComponent(user.role_name)}`;
+        const apiUrl = `${LEGACY_API_URL}get_dashboard_summary.php?role=${encodeURIComponent(user.role_name)}`;
         console.log(`[Dashboard] Fetching summary data from: ${apiUrl}`);
         const response = await fetch(apiUrl, { credentials: 'include' });
         console.log(`[Dashboard] Raw response status: ${response.status}`);

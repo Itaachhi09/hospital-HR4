@@ -4,15 +4,11 @@
  * Generates and sends a 2FA code to the logged-in user's email for a specific context (e.g., password change).
  */
 
-// --- PHPMailer Wrapper ---
-require_once __DIR__ . '/../phpmailer_wrapper.php';
+// --- PHPMailer IDE Helper ---
+require_once __DIR__ . '/phpmailer_stub.php';
 
-/**
- * @var PHPMailer\PHPMailer\PHPMailer $mail
- * @var PHPMailer\PHPMailer\Exception $e
- */
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\Exception;
+// --- PHPMailer via Composer ---
+require_once __DIR__ . '/../../vendor/autoload.php';
 
 // --- Error Reporting & Headers ---
 error_reporting(E_ALL);
@@ -20,8 +16,8 @@ ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 // ini_set('error_log', __DIR__ . '/../../php-error.log'); // Ensure this path is writable
 
-// Use simplified session configuration
-require_once __DIR__ . '/../session_config_simple.php';
+// Use stable session configuration
+require_once __DIR__ . '/../session_config_stable.php';
 
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
@@ -128,7 +124,7 @@ try {
     }
 
     // --- Send Email with PHPMailer ---
-    $mail = new PHPMailer(true);
+    $mail = new \PHPMailer\PHPMailer\PHPMailer(true);
     $emailSent = false;
     try {
         // Gmail SMTP Configuration - GET FROM ENVIRONMENT VARIABLES
@@ -145,7 +141,7 @@ try {
         $mail->SMTPAuth   = true;
         $mail->Username   = $gmailUser;
         $mail->Password   = $gmailAppPassword;
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
+        $mail->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS;
         $mail->Port       = 465;
 
         $mail->setFrom($gmailUser, 'Avalon HR System');
@@ -161,7 +157,7 @@ try {
 
         $mail->send();
         $emailSent = true;
-    } catch (Exception $e) {
+    } catch (\PHPMailer\PHPMailer\Exception $e) {
         error_log("PHPMailer Error sending 2FA code for password change to {$user_info['EmployeeEmail']} (UserID: {$loggedInUserId}): {$mail->ErrorInfo}. Exception: {$e->getMessage()}");
         // Don't throw to client, but log it. The main response will indicate failure.
     }

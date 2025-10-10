@@ -74,7 +74,7 @@ async function loadAttendanceRecords(employeeId = null, startDate = null, endDat
     if (startDate) params.append('start_date', startDate);
     if (endDate) params.append('end_date', endDate);
 
-    const url = `${API_BASE_URL}get_attendance.php?${params.toString()}`;
+    const url = `${LEGACY_API_URL}get_attendance.php?${params.toString()}`;
 
     try {
         const response = await fetch(url);

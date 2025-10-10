@@ -10,7 +10,7 @@ header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
 
 require_once '../db_connect.php';
-require_once '../auth_check.php';
+require_once '../session_config_stable.php';
 
 if (!isset($pdo)) {
     http_response_code(500);
@@ -19,7 +19,7 @@ if (!isset($pdo)) {
 }
 
 // Check authentication and authorization
-$user = getCurrentUser();
+$user = get_current_user_data();
 if (!$user) {
     http_response_code(401);
     echo json_encode(['error' => 'Authentication required']);

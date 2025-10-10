@@ -6,15 +6,11 @@
  * v1.4 - Integrated PHPMailer.
  */
 
-// --- PHPMailer Wrapper ---
-require_once __DIR__ . '/../phpmailer_wrapper.php';
+// --- PHPMailer IDE Helper ---
+require_once __DIR__ . '/phpmailer_stub.php';
 
-/**
- * @var PHPMailer\PHPMailer\PHPMailer $mail
- * @var PHPMailer\PHPMailer\Exception $e
- */
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\Exception;
+// --- PHPMailer via Composer ---
+require_once __DIR__ . '/../../vendor/autoload.php';
 
 // --- Error Reporting & Headers ---
 error_reporting(E_ALL);
@@ -22,8 +18,8 @@ ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 // ini_set('error_log', '/path/to/your/php-error.log');
 
-// Use simplified session configuration (BEFORE any output)
-require_once __DIR__ . '/../session_config_simple.php';
+// Use stable session configuration (BEFORE any output)
+require_once __DIR__ . '/../session_config_stable.php';
 
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *'); // Adjust for production
@@ -90,7 +86,8 @@ function send_2fa_email_code_phpmailer(string $recipientEmail, string $code, str
     // --- End Get Credentials ---
 
 
-    $mail = new PHPMailer(true); // Passing `true` enables exceptions
+    // Create PHPMailer instance
+    $mail = new \PHPMailer\PHPMailer\PHPMailer(true); // Passing `true` enables exceptions
 
     try {
         // Server settings
@@ -100,7 +97,7 @@ function send_2fa_email_code_phpmailer(string $recipientEmail, string $code, str
         $mail->SMTPAuth   = true;                  // Enable SMTP authentication
         $mail->Username   = $gmailUser;            // SMTP username (your Gmail address)
         $mail->Password   = $gmailAppPassword;     // SMTP password (your App Password)
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS; // Enable implicit TLS encryption
+        $mail->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS; // Enable implicit TLS encryption
         $mail->Port       = 465;                   // TCP port to connect to; use 587 if you have set `SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS`
 
         // Recipients
@@ -119,7 +116,7 @@ function send_2fa_email_code_phpmailer(string $recipientEmail, string $code, str
         $mail->send();
         error_log("2FA Email Sent successfully to: " . $recipientEmail);
         return true;
-    } catch (Exception $e) {
+    } catch (\PHPMailer\PHPMailer\Exception $e) {
         error_log("PHPMailer Error: Message could not be sent. Mailer Error: {$mail->ErrorInfo}. Exception: {$e->getMessage()}");
         return false;
     }
@@ -277,8 +274,8 @@ try {
         // Regenerate session ID for security (prevent session fixation)
         session_regenerate_id(true);
         
-        // Clear any previous session data
-        $_SESSION = array();
+        // Don't clear session data - just set the new user data
+        // $_SESSION = array(); // REMOVED - this was clearing session config data
         
         // Set new session data
         $_SESSION['user_id'] = $user['UserID'];

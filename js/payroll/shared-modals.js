@@ -3,6 +3,8 @@
  * Provides consistent modal patterns, confirmation dialogs, and UX components
  */
 
+import { REST_API_URL } from '../config.js';
+
 // Global state for modals
 let currentModalState = {
     activeModal: null,
@@ -389,7 +391,7 @@ function showErrorState(containerId, errorMessage) {
  */
 async function loadPayrollRunsForFilter(selectId) {
     try {
-        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/payroll-v2/runs`, {
+        const response = await fetch(`${REST_API_URL}payroll-v2/runs`, {
             credentials: 'include',
             headers: {
                 'Content-Type': 'application/json',

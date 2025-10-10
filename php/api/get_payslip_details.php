@@ -3,6 +3,10 @@
 error_reporting(E_ALL);
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
+
+// Use stable session configuration (BEFORE any output)
+require_once __DIR__ . '/../session_config_stable.php';
+
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *'); // Adjust for production
 
@@ -33,7 +37,7 @@ if (empty($payslip_id) || $payslip_id === false || $payslip_id <= 0) {
 // --- Authorization Check (Placeholder/Example) ---
 // In a real system, you'd check if the logged-in user is allowed to see this payslip
 // (e.g., is it their own payslip, or are they an HR Admin?)
-session_start();
+// Session already started by session_config_stable.php
 $is_authorized = false;
 if (isset($_SESSION['user_id'])) {
     // Example: Allow if HR Admin/SysAdmin OR if it's the employee's own payslip

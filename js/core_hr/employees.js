@@ -1,5 +1,6 @@
 /**
  * Core HR - Employees Module (READ-ONLY VIEWER)
+ * v3.1 - Updated to use LEGACY_API_URL
  * v3.0 - Refactored for HR Core integration - Read-only data visualization
  * v2.2 - Added View Details modal, Add New button, and placeholder Edit/Deactivate buttons.
  * v2.1 - Updated to display more comprehensive employee details in the table.
@@ -9,7 +10,7 @@
  * - No CRUD operations (add/update/delete)
  * - Read-only integration hub for employee data visualization
  */
-import { API_BASE_URL } from '../utils.js'; // Import base URL
+import { LEGACY_API_URL } from '../utils.js'; // Import base URL
 
 // Store employee data globally in this module for modal use
 let allEmployeesData = [];
@@ -193,7 +194,7 @@ async function loadEmployees(params = null, retryCount = 0) {
          return;
     };
     try {
-        let url = `${API_BASE_URL}get_employees.php`;
+        let url = `${LEGACY_API_URL}get_employees.php`;
         if (params) {
             const qs = new URLSearchParams(params).toString();
             url += `?${qs}`;
@@ -309,7 +310,7 @@ async function populateDepartmentsFilter(){
     const select = document.getElementById('emp-filter-dept');
     if (!select) return;
     try{
-        const res = await fetch(`${API_BASE_URL}get_org_structure.php`);
+        const res = await fetch(`${LEGACY_API_URL}get_org_structure.php`);
         const data = await res.json();
         if (Array.isArray(data)){
             data.forEach(d=>{
@@ -1063,7 +1064,7 @@ function showEditEmployeeModal(emp) {
                 department_id: deptSel?.value ? parseInt(deptSel.value) : null,
                 is_active_employee: document.getElementById('edit-is-active').checked ? 1 : 0
             };
-            const res = await fetch(`${API_BASE_URL}admin_update_employee_profile.php`, {
+            const res = await fetch(`${LEGACY_API_URL}admin_update_employee_profile.php`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
             });
             if (!res.ok) { const errText = await res.text(); throw new Error(`HTTP ${res.status} ${errText}`); }
@@ -1083,7 +1084,7 @@ function showEditEmployeeModal(emp) {
  */
 async function performEmployeeDelete(employeeId) {
     try {
-        const res = await fetch(`${API_BASE_URL}delete_employee.php`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employee_id: parseInt(employeeId) }) });
+        const res = await fetch(`${LEGACY_API_URL}delete_employee.php`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employee_id: parseInt(employeeId) }) });
         if (!res.ok) { const t = await res.text(); throw new Error(`HTTP ${res.status} ${t}`); }
         const data = await res.json();
         safeAlert('Deleted', data.message || 'Employee deleted.', 'success');
@@ -1099,7 +1100,7 @@ async function performEmployeeDelete(employeeId) {
  */
 async function showPerformanceModal(employeeId) {
     try {
-        const res = await fetch(`${API_BASE_URL}get_timesheets.php?employee_id=${encodeURIComponent(employeeId)}`);
+        const res = await fetch(`${LEGACY_API_URL}get_timesheets.php?employee_id=${encodeURIComponent(employeeId)}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const timesheets = await res.json();
         const list = Array.isArray(timesheets) ? timesheets.slice(0, 6) : [];

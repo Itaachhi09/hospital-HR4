@@ -129,7 +129,7 @@ async function loadSchedules() {
     const container = document.getElementById('schedules-list-container');
     if (!container) return;
     container.innerHTML = '<p class="text-center py-4">Loading schedules...</p>';
-    const url = `${API_BASE_URL}get_schedules.php`;
+    const url = `${LEGACY_API_URL}get_schedules.php`;
     try {
         const response = await fetch(url);
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -227,7 +227,7 @@ async function handleAddSchedule(event) {
     submitButton.disabled = true;
 
     try {
-        const response = await fetch(`${API_BASE_URL}add_schedule.php`, {
+        const response = await fetch(`${LEGACY_API_URL}add_schedule.php`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formData)
         });
         const result = await response.json();

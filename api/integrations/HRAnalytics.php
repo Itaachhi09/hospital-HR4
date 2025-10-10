@@ -975,15 +975,25 @@ class HRAnalytics {
     }
 
     private function getEducationDistribution($filters = []) {
-        $sql = "SELECT 
-                    COALESCE(e.EducationalBackground, 'Unknown') as education_level,
-                    COUNT(*) as count
-                FROM employees e
-                WHERE e.EmploymentStatus = 'Active'
-                GROUP BY e.EducationalBackground
-                ORDER BY count DESC";
-        $stmt = $this->pdo->query($sql);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        // Check if EducationalBackground column exists
+        $checkColumn = $this->pdo->query("SHOW COLUMNS FROM employees LIKE 'EducationalBackground'")->fetch();
+        
+        if ($checkColumn) {
+            $sql = "SELECT 
+                        COALESCE(e.EducationalBackground, 'Unknown') as education_level,
+                        COUNT(*) as count
+                    FROM employees e
+                    WHERE e.EmploymentStatus = 'Active'
+                    GROUP BY e.EducationalBackground
+                    ORDER BY count DESC";
+            $stmt = $this->pdo->query($sql);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } else {
+            // Return placeholder data if column doesn't exist
+            return [
+                ['education_level' => 'Not Available', 'count' => 0]
+            ];
+        }
     }
 
     private function formatAgeDistribution($filters = []) {

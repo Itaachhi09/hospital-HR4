@@ -10,7 +10,7 @@ echo "=== HMO Schema Migration ===\n\n";
 
 try {
     // Read and execute the schema file
-    $schemaFile = __DIR__ . '/database/hmo_schema_and_seed.sql';
+    $schemaFile = __DIR__ . '/../database/hmo_schema_and_seed.sql';
     
     if (!file_exists($schemaFile)) {
         die("Error: Schema file not found at: $schemaFile\n");

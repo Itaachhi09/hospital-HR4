@@ -16,9 +16,13 @@ class DepartmentsController {
 
     public function __construct() {
         global $pdo;
+        if (!$pdo) {
+            require_once __DIR__ . '/../../php/db_connect.php';
+            global $pdo;
+        }
         $this->pdo = $pdo;
         $this->authMiddleware = new AuthMiddleware();
-        $this->departmentModel = new Department();
+        $this->departmentModel = new Department($pdo);
     }
 
     /**
@@ -67,8 +71,7 @@ class DepartmentsController {
         if (!$this->authMiddleware->hasAnyRole(['System Admin','HR Manager'])) {
             Response::forbidden('Insufficient permissions');
         }
-        $request = new Request();
-        $data = $request->getData();
+        $data = Request::getJsonBody();
         $moves = $data['moves'] ?? [];
         if (!is_array($moves) || empty($moves)) {
             Response::validationError(['moves' => 'Moves array is required']);
@@ -98,12 +101,12 @@ class DepartmentsController {
      * Get all departments
      */
     private function getDepartments() {
-        $request = new Request();
-        $pagination = $request->getPagination();
+        $page = (int)(Request::getQueryParam('page', 1));
+        $limit = (int)(Request::getQueryParam('limit', 50));
         
         $filters = [
-            'is_active' => $request->getData('is_active'),
-            'search' => $request->getData('search')
+            'is_active' => Request::getQueryParam('is_active'),
+            'search' => Request::getQueryParam('search')
         ];
 
         // Remove empty filters
@@ -113,21 +116,21 @@ class DepartmentsController {
 
         try {
             $departments = $this->departmentModel->getDepartments(
-                $pagination['page'],
-                $pagination['limit'],
+                $page,
+                $limit,
                 $filters
             );
 
             $total = $this->departmentModel->countDepartments($filters);
-            $totalPages = ceil($total / $pagination['limit']);
+            $totalPages = ceil($total / $limit);
 
             $paginationData = [
-                'current_page' => $pagination['page'],
-                'per_page' => $pagination['limit'],
+                'current_page' => $page,
+                'per_page' => $limit,
                 'total' => $total,
                 'total_pages' => $totalPages,
-                'has_next' => $pagination['page'] < $totalPages,
-                'has_prev' => $pagination['page'] > 1
+                'has_next' => $page < $totalPages,
+                'has_prev' => $page > 1
             ];
 
             Response::paginated($departments, $paginationData);
@@ -142,8 +145,7 @@ class DepartmentsController {
      * Get single department
      */
     private function getDepartment($id) {
-        $request = new Request();
-        if (!$request->validateInteger($id)) {
+        if (!is_numeric($id)) {
             Response::validationError(['id' => 'Invalid department ID']);
         }
 
@@ -166,8 +168,7 @@ class DepartmentsController {
      * Get department employees
      */
     private function getDepartmentEmployees($id) {
-        $request = new Request();
-        if (!$request->validateInteger($id)) {
+        if (!is_numeric($id)) {
             Response::validationError(['id' => 'Invalid department ID']);
         }
 
@@ -190,16 +191,19 @@ class DepartmentsController {
             Response::forbidden('Insufficient permissions to create departments');
         }
 
-        $request = new Request();
-        $data = $request->getData();
+        $data = Request::getJsonBody();
 
         // Validate required fields
-        $errors = $request->validateRequired(['department_name']);
-        if (!empty($errors)) {
+        $missing = Request::validateRequired($data, ['department_name']);
+        if (!empty($missing)) {
+            $errors = [];
+            foreach ($missing as $field) {
+                $errors[$field] = ucfirst(str_replace('_', ' ', $field)) . ' is required';
+            }
             Response::validationError($errors);
         }
 
-        $departmentName = $request->sanitizeString($data['department_name']);
+        $departmentName = Request::sanitize($data['department_name']);
 
         // Check if department name already exists
         if ($this->departmentModel->departmentNameExists($departmentName)) {
@@ -210,10 +214,10 @@ class DepartmentsController {
         try {
             $departmentData = [
                 'department_name' => $departmentName,
-                'description' => isset($data['description']) ? $request->sanitizeString($data['description']) : null,
+                'description' => isset($data['description']) ? Request::sanitize($data['description']) : null,
                 'manager_id' => isset($data['manager_id']) ? (int)$data['manager_id'] : null,
-                'budget' => isset($data['budget']) ? $request->sanitizeString($data['budget']) : null,
-                'location' => isset($data['location']) ? $request->sanitizeString($data['location']) : null,
+                'budget' => isset($data['budget']) ? Request::sanitize($data['budget']) : null,
+                'location' => isset($data['location']) ? Request::sanitize($data['location']) : null,
                 'is_active' => 1
             ];
 
@@ -234,8 +238,7 @@ class DepartmentsController {
      * Update department
      */
     private function updateDepartment($id) {
-        $request = new Request();
-        if (!$request->validateInteger($id)) {
+        if (!is_numeric($id)) {
             Response::validationError(['id' => 'Invalid department ID']);
         }
 
@@ -244,7 +247,7 @@ class DepartmentsController {
             Response::forbidden('Insufficient permissions to update departments');
         }
 
-        $data = $request->getData();
+        $data = Request::getJsonBody();
 
         // Check if department exists
         $existingDepartment = $this->departmentModel->getDepartmentById($id);
@@ -256,7 +259,7 @@ class DepartmentsController {
 
         // Validate department name if provided
         if (isset($data['department_name'])) {
-            $departmentName = $request->sanitizeString($data['department_name']);
+            $departmentName = Request::sanitize($data['department_name']);
             if ($this->departmentModel->departmentNameExists($departmentName, $id)) {
                 $errors['department_name'] = 'Department name already exists';
             }
@@ -279,7 +282,7 @@ class DepartmentsController {
                     if (in_array($field, ['manager_id', 'is_active'])) {
                         $updateData[$field] = (int)$data[$field];
                     } else {
-                        $updateData[$field] = $request->sanitizeString($data[$field]);
+                        $updateData[$field] = Request::sanitize($data[$field]);
                     }
                 }
             }
@@ -300,8 +303,7 @@ class DepartmentsController {
      * Delete department (soft delete)
      */
     private function deleteDepartment($id) {
-        $request = new Request();
-        if (!$request->validateInteger($id)) {
+        if (!is_numeric($id)) {
             Response::validationError(['id' => 'Invalid department ID']);
         }
 

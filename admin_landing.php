@@ -1,7 +1,7 @@
 
 <?php
-// Use simplified session configuration
-require_once __DIR__ . '/php/session_config_simple.php';
+// Use stable session configuration
+require_once __DIR__ . '/php/session_config_stable.php';
 
 // Require authentication - redirect to login if not authenticated
 require_auth('index.php');
@@ -1301,7 +1301,7 @@ if ($currentUser && $currentUser['role_name'] !== 'System Admin') {
 
        // Try to load real HMO enrollments as additional activity
        try {
-         const response = await fetch('php/api/hmo_enrollments.php', { credentials: 'include' });
+         const response = await fetch('api/hmo/enrollments', { credentials: 'include' });
          const data = await response.json();
          
          if (data.success && data.enrollments && data.enrollments.length > 0) {
@@ -1310,18 +1310,18 @@ if ($currentUser && $currentUser['role_name'] !== 'System Admin') {
            const planName = recentEnrollment.PlanName || 'N/A';
            const enrollDate = recentEnrollment.EnrollmentDate || recentEnrollment.EffectiveDate || new Date().toISOString();
            
-           const enrollmentActivity = `
-             <div class="flex items-start space-x-3 p-3 bg-white rounded-lg border border-gray-200 hover:shadow-sm transition-shadow">
-               <div class="flex-shrink-0">
-                 <div class="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
-               </div>
-               <div class="flex-1 min-w-0">
-                 <p class="text-sm text-gray-900">New HMO enrollment: ${employeeName} - ${planName}</p>
-                 <p class="text-xs text-gray-500 mt-1">${new Date(enrollDate).toLocaleDateString()}</p>
+          const enrollmentActivity = `
+            <div class="flex items-start space-x-3 p-3 bg-white rounded-lg border border-gray-200 hover:shadow-sm transition-shadow">
+              <div class="flex-shrink-0">
+                <div class="w-2 h-2 bg-green-500 rounded-full mt-2"></div>
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm text-gray-900">New HMO enrollment: ${employeeName} - ${planName}</p>
+                <p class="text-xs text-gray-500 mt-1">${new Date(enrollDate).toLocaleDateString()}</p>
+              </div>
             </div>
-          </div>
-        `;
-           container.insertAdjacentHTML('afterbegin', enrollmentActivity);
+          `;
+          container.insertAdjacentHTML('afterbegin', enrollmentActivity);
          }
        } catch (error) {
          console.error('Error loading HMO enrollments for activities:', error);
@@ -1422,6 +1422,24 @@ if ($currentUser && $currentUser['role_name'] !== 'System Admin') {
      });
 
      // Logout function will be provided by main.js
+  </script>
+  
+  <!-- Set up user data from PHP session BEFORE main.js loads -->
+  <script>
+    console.log("Setting up user data from PHP session...");
+    
+    // Set up user data from PHP session
+    window.currentUser = {
+      user_id: <?php echo json_encode($_SESSION['user_id'] ?? '1'); ?>,
+      employee_id: <?php echo json_encode($_SESSION['employee_id'] ?? '1'); ?>,
+      username: <?php echo json_encode($_SESSION['username'] ?? 'admin'); ?>,
+      full_name: <?php echo json_encode($_SESSION['full_name'] ?? 'Admin User'); ?>,
+      role_id: <?php echo json_encode($_SESSION['role_id'] ?? '1'); ?>,
+      role_name: <?php echo json_encode($_SESSION['role_name'] ?? 'System Admin'); ?>,
+      hmo_enrollment: <?php echo json_encode($_SESSION['hmo_enrollment'] ?? '1'); ?>
+    };
+    
+    console.log("User data set:", window.currentUser);
   </script>
   
   <!-- Load main.js module -->

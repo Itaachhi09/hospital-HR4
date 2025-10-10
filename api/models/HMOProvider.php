@@ -187,6 +187,9 @@ class HMOProvider {
                     p.ProviderID,
                     p.ProviderName,
                     p.CompanyName,
+                    p.ContactPerson,
+                    p.ContactEmail,
+                    p.ContactPhone,
                     p.IsActive,
                     COUNT(DISTINCT pl.PlanID) as total_plans,
                     COUNT(DISTINCT e.EnrollmentID) as total_enrollments,
@@ -197,7 +200,7 @@ class HMOProvider {
                 LEFT JOIN employeehmoenrollments e ON pl.PlanID = e.PlanID AND e.Status = 'Active'
                 LEFT JOIN hmoclaims c ON e.EnrollmentID = c.EnrollmentID
                 WHERE p.IsActive = 1
-                GROUP BY p.ProviderID, p.ProviderName, p.CompanyName, p.IsActive
+                GROUP BY p.ProviderID, p.ProviderName, p.CompanyName, p.ContactPerson, p.ContactEmail, p.ContactPhone, p.IsActive
                 ORDER BY p.ProviderName";
 
         $stmt = $this->pdo->query($sql);

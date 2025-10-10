@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../utils.js';
+import { REST_API_URL } from '../utils.js';
 
 // Simple HMO Admin UI module
 export class HMOManagement {
@@ -17,15 +17,15 @@ export class HMOManagement {
 
     async loadProviders() {
         try {
-            const res = await fetch(`${API_BASE_URL}hmo_providers.php`, { credentials: 'include' });
-            const data = await res.json();
-            this.providers = data.providers || [];
+            const res = await fetch(`${REST_API_URL}hmo/providers`, { credentials: 'include' });
+            const response = await res.json();
+            this.providers = response.data?.providers || response.providers || [];
         } catch (e) { console.error('Load providers error', e); }
     }
 
     async loadPlans() {
         try {
-            const res = await fetch(`${API_BASE_URL}hmo_plans.php`, { credentials: 'include' });
+            const res = await fetch(`${LEGACY_API_URL}hmo_plans.php`, { credentials: 'include' });
             const data = await res.json();
             this.plans = data.plans || [];
         } catch (e) { console.error('Load plans error', e); }
@@ -33,7 +33,7 @@ export class HMOManagement {
 
     async loadEnrollments() {
         try {
-            const res = await fetch(`${API_BASE_URL}get_employee_enrollments.php`, { credentials: 'include' });
+            const res = await fetch(`${LEGACY_API_URL}get_employee_enrollments.php`, { credentials: 'include' });
             const data = await res.json();
             if (data.success) this.enrollments = data.enrollments || [];
         } catch (e) { console.error('Load enrollments error', e); }
@@ -42,7 +42,7 @@ export class HMOManagement {
     // Plans
     async loadPlans() {
         try {
-            const res = await fetch(`${API_BASE_URL}hmo_plans.php`, { credentials: 'include' });
+            const res = await fetch(`${LEGACY_API_URL}hmo_plans.php`, { credentials: 'include' });
             const data = await res.json();
             this.plans = data.plans || [];
         } catch (e) { console.error('Load plans error', e); }
@@ -140,7 +140,7 @@ export class HMOManagement {
             const payload = {};
             fd.forEach((v,k)=>payload[k]=v);
             try {
-                const res = await fetch(`${API_BASE_URL}hmo_plans.php`, { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+                const res = await fetch(`${LEGACY_API_URL}hmo_plans.php`, { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
                 const data = await res.json();
                 if (data.success) {
                     document.getElementById('add-plan-overlay')?.remove();
@@ -153,7 +153,7 @@ export class HMOManagement {
     async deletePlan(id) {
         if (!confirm('Delete plan?')) return;
         try {
-            const res = await fetch(`${API_BASE_URL}hmo_plans.php?id=${id}`, { method:'DELETE', credentials:'include' });
+            const res = await fetch(`${LEGACY_API_URL}hmo_plans.php?id=${id}`, { method:'DELETE', credentials:'include' });
             const data = await res.json();
             if (data.success) this.renderPlans(); else alert(data.error||'Failed');
         } catch(e){console.error(e); alert('Error deleting');}
@@ -252,7 +252,7 @@ export class HMOManagement {
             const payload = {};
             fd.forEach((v,k)=>payload[k]=v);
             try {
-                const res = await fetch(`${API_BASE_URL}hmo_enrollments.php`, { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+                const res = await fetch(`${LEGACY_API_URL}hmo_enrollments.php`, { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
                 const data = await res.json();
                 if (data.success) {
                     document.getElementById('add-enrollment-overlay')?.remove();
@@ -265,7 +265,7 @@ export class HMOManagement {
     async deleteEnrollment(id) {
         if (!confirm('Remove enrollment?')) return;
         try {
-            const res = await fetch(`${API_BASE_URL}hmo_enrollments.php?id=${id}`, { method:'DELETE', credentials:'include' });
+            const res = await fetch(`${LEGACY_API_URL}hmo_enrollments.php?id=${id}`, { method:'DELETE', credentials:'include' });
             const data = await res.json();
             if (data.success) {
                 this.renderEnrollments();

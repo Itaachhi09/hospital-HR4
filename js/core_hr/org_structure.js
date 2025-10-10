@@ -9,7 +9,7 @@
  * - Dynamic viewer with real-time data from HR1-HR3
  * - Visual hierarchy display with interactive features
  */
-import { API_BASE_URL, populateEmployeeDropdown } from '../utils.js';
+import { LEGACY_API_URL, populateEmployeeDropdown } from '../utils.js';
 
 let hospitalOrgData = {}; // Store comprehensive hospital organizational data
 let currentView = 'hierarchy'; // Current view: hierarchy, divisions, roles, coordinators
@@ -101,7 +101,7 @@ export async function displayOrgStructureSection() {
  */
 async function loadHospitalOrgData() {
     try {
-        const response = await fetch(`${API_BASE_URL}get_hospital_org_structure.php`);
+        const response = await fetch(`${LEGACY_API_URL}get_hospital_org_structure.php`);
         const data = await response.json();
         
         if (data.success) {
@@ -371,7 +371,7 @@ async function renderFunctionalView(){
     const contentArea = document.getElementById('org-view-content');
     contentArea.innerHTML = '<div class="text-gray-500">Loading functional view...</div>';
     try{
-        const res = await fetch(`${API_BASE_URL}get_hospital_org_structure.php?view=functional`, { credentials:'include' });
+        const res = await fetch(`${LEGACY_API_URL}get_hospital_org_structure.php?view=functional`, { credentials:'include' });
         const result = await res.json();
         const rows = result && result.success ? result.data : [];
         if (!Array.isArray(rows) || rows.length === 0){
@@ -431,7 +431,7 @@ async function renderPayGradeView(){
     const contentArea = document.getElementById('org-view-content');
     contentArea.innerHTML = '<div class="text-gray-500">Loading pay grade view...</div>';
     try{
-        const res = await fetch(`${API_BASE_URL}get_hospital_org_structure.php?view=paygrade`, { credentials:'include' });
+        const res = await fetch(`${LEGACY_API_URL}get_hospital_org_structure.php?view=paygrade`, { credentials:'include' });
         const result = await res.json();
         const rows = result && result.success ? result.data : [];
         if (!Array.isArray(rows) || rows.length === 0){
@@ -580,7 +580,7 @@ function setupPanZoom(){
 
 async function showDepartmentEmployees(deptId){
     try{
-        const res = await fetch(`${API_BASE_URL}get_employees.php?department_id=${encodeURIComponent(deptId)}`);
+        const res = await fetch(`${LEGACY_API_URL}get_employees.php?department_id=${encodeURIComponent(deptId)}`);
         const list = await res.json();
         if (!Array.isArray(list)) throw new Error('Unexpected response');
         const rows = list.map(e=> `<tr><td class="px-3 py-1 text-sm">${e.EmployeeID}</td><td class="px-3 py-1 text-sm">${e.FirstName||''} ${e.LastName||''}</td><td class="px-3 py-1 text-sm">${e.JobTitle||''}</td><td class="px-3 py-1 text-sm">${e.Email||''}</td></tr>`).join('');
@@ -630,7 +630,7 @@ function enableDragDropReorder(){
         if (!res.isConfirmed) return;
         try{
             const payload = { moves: [{ department_id: Number(draggedId), new_parent_id: Number(newParentId) }] };
-            const resp = await fetch(`${API_BASE_URL.replace(/php\/api\/$/, 'api/')}departments/reorder`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            const resp = await fetch(`${LEGACY_API_URL.replace(/php\/api\/$/, 'api/')}departments/reorder`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
             const data = await resp.json();
             if (!resp.ok || data.success === false) throw new Error(data.message || 'Failed');
             await loadHospitalOrgData();
@@ -744,7 +744,7 @@ window.showAddDepartmentModal = async function() {
         const fd = new FormData(e.target); const payload = {};
         fd.forEach((v,k)=>{ if (v !== '') payload[k]= v; });
         try {
-            const res = await fetch(`${API_BASE_URL}manage_hr_structure.php?entity=department`, { method: 'POST', credentials: 'include', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+            const res = await fetch(`${LEGACY_API_URL}manage_hr_structure.php?entity=department`, { method: 'POST', credentials: 'include', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
             const j = await res.json();
             if (j.success) { overlay.remove(); await loadHospitalOrgData(); switchOrgView(currentView); Swal.fire('Success','Department created','success'); }
             else Swal.fire('Error', j.error || 'Failed to create department','error');
@@ -829,7 +829,7 @@ window.editDepartment = function(id) {
         e.preventDefault(); const fd = new FormData(e.target); const payload = {}; fd.forEach((v,k)=>{ if (v !== '') payload[k]= v; });
         try {
             const id = payload.DepartmentID;
-            const res = await fetch(`${API_BASE_URL}manage_hr_structure.php?entity=department&id=${id}`, { method: 'PUT', credentials: 'include', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+            const res = await fetch(`${LEGACY_API_URL}manage_hr_structure.php?entity=department&id=${id}`, { method: 'PUT', credentials: 'include', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
             const j = await res.json();
             if (j.success) { overlay.remove(); await loadHospitalOrgData(); switchOrgView(currentView); Swal.fire('Success','Department updated','success'); }
             else Swal.fire('Error', j.error || 'Failed to update department','error');

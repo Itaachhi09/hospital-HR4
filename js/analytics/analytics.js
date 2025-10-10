@@ -9,7 +9,28 @@
  * - Metrics Module: Existing Metrics API (hr-analytics/metrics/*) - Real-time KPIs
  */
 
-import { API_BASE_URL } from '../utils.js';
+import { LEGACY_API_URL, REST_API_URL } from '../utils.js';
+
+// ========================================================================
+// UTILITY FUNCTIONS
+// ========================================================================
+
+/**
+ * Safely convert value to number and format with toFixed
+ * Handles strings, null, undefined, and actual numbers
+ */
+function safeToFixed(value, decimals = 1) {
+    const num = parseFloat(value);
+    return isNaN(num) ? parseFloat(0).toFixed(decimals) : num.toFixed(decimals);
+}
+
+/**
+ * Safely convert value to number
+ */
+function safeNumber(value, defaultValue = 0) {
+    const num = parseFloat(value);
+    return isNaN(num) ? defaultValue : num;
+}
 
 // ========================================================================
 // API ENDPOINT CONFIGURATION
@@ -154,7 +175,7 @@ function cleanupCharts() {
  */
 async function fetchDepartments() {
     try {
-        const response = await fetch(`${API_BASE_URL}organizationalstructure`);
+        const response = await fetch(`${LEGACY_API_URL}get_org_structure.php`);
         if (!response.ok) return [];
         const data = await response.json();
         return data.data || [];
@@ -574,7 +595,7 @@ async function loadOverviewTab() {
 async function loadOverviewKPIs() {
     try {
         // Use the executive-summary endpoint which has the correct field structure
-        const response = await fetch(`${API_BASE_URL}hr-analytics/executive-summary`);
+        const response = await fetch(`${REST_API_URL}hr-analytics/executive-summary`);
         const result = await response.json();
         
         console.log('[Analytics] Executive summary response:', result);
@@ -583,56 +604,46 @@ async function loadOverviewKPIs() {
             // The executive-summary returns data in result.data.overview structure
             const data = result.data.overview || result.data || {};
             
+            // Small helper to safely set textContent if element exists
+            const setText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+            const setHTML = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
+
             // Total Active Employees
-            document.getElementById('kpi-total-employees').textContent = 
-                (data.total_active_employees || 0).toLocaleString();
+            setText('kpi-total-employees', (data.total_active_employees || 0).toLocaleString());
             const headcountChange = data.headcount_change || 0;
-            document.getElementById('kpi-employees-change').innerHTML = 
-                `<i class="fas fa-arrow-${headcountChange >= 0 ? 'up' : 'down'} mr-1"></i>${headcountChange > 0 ? '+' : ''}${headcountChange} this month`;
+            setHTML('kpi-employees-change', `<i class="fas fa-arrow-${headcountChange >= 0 ? 'up' : 'down'} mr-1"></i>${headcountChange > 0 ? '+' : ''}${headcountChange} this month`);
             
             // Monthly Headcount Change
-            document.getElementById('kpi-headcount-change').textContent = 
-                `${headcountChange > 0 ? '+' : ''}${headcountChange}`;
-            document.getElementById('kpi-headcount-detail').innerHTML = 
-                `Net change this month`;
+            setText('kpi-headcount-change', `${headcountChange > 0 ? '+' : ''}${headcountChange}`);
+            setHTML('kpi-headcount-detail', `Net change this month`);
             
             // Turnover Rate
             const turnoverRate = parseFloat(data.annual_turnover_rate || 0);
-            document.getElementById('kpi-turnover-rate').textContent = 
-                `${turnoverRate.toFixed(1)}%`;
-            document.getElementById('kpi-turnover-detail').innerHTML = 
-                `<i class="fas fa-arrow-down mr-1"></i>Annual rate`;
+            setText('kpi-turnover-rate', `${safeToFixed(turnoverRate, 1)}%`);
+            setHTML('kpi-turnover-detail', `<i class="fas fa-arrow-down mr-1"></i>Annual rate`);
             
             // Payroll Cost
             const payrollCost = parseFloat(data.total_monthly_payroll || 0);
-            document.getElementById('kpi-payroll-cost').textContent = 
-                `₱${payrollCost.toLocaleString('en-PH', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            setText('kpi-payroll-cost', `₱${safeNumber(payrollCost).toLocaleString('en-PH', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`);
             
             // Benefit Utilization
             const benefitUtil = parseFloat(data.benefit_utilization || 0);
-            document.getElementById('kpi-benefit-utilization').textContent = 
-                `${benefitUtil.toFixed(1)}%`;
-            document.getElementById('kpi-benefit-detail').textContent = 
-                `Utilization rate`;
+            setText('kpi-benefit-utilization', `${safeToFixed(benefitUtil, 1)}%`);
+            setText('kpi-benefit-detail', `Utilization rate`);
             
             // Training Index
             const trainingIndex = parseFloat(data.training_index || 0);
-            document.getElementById('kpi-training-index').textContent = 
-                `${trainingIndex.toFixed(1)}`;
-            document.getElementById('kpi-training-detail').textContent = 
-                `Competency score`;
+            setText('kpi-training-index', `${safeToFixed(trainingIndex, 1)}`);
+            setText('kpi-training-detail', `Competency score`);
             
             // Attendance Rate
             const attendanceRate = parseFloat(data.attendance_rate || 0);
-            document.getElementById('kpi-attendance-rate').textContent = 
-                `${attendanceRate.toFixed(1)}%`;
+            setText('kpi-attendance-rate', `${safeToFixed(attendanceRate, 1)}%`);
             
             // Pay Compliance
             const payCompliance = parseFloat(data.payband_compliance || 0);
-            document.getElementById('kpi-pay-compliance').textContent = 
-                `${payCompliance.toFixed(1)}%`;
-            document.getElementById('kpi-pay-detail').textContent = 
-                'Within pay bands';
+            setText('kpi-pay-compliance', `${safeToFixed(payCompliance, 1)}%`);
+            setText('kpi-pay-detail', 'Within pay bands');
         }
     } catch (error) {
         console.error('Error loading Overview KPIs:', error);
@@ -656,7 +667,7 @@ async function loadOverviewCharts() {
  */
 async function loadHeadcountTrendChart() {
     try {
-        const response = await fetch(`${API_BASE_URL}hr-analytics/headcount-trend`);
+        const response = await fetch(`${REST_API_URL}hr-analytics/headcount-trend`);
         const result = await response.json();
         
         if (result.success && result.data) {
@@ -747,7 +758,7 @@ async function loadHeadcountTrendChart() {
  */
 async function loadTurnoverByDeptChart() {
     try {
-        const response = await fetch(`${API_BASE_URL}hr-analytics/turnover-by-department`);
+        const response = await fetch(`${REST_API_URL}hr-analytics/turnover-by-department`);
         const result = await response.json();
         
         if (result.success && result.data) {
@@ -805,7 +816,7 @@ async function loadTurnoverByDeptChart() {
  */
 async function loadPayrollTrendChart() {
     try {
-        const response = await fetch(`${API_BASE_URL}hr-analytics/payroll-trend`);
+        const response = await fetch(`${REST_API_URL}hr-analytics/payroll-trend`);
         const result = await response.json();
         
         if (result.success && result.data) {
@@ -902,7 +913,7 @@ async function loadPayrollTrendChart() {
  */
 async function loadBenefitsUtilizationChart() {
     try {
-        const response = await fetch(`${API_BASE_URL}hmo/analytics/benefit-types-summary`);
+        const response = await fetch(`${REST_API_URL}hmo/analytics/benefit-types-summary`);
         const result = await response.json();
         
         if (result.success && result.data) {
@@ -1083,7 +1094,7 @@ async function loadWorkforceTab() {
  */
 async function loadWorkforceData() {
     try {
-        const response = await fetch(`${API_BASE_URL}hr-analytics/employee-demographics`);
+        const response = await fetch(`${REST_API_URL}hr-analytics/employee-demographics`);
         const result = await response.json();
         
         if (result.success && result.data) {
@@ -1091,9 +1102,9 @@ async function loadWorkforceData() {
             
             // Update summary cards
             document.getElementById('wf-total').textContent = (data.overview?.total_headcount || 0).toLocaleString();
-            document.getElementById('wf-avg-age').textContent = `${(data.overview?.avg_age || 0).toFixed(1)} yrs`;
-            document.getElementById('wf-avg-tenure').textContent = `${(data.overview?.avg_tenure_years || 0).toFixed(1)} yrs`;
-            document.getElementById('wf-gender-ratio').textContent = `${data.overview?.male_percentage || 50}/${data.overview?.female_percentage || 50}`;
+            document.getElementById('wf-avg-age').textContent = `${safeToFixed(data.overview?.avg_age, 1)} yrs`;
+            document.getElementById('wf-avg-tenure').textContent = `${safeToFixed(data.overview?.avg_tenure_years, 1)} yrs`;
+            document.getElementById('wf-gender-ratio').textContent = `${safeToFixed(data.overview?.male_percentage, 0)}/${safeToFixed(data.overview?.female_percentage, 0)}`;
             
             // Populate department table
             populateWorkforceDeptTable(data.department_distribution || []);
@@ -1497,7 +1508,7 @@ async function loadPayrollTab() {
  */
 async function loadPayrollData() {
     try {
-        const response = await fetch(`${API_BASE_URL}hr-analytics/payroll-compensation`);
+        const response = await fetch(`${REST_API_URL}hr-analytics/payroll-compensation`);
         const result = await response.json();
         
         if (result.success && result.data) {
@@ -1507,13 +1518,13 @@ async function loadPayrollData() {
             document.getElementById('pr-total-payroll').textContent = 
                 `₱${(data.overview?.total_payroll || 0).toLocaleString('en-PH')}`;
             document.getElementById('pr-avg-salary').textContent = 
-                `₱${(data.overview?.avg_salary || 0).toLocaleString('en-PH')}`;
+                `₱${safeNumber(data.overview?.avg_salary).toLocaleString('en-PH')}`;
             document.getElementById('pr-ot-cost').textContent = 
-                `₱${(data.overview?.total_overtime || 0).toLocaleString('en-PH')}`;
+                `₱${safeNumber(data.overview?.total_overtime).toLocaleString('en-PH')}`;
             document.getElementById('pr-ot-ratio').textContent = 
-                `${(data.overview?.ot_percentage || 0).toFixed(1)}% of total`;
+                `${safeToFixed(data.overview?.ot_percentage, 1)}% of total`;
             document.getElementById('pr-compliance').textContent = 
-                `${(data.overview?.pay_band_compliance || 0).toFixed(1)}%`;
+                `${safeToFixed(data.overview?.pay_band_compliance, 1)}%`;
             
             // Populate department table
             populatePayrollDeptTable(data.department_data || []);
@@ -1540,13 +1551,13 @@ function populatePayrollDeptTable(departments) {
     
     tbody.innerHTML = departments.map(dept => `
         <tr class="hover:bg-gray-50">
-            <td class="px-6 py-4 text-sm font-medium text-gray-900">${dept.department}</td>
-            <td class="px-6 py-4 text-sm text-blue-600 font-semibold">${dept.employees}</td>
-            <td class="px-6 py-4 text-sm text-green-600">₱${dept.gross_pay.toLocaleString()}</td>
-            <td class="px-6 py-4 text-sm text-purple-600">₱${dept.overtime.toLocaleString()}</td>
-            <td class="px-6 py-4 text-sm text-orange-600">₱${dept.deductions.toLocaleString()}</td>
-            <td class="px-6 py-4 text-sm text-green-700 font-bold">₱${dept.net_pay.toLocaleString()}</td>
-            <td class="px-6 py-4 text-sm text-gray-700">₱${dept.avg_salary.toLocaleString()}</td>
+            <td class="px-6 py-4 text-sm font-medium text-gray-900">${dept.department || dept.department_name || 'Unassigned'}</td>
+            <td class="px-6 py-4 text-sm text-blue-600 font-semibold">${safeNumber(dept.employees).toLocaleString()}</td>
+            <td class="px-6 py-4 text-sm text-green-600">₱${safeNumber(dept.gross_pay).toLocaleString()}</td>
+            <td class="px-6 py-4 text-sm text-purple-600">₱${safeNumber(dept.overtime).toLocaleString()}</td>
+            <td class="px-6 py-4 text-sm text-orange-600">₱${safeNumber(dept.deductions).toLocaleString()}</td>
+            <td class="px-6 py-4 text-sm text-green-700 font-bold">₱${safeNumber(dept.net_pay).toLocaleString()}</td>
+            <td class="px-6 py-4 text-sm text-gray-700">₱${safeNumber(dept.avg_salary).toLocaleString()}</td>
         </tr>
     `).join('');
 }
@@ -2019,7 +2030,7 @@ async function loadBenefitsTab() {
  */
 async function loadBenefitsData() {
     try {
-        const response = await fetch(`${API_BASE_URL}hr-analytics/benefits-hmo`);
+        const response = await fetch(`${REST_API_URL}hr-analytics/benefits-hmo`);
         const result = await response.json();
         
         if (result.success && result.data) {
@@ -2027,13 +2038,13 @@ async function loadBenefitsData() {
             
             // Update summary cards
             document.getElementById('bf-total-cost').textContent = 
-                `₱${(data.overview?.total_benefits_cost || 0).toLocaleString('en-PH')}`;
+                `₱${safeNumber(data.overview?.total_benefits_cost).toLocaleString('en-PH')}`;
             document.getElementById('bf-utilization').textContent = 
-                `${(data.overview?.hmo_utilization || 0).toFixed(1)}%`;
+                `${safeToFixed(data.overview?.hmo_utilization, 1)}%`;
             document.getElementById('bf-claims-count').textContent = 
-                (data.overview?.total_claims || 0).toLocaleString();
+                safeNumber(data.overview?.total_claims).toLocaleString();
             document.getElementById('bf-processing-time').textContent = 
-                `${(data.overview?.avg_processing_time || 0).toFixed(1)}`;
+                `${safeToFixed(data.overview?.avg_processing_time, 1)}`;
             
             // Populate provider table
             populateBenefitsProviderTable(data.provider_data || []);
@@ -2527,7 +2538,7 @@ async function loadTrainingTab() {
  */
 async function loadTrainingData() {
     try {
-        const response = await fetch(`${API_BASE_URL}hr-analytics/training-development`);
+        const response = await fetch(`${REST_API_URL}hr-analytics/training-development`);
         const result = await response.json();
         
         if (result.success && result.data) {
@@ -2535,13 +2546,13 @@ async function loadTrainingData() {
             
             // Update summary cards
             document.getElementById('tr-participation').textContent = 
-                `${(data.overview?.participation_rate || 0).toFixed(1)}%`;
+                `${safeToFixed(data.overview?.participation_rate, 1)}%`;
             document.getElementById('tr-avg-hours').textContent = 
-                `${(data.overview?.avg_training_hours || 0).toFixed(1)} hrs`;
+                `${safeToFixed(data.overview?.avg_training_hours, 1)} hrs`;
             document.getElementById('tr-cost').textContent = 
-                `₱${(data.overview?.total_cost || 0).toLocaleString('en-PH')}`;
+                `₱${safeNumber(data.overview?.total_cost).toLocaleString('en-PH')}`;
             document.getElementById('tr-competency').textContent = 
-                `${(data.overview?.competency_score || 0).toFixed(1)}`;
+                `${safeToFixed(data.overview?.competency_score, 1)}`;
             
             // Populate tables
             populateTrainingProgramsTable(data.training_data || []);
@@ -3305,7 +3316,7 @@ async function generateDemographicsReport(deptId, dateRange) {
             to_date: getDateFromRange(dateRange, 'to')
         });
         
-        const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.reports.demographics}?${params}`);
+        const response = await fetch(`${REST_API_URL}${API_ENDPOINTS.reports.demographics}?${params}`);
         const result = await response.json();
         
         if (result.success && result.data) {
@@ -3321,11 +3332,11 @@ async function generateDemographicsReport(deptId, dateRange) {
                         </div>
                         <div class="bg-green-50 border border-green-200 rounded-lg p-4">
                             <div class="text-sm text-green-600 font-medium">Average Age</div>
-                            <div class="text-2xl font-bold text-green-700">${(data.overview?.avg_age || 0).toFixed(1)} yrs</div>
+                            <div class="text-2xl font-bold text-green-700">${safeToFixed(data.overview?.avg_age, 1)} yrs</div>
                         </div>
                         <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
                             <div class="text-sm text-purple-600 font-medium">Average Tenure</div>
-                            <div class="text-2xl font-bold text-purple-700">${(data.overview?.avg_tenure_years || 0).toFixed(1)} yrs</div>
+                            <div class="text-2xl font-bold text-purple-700">${safeToFixed(data.overview?.avg_tenure_years, 1)} yrs</div>
                         </div>
                         <div class="bg-orange-50 border border-orange-200 rounded-lg p-4">
                             <div class="text-sm text-orange-600 font-medium">Departments</div>
@@ -3367,7 +3378,7 @@ async function generateDemographicsReport(deptId, dateRange) {
 async function generateRecruitmentReport(deptId, dateRange) {
     try {
         const params = new URLSearchParams({ department_id: deptId || '', date_range: dateRange });
-        const response = await fetch(`${API_BASE_URL}hr-analytics/recruitment-application?${params}`);
+        const response = await fetch(`${REST_API_URL}hr-analytics/recruitment-application?${params}`);
         const result = await response.json();
         
         if (result.success && result.data) {
@@ -3389,17 +3400,17 @@ async function generateRecruitmentReport(deptId, dateRange) {
                         </div>
                         <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
                             <div class="text-sm text-purple-600 font-medium">Time-to-Hire</div>
-                            <div class="text-2xl font-bold text-purple-700">${(data.overview?.avg_time_to_hire || 0).toFixed(1)} days</div>
+                            <div class="text-2xl font-bold text-purple-700">${safeToFixed(data.overview?.avg_time_to_hire, 1)} days</div>
                             <div class="text-xs text-purple-500 mt-1">Average duration</div>
                         </div>
                         <div class="bg-orange-50 border border-orange-200 rounded-lg p-4">
                             <div class="text-sm text-orange-600 font-medium">Acceptance Rate</div>
-                            <div class="text-2xl font-bold text-orange-700">${(data.overview?.acceptance_rate || 0).toFixed(1)}%</div>
+                            <div class="text-2xl font-bold text-orange-700">${safeToFixed(data.overview?.acceptance_rate, 1)}%</div>
                             <div class="text-xs text-orange-500 mt-1">Offer success</div>
                         </div>
                         <div class="bg-red-50 border border-red-200 rounded-lg p-4">
                             <div class="text-sm text-red-600 font-medium">Vacancy Rate</div>
-                            <div class="text-2xl font-bold text-red-700">${(data.overview?.vacancy_rate || 0).toFixed(1)}%</div>
+                            <div class="text-2xl font-bold text-red-700">${safeToFixed(data.overview?.vacancy_rate, 1)}%</div>
                             <div class="text-xs text-red-500 mt-1">Open positions</div>
                         </div>
                     </div>
@@ -3473,7 +3484,7 @@ async function generateRecruitmentReport(deptId, dateRange) {
 async function generatePayrollReport(deptId, dateRange) {
     try {
         const params = new URLSearchParams({ department_id: deptId || '', date_range: dateRange });
-        const response = await fetch(`${API_BASE_URL}hr-analytics/payroll-compensation?${params}`);
+        const response = await fetch(`${REST_API_URL}hr-analytics/payroll-compensation?${params}`);
         const result = await response.json();
         
         if (result.success && result.data) {
@@ -3496,12 +3507,12 @@ async function generatePayrollReport(deptId, dateRange) {
                         <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
                             <div class="text-sm text-purple-600 font-medium">Overtime Pay</div>
                             <div class="text-2xl font-bold text-purple-700">₱${(data.overview?.total_overtime || 0).toLocaleString('en-PH')}</div>
-                            <div class="text-xs text-purple-500 mt-1">${(data.overview?.ot_percentage || 0).toFixed(1)}% of total</div>
+                            <div class="text-xs text-purple-500 mt-1">${safeToFixed(data.overview?.ot_percentage, 1)}% of total</div>
                         </div>
                         <div class="bg-orange-50 border border-orange-200 rounded-lg p-4">
                             <div class="text-sm text-orange-600 font-medium">Total Deductions</div>
                             <div class="text-2xl font-bold text-orange-700">₱${(data.overview?.total_deductions || 0).toLocaleString('en-PH')}</div>
-                            <div class="text-xs text-orange-500 mt-1">${(data.overview?.deduction_rate || 0).toFixed(1)}% rate</div>
+                            <div class="text-xs text-orange-500 mt-1">${safeToFixed(data.overview?.deduction_rate, 1)}% rate</div>
                         </div>
                         <div class="bg-teal-50 border border-teal-200 rounded-lg p-4">
                             <div class="text-sm text-teal-600 font-medium">Net Pay</div>
@@ -3579,7 +3590,7 @@ async function generatePayrollReport(deptId, dateRange) {
 async function generateAttendanceReport(deptId, dateRange) {
     try {
         const params = new URLSearchParams({ department_id: deptId || '', date_range: dateRange });
-        const response = await fetch(`${API_BASE_URL}hr-analytics/attendance-leave?${params}`);
+        const response = await fetch(`${REST_API_URL}hr-analytics/attendance-leave?${params}`);
         const result = await response.json();
         
         if (result.success && result.data) {
@@ -3591,18 +3602,18 @@ async function generateAttendanceReport(deptId, dateRange) {
                     <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
                         <div class="bg-green-50 border border-green-200 rounded-lg p-4">
                             <div class="text-sm text-green-600 font-medium">Attendance Rate</div>
-                            <div class="text-2xl font-bold text-green-700">${(data.overview?.attendance_rate || 0).toFixed(1)}%</div>
+                            <div class="text-2xl font-bold text-green-700">${safeToFixed(data.overview?.attendance_rate, 1)}%</div>
                             <div class="text-xs text-green-500 mt-1">Present days</div>
                         </div>
                         <div class="bg-red-50 border border-red-200 rounded-lg p-4">
                             <div class="text-sm text-red-600 font-medium">Absenteeism Rate</div>
-                            <div class="text-2xl font-bold text-red-700">${(data.overview?.absenteeism_rate || 0).toFixed(1)}%</div>
+                            <div class="text-2xl font-bold text-red-700">${safeToFixed(data.overview?.absenteeism_rate, 1)}%</div>
                             <div class="text-xs text-red-500 mt-1">Absent days</div>
                         </div>
                         <div class="bg-orange-50 border border-orange-200 rounded-lg p-4">
                             <div class="text-sm text-orange-600 font-medium">Late Arrivals</div>
                             <div class="text-2xl font-bold text-orange-700">${(data.overview?.late_count || 0).toLocaleString()}</div>
-                            <div class="text-xs text-orange-500 mt-1">${(data.overview?.late_rate || 0).toFixed(1)}% of employees</div>
+                            <div class="text-xs text-orange-500 mt-1">${safeToFixed(data.overview?.late_rate, 1)}% of employees</div>
                         </div>
                         <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
                             <div class="text-sm text-purple-600 font-medium">Overtime Hours</div>
@@ -3611,7 +3622,7 @@ async function generateAttendanceReport(deptId, dateRange) {
                         </div>
                         <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
                             <div class="text-sm text-blue-600 font-medium">Leave Utilization</div>
-                            <div class="text-2xl font-bold text-blue-700">${(data.overview?.leave_utilization || 0).toFixed(1)}%</div>
+                            <div class="text-2xl font-bold text-blue-700">${safeToFixed(data.overview?.leave_utilization, 1)}%</div>
                             <div class="text-xs text-blue-500 mt-1">Of entitlement</div>
                         </div>
                     </div>
@@ -3685,7 +3696,7 @@ async function generateAttendanceReport(deptId, dateRange) {
 async function generateBenefitsReport(deptId, dateRange) {
     try {
         const params = new URLSearchParams({ department_id: deptId || '', date_range: dateRange });
-        const response = await fetch(`${API_BASE_URL}hr-analytics/benefits-hmo?${params}`);
+        const response = await fetch(`${REST_API_URL}hr-analytics/benefits-hmo?${params}`);
         const result = await response.json();
         
         if (result.success && result.data) {
@@ -3702,7 +3713,7 @@ async function generateBenefitsReport(deptId, dateRange) {
                         </div>
                         <div class="bg-green-50 border border-green-200 rounded-lg p-4">
                             <div class="text-sm text-green-600 font-medium">HMO Utilization</div>
-                            <div class="text-2xl font-bold text-green-700">${(data.overview?.hmo_utilization || 0).toFixed(1)}%</div>
+                            <div class="text-2xl font-bold text-green-700">${safeToFixed(data.overview?.hmo_utilization, 1)}%</div>
                             <div class="text-xs text-green-500 mt-1">Enrolled employees</div>
                         </div>
                         <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
@@ -3717,7 +3728,7 @@ async function generateBenefitsReport(deptId, dateRange) {
                         </div>
                         <div class="bg-teal-50 border border-teal-200 rounded-lg p-4">
                             <div class="text-sm text-teal-600 font-medium">Processing Time</div>
-                            <div class="text-2xl font-bold text-teal-700">${(data.overview?.avg_processing_time || 0).toFixed(1)} days</div>
+                            <div class="text-2xl font-bold text-teal-700">${safeToFixed(data.overview?.avg_processing_time, 1)} days</div>
                             <div class="text-xs text-teal-500 mt-1">Average</div>
                         </div>
                     </div>
@@ -3791,7 +3802,7 @@ async function generateBenefitsReport(deptId, dateRange) {
 async function generateTrainingReport(deptId, dateRange) {
     try {
         const params = new URLSearchParams({ department_id: deptId || '', date_range: dateRange });
-        const response = await fetch(`${API_BASE_URL}hr-analytics/training-development?${params}`);
+        const response = await fetch(`${REST_API_URL}hr-analytics/training-development?${params}`);
         const result = await response.json();
         
         if (result.success && result.data) {
@@ -3808,7 +3819,7 @@ async function generateTrainingReport(deptId, dateRange) {
                         </div>
                         <div class="bg-green-50 border border-green-200 rounded-lg p-4">
                             <div class="text-sm text-green-600 font-medium">Participation Rate</div>
-                            <div class="text-2xl font-bold text-green-700">${(data.overview?.participation_rate || 0).toFixed(1)}%</div>
+                            <div class="text-2xl font-bold text-green-700">${safeToFixed(data.overview?.participation_rate, 1)}%</div>
                             <div class="text-xs text-green-500 mt-1">Employee engagement</div>
                         </div>
                         <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
@@ -3897,7 +3908,7 @@ async function generateTrainingReport(deptId, dateRange) {
 async function generateRelationsReport(deptId, dateRange) {
     try {
         const params = new URLSearchParams({ department_id: deptId || '', date_range: dateRange });
-        const response = await fetch(`${API_BASE_URL}hr-analytics/employee-relations?${params}`);
+        const response = await fetch(`${REST_API_URL}hr-analytics/employee-relations?${params}`);
         const result = await response.json();
         
         if (result.success && result.data) {
@@ -3909,12 +3920,12 @@ async function generateRelationsReport(deptId, dateRange) {
                     <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
                         <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
                             <div class="text-sm text-purple-600 font-medium">Engagement Index</div>
-                            <div class="text-2xl font-bold text-purple-700">${(data.overview?.engagement_index || 0).toFixed(1)}/5.0</div>
+                            <div class="text-2xl font-bold text-purple-700">${safeToFixed(data.overview?.engagement_index, 1)}/5.0</div>
                             <div class="text-xs text-purple-500 mt-1">Overall score</div>
                         </div>
                         <div class="bg-green-50 border border-green-200 rounded-lg p-4">
                             <div class="text-sm text-green-600 font-medium">Participation Rate</div>
-                            <div class="text-2xl font-bold text-green-700">${(data.overview?.participation_rate || 0).toFixed(1)}%</div>
+                            <div class="text-2xl font-bold text-green-700">${safeToFixed(data.overview?.participation_rate, 1)}%</div>
                             <div class="text-xs text-green-500 mt-1">Activity engagement</div>
                         </div>
                         <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -3925,11 +3936,11 @@ async function generateRelationsReport(deptId, dateRange) {
                         <div class="bg-orange-50 border border-orange-200 rounded-lg p-4">
                             <div class="text-sm text-orange-600 font-medium">Disciplinary Cases</div>
                             <div class="text-2xl font-bold text-orange-700">${(data.overview?.disciplinary_cases || 0).toLocaleString()}</div>
-                            <div class="text-xs text-orange-500 mt-1">${(data.overview?.case_rate || 0).toFixed(2)}% rate</div>
+                            <div class="text-xs text-orange-500 mt-1">${safeToFixed(data.overview?.case_rate, 2)}% rate</div>
                         </div>
                         <div class="bg-teal-50 border border-teal-200 rounded-lg p-4">
                             <div class="text-sm text-teal-600 font-medium">Avg Resolution Time</div>
-                            <div class="text-2xl font-bold text-teal-700">${(data.overview?.avg_resolution_time || 0).toFixed(1)} days</div>
+                            <div class="text-2xl font-bold text-teal-700">${safeToFixed(data.overview?.avg_resolution_time, 1)} days</div>
                             <div class="text-xs text-teal-500 mt-1">Case closure</div>
                         </div>
                     </div>
@@ -4008,7 +4019,7 @@ async function generateRelationsReport(deptId, dateRange) {
 async function generateTurnoverReport(deptId, dateRange) {
     try {
         const params = new URLSearchParams({ department_id: deptId || '', date_range: dateRange });
-        const response = await fetch(`${API_BASE_URL}hr-analytics/turnover-retention?${params}`);
+        const response = await fetch(`${REST_API_URL}hr-analytics/turnover-retention?${params}`);
         const result = await response.json();
         
         if (result.success && result.data) {
@@ -4020,12 +4031,12 @@ async function generateTurnoverReport(deptId, dateRange) {
                     <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
                         <div class="bg-red-50 border border-red-200 rounded-lg p-4">
                             <div class="text-sm text-red-600 font-medium">Turnover Rate</div>
-                            <div class="text-2xl font-bold text-red-700">${(data.overview?.turnover_rate || 0).toFixed(1)}%</div>
+                            <div class="text-2xl font-bold text-red-700">${safeToFixed(data.overview?.turnover_rate, 1)}%</div>
                             <div class="text-xs text-red-500 mt-1">Annual rate</div>
                         </div>
                         <div class="bg-green-50 border border-green-200 rounded-lg p-4">
                             <div class="text-sm text-green-600 font-medium">Retention Rate</div>
-                            <div class="text-2xl font-bold text-green-700">${(data.overview?.retention_rate || 0).toFixed(1)}%</div>
+                            <div class="text-2xl font-bold text-green-700">${safeToFixed(data.overview?.retention_rate, 1)}%</div>
                             <div class="text-xs text-green-500 mt-1">Staying employees</div>
                         </div>
                         <div class="bg-orange-50 border border-orange-200 rounded-lg p-4">
@@ -4036,11 +4047,11 @@ async function generateTurnoverReport(deptId, dateRange) {
                         <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
                             <div class="text-sm text-purple-600 font-medium">Voluntary Exits</div>
                             <div class="text-2xl font-bold text-purple-700">${(data.overview?.voluntary_exits || 0).toLocaleString()}</div>
-                            <div class="text-xs text-purple-500 mt-1">${(data.overview?.voluntary_percentage || 0).toFixed(1)}% of total</div>
+                            <div class="text-xs text-purple-500 mt-1">${safeToFixed(data.overview?.voluntary_percentage, 1)}% of total</div>
                         </div>
                         <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
                             <div class="text-sm text-blue-600 font-medium">Avg Exit Tenure</div>
-                            <div class="text-2xl font-bold text-blue-700">${(data.overview?.avg_exit_tenure || 0).toFixed(1)} yrs</div>
+                            <div class="text-2xl font-bold text-blue-700">${safeToFixed(data.overview?.avg_exit_tenure, 1)} yrs</div>
                             <div class="text-xs text-blue-500 mt-1">Years of service</div>
                         </div>
                     </div>
@@ -4116,7 +4127,7 @@ async function generateTurnoverReport(deptId, dateRange) {
 async function generateComplianceReport(deptId, dateRange) {
     try {
         const params = new URLSearchParams({ department_id: deptId || '', date_range: dateRange });
-        const response = await fetch(`${API_BASE_URL}hr-analytics/compliance-documents?${params}`);
+        const response = await fetch(`${REST_API_URL}hr-analytics/compliance-documents?${params}`);
         const result = await response.json();
         
         if (result.success && result.data) {
@@ -4128,12 +4139,12 @@ async function generateComplianceReport(deptId, dateRange) {
                     <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
                         <div class="bg-green-50 border border-green-200 rounded-lg p-4">
                             <div class="text-sm text-green-600 font-medium">License Compliance</div>
-                            <div class="text-2xl font-bold text-green-700">${(data.overview?.license_compliance || 0).toFixed(1)}%</div>
+                            <div class="text-2xl font-bold text-green-700">${safeToFixed(data.overview?.license_compliance, 1)}%</div>
                             <div class="text-xs text-green-500 mt-1">Valid licenses</div>
                         </div>
                         <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
                             <div class="text-sm text-blue-600 font-medium">Document Completion</div>
-                            <div class="text-2xl font-bold text-blue-700">${(data.overview?.doc_completion || 0).toFixed(1)}%</div>
+                            <div class="text-2xl font-bold text-blue-700">${safeToFixed(data.overview?.doc_completion, 1)}%</div>
                             <div class="text-xs text-blue-500 mt-1">Complete files</div>
                         </div>
                         <div class="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -4148,7 +4159,7 @@ async function generateComplianceReport(deptId, dateRange) {
                         </div>
                         <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
                             <div class="text-sm text-purple-600 font-medium">Audit Compliance</div>
-                            <div class="text-2xl font-bold text-purple-700">${(data.overview?.audit_compliance || 0).toFixed(1)}%</div>
+                            <div class="text-2xl font-bold text-purple-700">${safeToFixed(data.overview?.audit_compliance, 1)}%</div>
                             <div class="text-xs text-purple-500 mt-1">Overall score</div>
                         </div>
                     </div>
@@ -4287,7 +4298,7 @@ async function generateComplianceReport(deptId, dateRange) {
 async function generateExecutiveReport(deptId, dateRange) {
     try {
         const params = new URLSearchParams({ department_id: deptId || '', date_range: dateRange });
-        const response = await fetch(`${API_BASE_URL}hr-analytics/executive-summary?${params}`);
+        const response = await fetch(`${REST_API_URL}hr-analytics/executive-summary?${params}`);
         const result = await response.json();
         
         if (result.success && result.data) {
@@ -4500,7 +4511,7 @@ async function exportReport(format) {
             include_summary: true
         };
         
-        const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.reports.export}`, {
+        const response = await fetch(`${REST_API_URL}${API_ENDPOINTS.reports.export}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -4651,7 +4662,7 @@ async function scheduleReport(reportType, frequency, format, recipients, sendTim
             created_at: new Date().toISOString()
         };
         
-        const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.reports.schedule}`, {
+        const response = await fetch(`${REST_API_URL}${API_ENDPOINTS.reports.schedule}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -4710,7 +4721,7 @@ function addToRecentReports(reportName, deptId, dateRange) {
  */
 async function loadScheduledReports() {
     try {
-        const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.reports.scheduled}`);
+        const response = await fetch(`${REST_API_URL}${API_ENDPOINTS.reports.scheduled}`);
         const result = await response.json();
         
         if (result.success && result.data) {
@@ -4757,7 +4768,7 @@ async function deleteScheduledReport(scheduleId) {
     }
     
     try {
-        const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.reports.scheduled}/${scheduleId}`, {
+        const response = await fetch(`${REST_API_URL}${API_ENDPOINTS.reports.scheduled}/${scheduleId}`, {
             method: 'DELETE'
         });
         
@@ -4792,7 +4803,7 @@ function clearReportHistory() {
  */
 async function logReportGeneration(reportType, deptId, dateRange) {
     try {
-        await fetch(`${API_BASE_URL}hr-analytics/log-report`, {
+        await fetch(`${REST_API_URL}hr-analytics/log-report`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -5194,36 +5205,45 @@ async function loadMetricsOverview() {
  */
 async function loadOverviewMetricsData() {
     try {
-        const response = await fetch(`${API_BASE_URL}hr-analytics/metrics-overview`);
+        const response = await fetch(`${REST_API_URL}hr-analytics/metrics-overview`);
         const result = await response.json();
         
         if (result.success && result.data) {
             const data = result.data;
             
-            // Update KPI cards
-            document.getElementById('metric-total-headcount').textContent = (data.total_headcount || 0).toLocaleString();
-            document.getElementById('metric-headcount-trend').innerHTML = `<i class="fas fa-arrow-up"></i> +${data.headcount_change || 0} this month`;
+            // Update KPI cards (with null checks for DOM elements)
+            const updateElement = (id, value) => {
+                const el = document.getElementById(id);
+                if (el) el.textContent = value;
+            };
+            const updateElementHTML = (id, html) => {
+                const el = document.getElementById(id);
+                if (el) el.innerHTML = html;
+            };
             
-            document.getElementById('metric-turnover-rate').textContent = `${(data.turnover_rate || 0).toFixed(1)}%`;
-            document.getElementById('metric-turnover-annual').textContent = `${(data.annual_turnover || 0).toFixed(1)}%`;
+            updateElement('metric-total-headcount', (data.total_headcount || 0).toLocaleString());
+            updateElementHTML('metric-headcount-trend', `<i class="fas fa-arrow-up"></i> +${data.headcount_change || 0} this month`);
             
-            document.getElementById('metric-payroll-cost').textContent = `₱${(data.payroll_cost || 0).toLocaleString('en-PH')}`;
-            document.getElementById('metric-payroll-budget').textContent = `${(data.budget_variance || 0).toFixed(1)}%`;
+            updateElement('metric-turnover-rate', `${(data.turnover_rate || 0).toFixed(1)}%`);
+            updateElement('metric-turnover-annual', `${(data.annual_turnover || 0).toFixed(1)}%`);
             
-            document.getElementById('metric-engagement-score').textContent = `${(data.engagement_score || 0).toFixed(1)}`;
-            document.getElementById('metric-engagement-responses').textContent = (data.survey_responses || 0).toLocaleString();
+            updateElement('metric-payroll-cost', `₱${(data.payroll_cost || 0).toLocaleString('en-PH')}`);
+            updateElement('metric-payroll-budget', `${(data.budget_variance || 0).toFixed(1)}%`);
             
-            document.getElementById('metric-attendance-rate').textContent = `${(data.attendance_rate || 0).toFixed(1)}%`;
-            document.getElementById('metric-absenteeism').textContent = `${(data.absenteeism_rate || 0).toFixed(1)}%`;
+            updateElement('metric-engagement-score', `${(data.engagement_score || 0).toFixed(1)}`);
+            updateElement('metric-engagement-responses', (data.survey_responses || 0).toLocaleString());
             
-            document.getElementById('metric-benefits-util').textContent = `${(data.benefits_utilization || 0).toFixed(1)}%`;
-            document.getElementById('metric-benefits-claims').textContent = (data.total_claims || 0).toLocaleString();
+            updateElement('metric-attendance-rate', `${(data.attendance_rate || 0).toFixed(1)}%`);
+            updateElement('metric-absenteeism', `${(data.absenteeism_rate || 0).toFixed(1)}%`);
             
-            document.getElementById('metric-training-participation').textContent = `${(data.training_participation || 0).toFixed(1)}%`;
-            document.getElementById('metric-training-hours').textContent = `${(data.avg_training_hours || 0).toFixed(1)} hrs`;
+            updateElement('metric-benefits-util', `${(data.benefits_utilization || 0).toFixed(1)}%`);
+            updateElement('metric-benefits-claims', (data.total_claims || 0).toLocaleString());
             
-            document.getElementById('metric-compliance-index').textContent = `${(data.compliance_index || 0).toFixed(1)}%`;
-            document.getElementById('metric-compliance-expiring').textContent = (data.expiring_docs || 0).toLocaleString();
+            updateElement('metric-training-participation', `${(data.training_participation || 0).toFixed(1)}%`);
+            updateElement('metric-training-hours', `${(data.avg_training_hours || 0).toFixed(1)} hrs`);
+            
+            updateElement('metric-compliance-index', `${(data.compliance_index || 0).toFixed(1)}%`);
+            updateElement('metric-compliance-expiring', (data.expiring_docs || 0).toLocaleString());
             
             // Populate metrics table
             populateMetricsSummaryTable(data.all_metrics || []);

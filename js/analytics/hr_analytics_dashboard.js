@@ -4,7 +4,7 @@
  * Integrates with Chart.js for data visualization
  */
 
-import { API_BASE_URL } from '../utils.js';
+import { LEGACY_API_URL, REST_API_URL } from '../utils.js';
 
 // Chart instances for cleanup
 let chartInstances = {};
@@ -170,7 +170,7 @@ async function loadDashboardData() {
         const queryString = new URLSearchParams(filters).toString();
         
         // Fetch dashboard data
-        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/hr-analytics/dashboard?${queryString}`, {
+        const response = await fetch(`${REST_API_URL}hr-analytics/dashboard?${queryString}`, {
             credentials: 'include'
         });
 
@@ -377,7 +377,7 @@ async function switchTab(tabName) {
         const filters = getFilters();
         const queryString = new URLSearchParams(filters).toString();
         
-        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/hr-analytics/${tabName}?${queryString}`, {
+        const response = await fetch(`${REST_API_URL}hr-analytics/${tabName}?${queryString}`, {
             credentials: 'include'
         });
 
@@ -982,7 +982,7 @@ async function exportData(format) {
     try {
         const endpoint = format === 'PDF' ? 'export-pdf' : format === 'Excel' ? 'export-excel' : 'export-csv';
         
-        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/hr-analytics/${endpoint}`, {
+        const response = await fetch(`${REST_API_URL}hr-analytics/${endpoint}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',

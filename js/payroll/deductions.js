@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../config.js';
+import { REST_API_URL } from '../config.js';
 import { loadBranchesForFilter, populateEmployeeDropdown } from '../utils.js';
 import './shared-modals.js';
 
@@ -292,7 +292,9 @@ export async function displayDeductionsSection() {
     loadBranchesForFilter('deduction-branch-filter');
     loadDeductionTypesForFilter('deduction-type-filter');
     loadPayrollRunsForFilter('deduction-payroll-run-filter');
-    loadDeductions();
+    
+    // Defer loadDeductions to next event loop to ensure DOM is ready
+    setTimeout(() => loadDeductions(), 0);
 }
 
 function setupDeductionsEventListeners() {
@@ -325,7 +327,7 @@ function setupDeductionsEventListeners() {
 async function loadDeductions() {
     try {
         const filters = getDeductionFilters();
-        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/deductions?${new URLSearchParams(filters)}`, {
+        const response = await fetch(`${REST_API_URL}deductions?${new URLSearchParams(filters)}`, {
             credentials: 'include',
             headers: {
                 'Content-Type': 'application/json',
@@ -580,7 +582,7 @@ async function handleAddVoluntaryDeduction(event) {
     }
     
     try {
-        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/deductions/voluntary`, {
+        const response = await fetch(`${REST_API_URL}deductions/voluntary`, {
             method: 'POST',
             credentials: 'include',
             headers: {
@@ -632,7 +634,7 @@ async function handleComputeDeductions(event) {
     const data = Object.fromEntries(formData.entries());
     
     try {
-        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/deductions/compute`, {
+        const response = await fetch(`${REST_API_URL}deductions/compute`, {
             method: 'POST',
             credentials: 'include',
             headers: {
@@ -679,7 +681,7 @@ async function handleComputeDeductions(event) {
 
 async function viewEmployeeDeductionSummary(employeeId) {
     try {
-        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/deductions/${employeeId}/summary`, {
+        const response = await fetch(`${REST_API_URL}deductions/${employeeId}/summary`, {
             credentials: 'include',
             headers: {
                 'Content-Type': 'application/json',
@@ -792,7 +794,7 @@ window.changeDeductionPage = changeDeductionPage;
 
 async function loadDeductionTypesForFilter(selectId) {
     try {
-        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/deductions/types`, {
+        const response = await fetch(`${REST_API_URL}deductions/types`, {
             credentials: 'include',
             headers: {
                 'Content-Type': 'application/json',
@@ -827,7 +829,7 @@ async function loadDeductionTypesForFilter(selectId) {
 async function exportDeductionsData() {
     try {
         const filters = getDeductionFilters();
-        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/deductions?${new URLSearchParams({...filters, limit: 1000})}`, {
+        const response = await fetch(`${REST_API_URL}deductions?${new URLSearchParams({...filters, limit: 1000})}`, {
             credentials: 'include',
             headers: {
                 'Content-Type': 'application/json',
@@ -936,7 +938,7 @@ window.exportDeductionsData = exportDeductionsData;
 
 async function deleteDeductionRecord(deductionId) {
     try {
-        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/deductions/${deductionId}`, {
+        const response = await fetch(`${REST_API_URL}deductions/${deductionId}`, {
             method: 'DELETE',
             credentials: 'include',
             headers: {

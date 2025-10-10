@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../../utils.js';
+import { REST_API_URL } from '../../utils.js';
 
 export async function renderHMOPlans(containerId='main-content-area'){
     const container = document.getElementById(containerId); 
@@ -15,19 +15,19 @@ export async function renderHMOPlans(containerId='main-content-area'){
     `;
 
     try{
-        const res = await fetch(`${API_BASE_URL}hmo_plans.php`, { credentials:'include' });
+        const res = await fetch(`${REST_API_URL}hmo/plans`, { credentials:'include' });
         if (!res.ok) {
             const text = await res.text();
             console.error('API Error Response:', text);
             throw new Error(`HTTP ${res.status}: ${res.statusText}`);
         }
-        const data = await res.json(); 
-        const plans = data.data?.plans || data.plans || [];
+        const response = await res.json(); 
+        const plans = response.data?.plans || response.plans || [];
         
         // load providers for filter and selects
-        const pres = await fetch(`${API_BASE_URL}hmo_providers.php`, { credentials:'include' }); 
-        const pdata = await pres.json(); 
-        const providers = pdata.data?.providers || pdata.providers || [];
+        const pres = await fetch(`${REST_API_URL}hmo/providers`, { credentials:'include' }); 
+        const presponse = await pres.json(); 
+        const providers = presponse.data?.providers || presponse.providers || [];
         
         window._hmoPlansCache = plans;
         window._hmoProvidersForPlans = providers;
@@ -241,7 +241,7 @@ function populatePlansTbody(plans){
             return;
         }
         try {
-            const r = await fetch(`${API_BASE_URL}hmo_plans.php?id=${id}`, { 
+            const r = await fetch(`${REST_API_URL}hmo/plans?id=${id}`, { 
                 method: 'DELETE', 
                 credentials: 'include' 
             }); 
@@ -249,7 +249,7 @@ function populatePlansTbody(plans){
             if (j.success) {
                 // Force a complete refresh
                 try {
-                    const res = await fetch(`${API_BASE_URL}hmo_plans.php`, { 
+                    const res = await fetch(`${REST_API_URL}hmo/plans`, { 
                         credentials: 'include',
                         cache: 'no-cache' // Prevent browser caching
                     });
@@ -273,7 +273,7 @@ function populatePlansTbody(plans){
 
 export async function showAddPlanModal(containerId='main-content-area'){
     // load providers for select
-    const pres = await fetch(`${API_BASE_URL}hmo_providers.php`, { credentials:'include' }); const pdata = await pres.json(); const providers = pdata.providers||[];
+    const pres = await fetch(`${REST_API_URL}hmo/providers`, { credentials:'include' }); const pdata = await pres.json(); const providers = pdata.providers||[];
     const container = document.getElementById('modalContainer'); if (!container) return;
     container.innerHTML = `
         <div id="add-plan-overlay" class="fixed inset-0 z-60 flex items-center justify-center bg-black/40">
@@ -344,7 +344,7 @@ export async function showAddPlanModal(containerId='main-content-area'){
         if (checks.length) payload.coverage = checks;
         if (payload.accredited_hospitals) payload.accredited_hospitals = payload.accredited_hospitals.trim();
         if (payload.eligibility) payload.eligibility = payload.eligibility.trim();
-        const res = await fetch(`${API_BASE_URL}hmo_plans.php`, { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); const j = await res.json();
+        const res = await fetch(`${REST_API_URL}hmo/plans`, { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); const j = await res.json();
         if (j.success) { document.getElementById('add-plan-overlay')?.remove(); renderHMOPlans(containerId); } else alert(j.error||'Failed');
     });
 }
@@ -352,8 +352,8 @@ export async function showAddPlanModal(containerId='main-content-area'){
 export async function showEditPlanModal(id, containerId='main-content-area'){
     const container = document.getElementById('modalContainer'); if (!container) return;
     try{
-        const r = await fetch(`${API_BASE_URL}hmo_plans.php?id=${id}`, { credentials:'include' }); const data = await r.json(); const p = data.plan || {};
-        const pres = await fetch(`${API_BASE_URL}hmo_providers.php`, { credentials:'include' }); const pdata = await pres.json(); const providers = pdata.providers||[];
+        const r = await fetch(`${REST_API_URL}hmo/plans?id=${id}`, { credentials:'include' }); const data = await r.json(); const p = data.plan || {};
+        const pres = await fetch(`${REST_API_URL}hmo/providers`, { credentials:'include' }); const pdata = await pres.json(); const providers = pdata.providers||[];
         const provOptions = providers.map(pp=>`<option value="${pp.ProviderID}" ${pp.ProviderID==p.ProviderID?'selected':''}>${pp.ProviderName}</option>`).join('');
     const coverageVal = Array.isArray(p.Coverage)?p.Coverage.join(', '):(p.Coverage?JSON.parse(p.Coverage).join(', '):'');
     const accreditedVal = Array.isArray(p.AccreditedHospitals)?p.AccreditedHospitals.join('\n'):(p.AccreditedHospitals?JSON.parse(p.AccreditedHospitals).join('\n'):'');
@@ -429,7 +429,7 @@ export async function showEditPlanModal(id, containerId='main-content-area'){
             if (checks.length) payload.coverage = checks;
             if (payload.accredited_hospitals) payload.accredited_hospitals = payload.accredited_hospitals.trim();
             if (payload.eligibility) payload.eligibility = payload.eligibility.trim();
-            const res = await fetch(`${API_BASE_URL}hmo_plans.php?id=${id}`, { method:'PUT', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); const j = await res.json(); if (j.success) { document.getElementById('edit-plan-overlay')?.remove(); renderHMOPlans(containerId); } else alert(j.error||'Failed');
+            const res = await fetch(`${REST_API_URL}hmo/plans?id=${id}`, { method:'PUT', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); const j = await res.json(); if (j.success) { document.getElementById('edit-plan-overlay')?.remove(); renderHMOPlans(containerId); } else alert(j.error||'Failed');
         });
     }catch(e){console.error(e); alert('Failed to load plan');}
 }
@@ -437,9 +437,9 @@ export async function showEditPlanModal(id, containerId='main-content-area'){
 export async function showPlanDetailsModal(id){
     const container = document.getElementById('modalContainer'); if (!container) return;
     try{
-        const r = await fetch(`${API_BASE_URL}hmo_plans.php?id=${id}`, { credentials:'include' }); const data = await r.json(); const p = data.plan||{};
+        const r = await fetch(`${REST_API_URL}hmo/plans?id=${id}`, { credentials:'include' }); const data = await r.json(); const p = data.plan||{};
         // fetch provider details
-        const pr = await fetch(`${API_BASE_URL}hmo_providers.php?id=${p.ProviderID}`, { credentials:'include' }); const pd = await pr.json(); const prov = pd.provider||{};
+        const pr = await fetch(`${REST_API_URL}hmo/providers?id=${p.ProviderID}`, { credentials:'include' }); const pd = await pr.json(); const prov = pd.provider||{};
         container.innerHTML = `
             <div id="view-plan-overlay" class="fixed inset-0 z-60 flex items-center justify-center bg-black/40">
                 <div class="bg-white rounded-lg shadow-lg w-full max-w-xl mx-4">

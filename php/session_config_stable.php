@@ -1,7 +1,7 @@
 <?php
 /**
- * Centralized Session Configuration
- * Use this file to ensure consistent session settings across all pages
+ * Stable Session Configuration
+ * Reliable session management without aggressive timeouts
  */
 
 // Prevent multiple session starts
@@ -15,41 +15,30 @@ if (php_sapi_name() !== 'cli') {
     $secureFlag = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || 
                   (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
 
-    // Set session cookie parameters
+    // Set session cookie parameters - stable configuration
     session_set_cookie_params([
         'lifetime' => 0,                    // Session cookie (expires when browser closes)
-        'path' => '/',                      // Available across entire domain
-        'domain' => '',                     // Empty for localhost compatibility
-        'secure' => $secureFlag,            // HTTPS only in production
-        'httponly' => true,                 // Not accessible via JavaScript
-        'samesite' => 'Lax'                // Allow cookies on same-site redirects (important for login flow)
+        'path' => '/',                       // Available across entire domain
+        'domain' => '',                      // Empty for localhost compatibility
+        'secure' => false,                   // Allow HTTP for localhost development
+        'httponly' => true,                  // Not accessible via JavaScript
+        'samesite' => 'Lax'                 // Allow cookies on same-site redirects
     ]);
 
-    // Set session name for better organization
+    // Set session name
     session_name('HOSPITAL_HR_SESSION');
 
     // Start the session
     session_start();
 
-    // Session validation - prevent session fixation
-    if (!isset($_SESSION['initiated'])) {
+    // Only regenerate session ID if this is a completely new session
+    if (!isset($_SESSION['session_started'])) {
         session_regenerate_id(true);
-        $_SESSION['initiated'] = true;
+        $_SESSION['session_started'] = true;
         $_SESSION['created_at'] = time();
     }
 
-    // Optional: Add session timeout (24 hours of inactivity)
-    $session_timeout = 86400; // 24 hours in seconds
-    if (isset($_SESSION['last_activity']) && (time() - $_SESSION['last_activity'] > $session_timeout)) {
-        // Session expired due to inactivity
-        session_unset();
-        session_destroy();
-        session_start();
-        session_regenerate_id(true);
-        $_SESSION['expired'] = true;
-    }
-
-    // Update last activity timestamp
+    // Update last activity timestamp (but don't destroy session on timeout)
     $_SESSION['last_activity'] = time();
 }
 
@@ -85,3 +74,18 @@ function get_current_user_data() {
     ];
 }
 
+// Function to check session age (for debugging)
+function get_session_age() {
+    if (!isset($_SESSION['created_at'])) {
+        return 'Unknown';
+    }
+    return time() - $_SESSION['created_at'];
+}
+
+// Function to check last activity (for debugging)
+function get_last_activity() {
+    if (!isset($_SESSION['last_activity'])) {
+        return 'Unknown';
+    }
+    return time() - $_SESSION['last_activity'];
+}

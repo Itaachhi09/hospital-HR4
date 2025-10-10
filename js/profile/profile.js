@@ -10,7 +10,7 @@
  * v1.2 - Added display for Performance Summary from HR 1-2 (simulated).
  * v1.1 - Added Edit Profile functionality.
  */
-import { API_BASE_URL } from '../utils.js';
+import { LEGACY_API_URL } from '../utils.js';
 
 // --- DOM Element References ---
 let pageTitleElement;
@@ -47,7 +47,7 @@ export async function displayUserProfileSection() {
     }
 
     try {
-        const response = await fetch(`${API_BASE_URL}get_user_profile.php`);
+        const response = await fetch(`${LEGACY_API_URL}get_user_profile.php`);
         if (!response.ok) {
             const errorResult = await response.json().catch(() => ({ error: `HTTP error! Status: ${response.status}` }));
             throw new Error(errorResult.error || `HTTP error! Status: ${response.status}`);
@@ -325,7 +325,7 @@ async function handleUpdateProfile(event) {
     };
 
     try {
-        const response = await fetch(`${API_BASE_URL}update_user_profile.php`, {
+        const response = await fetch(`${LEGACY_API_URL}update_user_profile.php`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(formData)
@@ -386,7 +386,7 @@ async function handleRequest2FACodeForPasswordChange() {
     });
 
     try {
-        const response = await fetch(`${API_BASE_URL}request_2fa_code.php`, {
+        const response = await fetch(`${LEGACY_API_URL}request_2fa_code.php`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ context: 'password_change' })
@@ -478,7 +478,7 @@ async function handleChangePasswordSubmit(event) {
     }
 
     try {
-        const response = await fetch(`${API_BASE_URL}change_password.php`, {
+        const response = await fetch(`${LEGACY_API_URL}change_password.php`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)

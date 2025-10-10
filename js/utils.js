@@ -3,10 +3,10 @@
  */
 
 // Import base URLs from config
-import { API_BASE_URL, JS_BASE_URL } from './config.js';
+import { API_BASE_URL, REST_API_URL, LEGACY_API_URL, JS_BASE_URL } from './config.js';
 
 // Re-export URLs for other modules
-export { API_BASE_URL, JS_BASE_URL };
+export { API_BASE_URL, REST_API_URL, LEGACY_API_URL, JS_BASE_URL };
 
 // Cache for loaded modules
 // Each entry will store an object: { module, initializer }
@@ -168,7 +168,7 @@ export async function loadBranchesForFilter(selectElementId) {
             return;
         }
 
-        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/branches`, {
+        const response = await fetch(`${REST_API_URL}branches`, {
             credentials: 'include',
             headers: {
                 'Content-Type': 'application/json',
@@ -212,7 +212,7 @@ export async function loadDepartmentsForFilter(selectElementId) {
             return;
         }
 
-        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/departments`, {
+        const response = await fetch(`${REST_API_URL}departments`, {
             credentials: 'include',
             headers: {
                 'Content-Type': 'application/json',
@@ -256,7 +256,7 @@ export async function loadPositionsForFilter(selectElementId) {
             return;
         }
 
-        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/positions`, {
+        const response = await fetch(`${REST_API_URL}positions`, {
             credentials: 'include',
             headers: {
                 'Content-Type': 'application/json',
@@ -316,7 +316,7 @@ export async function populateEmployeeDropdown(selectElementId, includeAllOption
     selectElement.appendChild(placeholderOption);
 
     try {
-        const apiUrl = `${API_BASE_URL}get_employees.php`;
+        const apiUrl = `${LEGACY_API_URL}get_employees.php`;
         const response = await fetch(apiUrl);
 
         if (!response.ok) {
@@ -385,7 +385,7 @@ export async function populateShiftDropdown(selectElementId) {
     selectElement.innerHTML = firstOptionHTML; // Keep only the first option initially
 
     try {
-        const response = await fetch(`${API_BASE_URL}get_shifts.php`);
+        const response = await fetch(`${LEGACY_API_URL}get_shifts.php`);
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         const shifts = await response.json();
 

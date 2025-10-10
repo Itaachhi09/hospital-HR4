@@ -2,7 +2,7 @@
  * Payroll V2 - Automated Payroll Runs Module
  * Multi-branch, versioned, auditable payroll system
  */
-import { API_BASE_URL } from '../utils.js';
+import { REST_API_URL } from '../utils.js';
 import './shared-modals.js';
 
 /**
@@ -417,7 +417,7 @@ async function loadPayrollRuns() {
     params.set('page', '1');
     params.set('limit', '50');
 
-    const url = `${API_BASE_URL.replace('php/api/', 'api')}/payroll-v2?${params.toString()}`;
+    const url = `${REST_API_URL}payroll-v2?${params.toString()}`;
 
     try {
         const response = await fetch(url, {
@@ -732,7 +732,7 @@ async function handleCreatePayrollRun(event) {
     submitButton.textContent = 'Creating...';
 
     try {
-        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/payroll-v2`, {
+        const response = await fetch(`${REST_API_URL}payroll-v2`, {
             method: 'POST',
             credentials: 'include',
             headers: { 
@@ -764,7 +764,7 @@ async function handleCreatePayrollRun(event) {
 // Action functions
 async function viewRunDetails(runId) {
     try {
-        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/payroll-v2/${runId}`, {
+        const response = await fetch(`${REST_API_URL}payroll-v2/${runId}`, {
             credentials: 'include',
             headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
         });
@@ -822,7 +822,7 @@ async function processRun(runId) {
     }
 
     try {
-        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/payroll-v2/${runId}/process`, {
+        const response = await fetch(`${REST_API_URL}payroll-v2/${runId}/process`, {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
@@ -849,7 +849,7 @@ async function approveRun(runId) {
     }
 
     try {
-        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/payroll-v2/${runId}/approve`, {
+        const response = await fetch(`${REST_API_URL}payroll-v2/${runId}/approve`, {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
@@ -876,7 +876,7 @@ async function lockRun(runId) {
     }
 
     try {
-        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/payroll-v2/${runId}/lock`, {
+        const response = await fetch(`${REST_API_URL}payroll-v2/${runId}/lock`, {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
@@ -968,7 +968,7 @@ function closeViewRunDetailsModal() {
 
 async function loadRunDetails(runId) {
     try {
-        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/payroll-v2/${runId}`, {
+        const response = await fetch(`${REST_API_URL}payroll-v2/${runId}`, {
             credentials: 'include',
             headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
         });
@@ -1056,7 +1056,7 @@ async function loadRunPayslips(runId, page = 1, perPage = 25) {
             limit: perPage
         });
         
-        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/payroll-v2/${runId}/payslips?${params.toString()}`, {
+        const response = await fetch(`${REST_API_URL}payroll-v2/${runId}/payslips?${params.toString()}`, {
             credentials: 'include',
             headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
         });
@@ -1314,7 +1314,7 @@ async function previewPayslipFromModal(payslipId) {
             previewPayslip(payslipId);
         } else {
             // Fallback to direct API call
-            const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/payslips/${payslipId}/preview`, {
+            const response = await fetch(`${REST_API_URL}payslips/${payslipId}/preview`, {
                 credentials: 'include',
                 headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
             });
@@ -1340,7 +1340,7 @@ async function downloadPayslipFromModal(payslipId) {
             downloadPayslipPDF(payslipId);
         } else {
             // Fallback to direct download
-            const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/payslips/${payslipId}/pdf`, {
+            const response = await fetch(`${REST_API_URL}payslips/${payslipId}/pdf`, {
                 credentials: 'include',
                 headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
             });
@@ -1371,7 +1371,7 @@ async function exportRunPayslips() {
     if (!currentRunId) return;
     
     try {
-        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/payroll-v2/${currentRunId}/export`, {
+        const response = await fetch(`${REST_API_URL}payroll-v2/${currentRunId}/export`, {
             credentials: 'include',
             headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
         });
@@ -1475,7 +1475,7 @@ function closePayslipPreviewModal() {
 // Update the existing action functions to refresh the modal
 async function processPayrollRun(runId) {
     try {
-        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/payroll-v2/${runId}/process`, {
+        const response = await fetch(`${REST_API_URL}payroll-v2/${runId}/process`, {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
@@ -1503,7 +1503,7 @@ async function processPayrollRun(runId) {
 
 async function approvePayrollRun(runId) {
     try {
-        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/payroll-v2/${runId}/approve`, {
+        const response = await fetch(`${REST_API_URL}payroll-v2/${runId}/approve`, {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
@@ -1531,7 +1531,7 @@ async function approvePayrollRun(runId) {
 
 async function lockPayrollRun(runId) {
     try {
-        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/payroll-v2/${runId}/lock`, {
+        const response = await fetch(`${REST_API_URL}payroll-v2/${runId}/lock`, {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }

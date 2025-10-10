@@ -6,7 +6,7 @@
  * v1.3 - Added Admin Edit Employee Profile functionality.
  * v1.2 - Added Add Employee functionality to the form.
  */
-import { API_BASE_URL, populateEmployeeDropdown } from '../utils.js';
+import { LEGACY_API_URL, populateEmployeeDropdown } from '../utils.js';
 
 // --- DOM Element References ---
 let pageTitleElement;
@@ -46,7 +46,7 @@ async function populateDepartmentDropdownAdmin(selectElementId) {
     selectElement.innerHTML = '<option value="" disabled selected>Loading departments...</option>';
 
     try {
-        const response = await fetch(`${API_BASE_URL}get_org_structure.php`);
+        const response = await fetch(`${LEGACY_API_URL}get_org_structure.php`);
         const departments = await handleApiResponse(response);
 
         selectElement.innerHTML = '<option value="">-- Select Department --</option>';
@@ -80,7 +80,7 @@ async function populateManagerDropdownAdmin(selectElementId, excludeEmployeeId =
     selectElement.innerHTML = '<option value="" disabled selected>Loading managers...</option>';
 
     try {
-        const response = await fetch(`${API_BASE_URL}get_employees.php`); // Assuming this endpoint returns all employees
+        const response = await fetch(`${LEGACY_API_URL}get_employees.php`); // Assuming this endpoint returns all employees
         const employees = await handleApiResponse(response);
 
         selectElement.innerHTML = '<option value="">-- Select Manager (Optional) --</option>';
@@ -341,7 +341,7 @@ async function loadUsers() {
     container.innerHTML = '<p class="text-center py-4">Loading users...</p>';
 
     try {
-        const response = await fetch(`${API_BASE_URL}get_users.php`);
+        const response = await fetch(`${LEGACY_API_URL}get_users.php`);
         const users = await handleApiResponse(response);
         renderUsersTable(users);
     } catch (error) {
@@ -569,7 +569,7 @@ async function populateEmployeeInfoEditForm(employeeId) {
         // This would be better with a dedicated endpoint: get_employee_details.php?employee_id=X
         // For now, we'll try to find it in the loaded users list or re-fetch if necessary.
         // This is a simplified approach; a dedicated get_employee_details.php is better.
-        const response = await fetch(`${API_BASE_URL}get_employees.php`); // Re-fetch all, then filter. Not ideal.
+        const response = await fetch(`${LEGACY_API_URL}get_employees.php`); // Re-fetch all, then filter. Not ideal.
         const employees = await handleApiResponse(response);
         const employeeData = employees.find(emp => emp.EmployeeID == employeeId);
 
@@ -730,7 +730,7 @@ async function handleSaveForm(event) {
 
     if (currentEditMode === 'add') {
         statusSpan.textContent = 'Adding employee & user...';
-        url = `${API_BASE_URL}add_employee_and_user.php`;
+        url = `${LEGACY_API_URL}add_employee_and_user.php`;
         successMessage = 'Employee and User account created successfully!';
         formData = {
             // Employee Details
@@ -766,7 +766,7 @@ async function handleSaveForm(event) {
 
     } else if (currentEditMode === 'edit_user_account') {
         statusSpan.textContent = 'Updating user account...';
-        url = `${API_BASE_URL}update_user.php`;
+        url = `${LEGACY_API_URL}update_user.php`;
         successMessage = 'User account updated successfully!';
         formData = {
             user_id: parseInt(editingUserId),
@@ -782,7 +782,7 @@ async function handleSaveForm(event) {
         }
     } else if (currentEditMode === 'edit_employee_info') {
         statusSpan.textContent = 'Updating employee information...';
-        url = `${API_BASE_URL}admin_update_employee_profile.php`;
+        url = `${LEGACY_API_URL}admin_update_employee_profile.php`;
         successMessage = 'Employee information updated successfully!';
         formData = {
             employee_id_to_update: parseInt(editingEmployeeId),
@@ -881,7 +881,7 @@ async function toggleUserActivation(userId, newStatus) {
     }
 
     try {
-        const response = await fetch(`${API_BASE_URL}update_user.php`, { // update_user.php handles user's IsActive
+        const response = await fetch(`${LEGACY_API_URL}update_user.php`, { // update_user.php handles user's IsActive
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -932,7 +932,7 @@ async function resetUserPassword(userId) {
      }
 
      try {
-        const response = await fetch(`${API_BASE_URL}reset_password.php`, {
+        const response = await fetch(`${LEGACY_API_URL}reset_password.php`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ user_id: parseInt(userId) })

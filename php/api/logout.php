@@ -10,8 +10,8 @@ ini_set('display_errors', 0); // Keep errors hidden from user output
 ini_set('log_errors', 1);
 // ini_set('error_log', '/path/to/your/php-error.log'); // Optional: Specify log file
 
-// Use centralized session configuration
-require_once __DIR__ . '/../session_config.php';
+// Use stable session configuration
+require_once __DIR__ . '/../session_config_stable.php';
 
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *'); // Adjust for production

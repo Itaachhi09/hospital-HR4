@@ -21,7 +21,7 @@ class PayrollV2Controller {
         // Temporarily bypass authentication for testing
         // TODO: Re-enable authentication once session sharing is fixed
         /*
-        if (session_status() !== PHP_SESSION_ACTIVE) { session_start(); }
+        // Session already started by main API router (index.php)
         if (!$this->auth->authenticate()) { Response::unauthorized('Authentication required'); }
         $user = $this->auth->getCurrentUser();
         */
@@ -44,39 +44,37 @@ class PayrollV2Controller {
     }
 
     private function listRuns() {
-        $req = new Request();
-        $pagination = $req->getPagination();
+        $page = (int)(Request::getQueryParam('page', 1));
+        $limit = (int)(Request::getQueryParam('limit', 50));
         $filters = [
-            'branch_id' => $req->getData('branch_id'),
-            'status' => $req->getData('status'),
-            'from' => $req->getData('from'),
-            'to' => $req->getData('to')
+            'branch_id' => Request::getQueryParam('branch_id'),
+            'status' => Request::getQueryParam('status'),
+            'from' => Request::getQueryParam('from'),
+            'to' => Request::getQueryParam('to')
         ];
         $filters = array_filter($filters, fn($v) => $v !== null && $v !== '');
-        $runs = $this->model->listRuns($pagination['page'], $pagination['limit'], $filters);
+        $runs = $this->model->listRuns($page, $limit, $filters);
         $total = $this->model->countRuns($filters);
-        $totalPages = (int)ceil($total / $pagination['limit']);
+        $totalPages = (int)ceil($total / $limit);
         Response::paginated($runs, [
-            'current_page' => $pagination['page'],
-            'per_page' => $pagination['limit'],
+            'current_page' => $page,
+            'per_page' => $limit,
             'total' => $total,
             'total_pages' => $totalPages,
-            'has_next' => $pagination['page'] < $totalPages,
-            'has_prev' => $pagination['page'] > 1
+            'has_next' => $page < $totalPages,
+            'has_prev' => $page > 1
         ]);
     }
 
     private function getRun($id) {
-        $req = new Request();
-        if (!$req->validateInteger($id)) { Response::validationError(['id' => 'Invalid run ID']); }
+        if (!is_numeric($id)) { Response::validationError(['id' => 'Invalid run ID']); }
         $run = $this->model->getRun((int)$id);
         if (!$run) { Response::notFound('Run not found'); }
         Response::success($run);
     }
 
     private function listPayslips($id) {
-        $req = new Request();
-        if (!$req->validateInteger($id)) { Response::validationError(['id' => 'Invalid run ID']); }
+        if (!is_numeric($id)) { Response::validationError(['id' => 'Invalid run ID']); }
         $rows = $this->model->listPayslipsByRun((int)$id);
         Response::success($rows);
     }
@@ -85,10 +83,9 @@ class PayrollV2Controller {
         if (!$this->auth->hasAnyRole(['System Admin', 'HR Manager', 'Payroll Officer'])) {
             Response::forbidden('Insufficient permissions');
         }
-        $req = new Request();
-        $data = $req->getData();
-        $errors = $req->validateRequired(['branch_id', 'pay_period_start', 'pay_period_end', 'pay_date']);
-        if (!empty($errors)) { Response::validationError($errors); }
+        $data = Request::getJsonBody();
+        $missing = Request::validateRequired($data, ['branch_id', 'pay_period_start', 'pay_period_end', 'pay_date']);
+        if (!empty($missing)) { Response::validationError(['missing' => $missing]); }
         $runId = $this->model->createRun([
             'branch_id' => (int)$data['branch_id'],
             'pay_period_start' => $data['pay_period_start'],
@@ -104,8 +101,7 @@ class PayrollV2Controller {
         if (!$this->auth->hasAnyRole(['System Admin', 'HR Manager', 'Payroll Officer'])) {
             Response::forbidden('Insufficient permissions');
         }
-        $req = new Request();
-        if (!$req->validateInteger($id)) { Response::validationError(['id' => 'Invalid run ID']); }
+        if (!is_numeric($id)) { Response::validationError(['id' => 'Invalid run ID']); }
         $this->model->processRun((int)$id);
         Response::success(null, 'Run processed');
     }
@@ -114,8 +110,7 @@ class PayrollV2Controller {
         if (!$this->auth->hasAnyRole(['System Admin', 'Finance'])) {
             Response::forbidden('Insufficient permissions');
         }
-        $req = new Request();
-        if (!$req->validateInteger($id)) { Response::validationError(['id' => 'Invalid run ID']); }
+        if (!is_numeric($id)) { Response::validationError(['id' => 'Invalid run ID']); }
         $this->model->approveRun((int)$id, (int)($user['user_id'] ?? 0));
         Response::success(null, 'Run approved');
     }
@@ -124,15 +119,13 @@ class PayrollV2Controller {
         if (!$this->auth->hasAnyRole(['System Admin', 'Finance'])) {
             Response::forbidden('Insufficient permissions');
         }
-        $req = new Request();
-        if (!$req->validateInteger($id)) { Response::validationError(['id' => 'Invalid run ID']); }
+        if (!is_numeric($id)) { Response::validationError(['id' => 'Invalid run ID']); }
         $this->model->lockRun((int)$id);
         Response::success(null, 'Run locked');
     }
 
     private function exportRunPayslips($id) {
-        $req = new Request();
-        if (!$req->validateInteger($id)) { Response::validationError(['id' => 'Invalid run ID']); }
+        if (!is_numeric($id)) { Response::validationError(['id' => 'Invalid run ID']); }
         
         try {
             $payslips = $this->model->listPayslipsByRun((int)$id);

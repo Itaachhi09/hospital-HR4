@@ -15,10 +15,8 @@ ini_set('log_errors', 1);
 // Include configuration and establish database connection
 require_once __DIR__ . '/config.php';
 
-// Start session for authentication
-if (session_status() !== PHP_SESSION_ACTIVE) {
-    session_start();
-}
+// Use the same session configuration as the legacy system
+require_once __DIR__ . '/../php/session_config_stable.php';
 
 // Set headers for CORS and JSON responses
 header('Content-Type: application/json');
@@ -34,7 +32,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 }
 
 // Include required files
-require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/../php/db_connect.php';
 require_once __DIR__ . '/utils/Response.php';
 require_once __DIR__ . '/utils/Request.php';

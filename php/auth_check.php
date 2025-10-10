@@ -1,26 +1,20 @@
 <?php
 /**
- *  Session Authentication Check
- * Starts session and validates user authentication.
- * Redirects to login if no valid session.
+ * Session Authentication Check
+ * Validates user authentication without destroying sessions
+ * Use the centralized session configuration instead
  */
 
-// Start session
-session_start();
+// Use stable session configuration
+require_once __DIR__ . '/session_config_stable.php';
 
 // Check if user is authenticated
-if (!isset($_SESSION['user_id']) || $_SESSION['user_id'] <= 0) {
-    // Destroy any invalid session
-    session_unset();
-    session_destroy();
-    // Redirect to login page
-    header("Location: login.php");
+if (!is_user_logged_in()) {
+    // Redirect to login page WITHOUT destroying session
+    header("Location: index.php");
     exit();
 }
 
-// Optional: Regenerate session ID for security (anti-session fixation)
-session_regenerate_id(true);
-
 // Log successful session validation (optional, for auditing)
-error_log("Session validated for user_id: " . $_SESSION['user_id']);
+error_log("Session validated for user_id: " . ($_SESSION['user_id'] ?? 'unknown'));
 ?>

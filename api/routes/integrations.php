@@ -228,6 +228,14 @@ function handleAnalyticsIntegration($method, $pathParts) {
             'success' => true,
             'data' => $data
         ]);
+    } elseif ($method === 'GET' && isset($_GET['type']) && $_GET['type'] === 'incentives') {
+        // Get incentives analytics
+        $filters = $_GET;
+        $data = $analytics->getIncentivesAnalytics($filters);
+        echo json_encode([
+            'success' => true,
+            'data' => $data
+        ]);
     } elseif ($method === 'GET' && end($pathParts) === 'pay-equity') {
         // Get pay equity analysis
         $filters = $_GET;

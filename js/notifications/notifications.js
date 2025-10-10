@@ -1,11 +1,12 @@
 /**
  * Notifications Module
  * Handles fetching, displaying, and managing user notifications.
+ * v1.7 - Updated to use LEGACY_API_URL for backward compatibility
  * v1.6 - Shortened polling interval for more 'live' updates.
  * - Added detailed logging for notification dot visibility.
  * - Changed to mark notifications as read only on individual click.
  */
-import { API_BASE_URL } from '../utils.js';
+import { LEGACY_API_URL } from '../utils.js';
 
 // DOM elements that will be accessed by this module
 let notificationListElement = null;
@@ -75,7 +76,7 @@ export async function fetchAndRenderNotifications() {
     // console.log("[Notifications] Fetching notifications..."); // Less frequent logging for shorter intervals
 
     try {
-        const response = await fetch(`${API_BASE_URL}get_notifications.php`);
+        const response = await fetch(`${LEGACY_API_URL}get_notifications.php`);
         if (!response.ok) {
             const errorText = await response.text();
             console.error(`[Notifications] HTTP error! Status: ${response.status}, Response: ${errorText.substring(0, 200)}`);
@@ -275,7 +276,7 @@ function attachNotificationDeleteListeners() {
  */
 async function deleteNotification(notificationId) {
     try {
-        const response = await fetch(`${API_BASE_URL}delete_notification.php?id=${notificationId}`, {
+        const response = await fetch(`${LEGACY_API_URL}delete_notification.php?id=${notificationId}`, {
             method: 'DELETE',
             credentials: 'include'
         });
@@ -303,7 +304,7 @@ async function deleteNotification(notificationId) {
  */
 async function deleteAllReadNotifications() {
     try {
-        const response = await fetch(`${API_BASE_URL}delete_notification.php?id=all`, {
+        const response = await fetch(`${LEGACY_API_URL}delete_notification.php?id=all`, {
             method: 'DELETE',
             credentials: 'include'
         });
@@ -389,7 +390,7 @@ async function handleNotificationItemClick(event) {
 async function markSingleNotificationAsRead(notificationId, itemElement) {
     // console.log(`[Notifications] Marking single notification as read: ${notificationId}`); // Can be noisy
     try {
-        const response = await fetch(`${API_BASE_URL}mark_notification_read.php`, {
+        const response = await fetch(`${LEGACY_API_URL}mark_notification_read.php`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ notification_id: parseInt(notificationId) })
@@ -422,7 +423,7 @@ async function markMultipleNotificationsAsRead(notificationIds) {
     if (!notificationIds || notificationIds.length === 0) return;
     // console.log(`[Notifications] (Manual Call) Marking multiple notifications as read:`, notificationIds); // Can be noisy
     try {
-        const response = await fetch(`${API_BASE_URL}mark_notification_read.php`, {
+        const response = await fetch(`${LEGACY_API_URL}mark_notification_read.php`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ notification_ids: notificationIds })
@@ -467,4 +468,12 @@ export function onNotificationDropdownOpen() {
 export function onNotificationDropdownClose() {
     isDropdownOpen = false;
     console.log("[Notifications] Dropdown closed by user.");
+}
+
+/**
+ * Default initializer for module loader compatibility
+ */
+export function initialize() {
+    console.log("[Notifications] Module initialize called");
+    return initializeNotificationSystem();
 }

@@ -8,7 +8,7 @@
  * - System permissions overview
  */
 
-import { API_BASE_URL } from '../utils.js';
+import { LEGACY_API_URL } from '../utils.js';
 
 // Global state for role and access data
 let roleAccessData = {

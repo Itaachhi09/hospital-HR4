@@ -26,8 +26,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
-// Use centralized session configuration
-require_once __DIR__ . '/../session_config.php';
+// Use stable session configuration
+require_once __DIR__ . '/../session_config_stable.php';
 
 require_once __DIR__ . '/../db_connect.php';
 

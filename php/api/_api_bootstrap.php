@@ -26,22 +26,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
-// Secure session cookie settings
-$secureFlag = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
-session_set_cookie_params([
-    'lifetime' => 0,
-    'path' => '/',
-    'domain' => $_SERVER['HTTP_HOST'] ?? '',
-    'secure' => $secureFlag,
-    'httponly' => true,
-    'samesite' => 'Strict'
-]);
-session_start();
-// Regenerate session id occasionally to reduce fixation risk
-if (empty($_SESSION['init_time']) || (time() - ($_SESSION['init_time'] ?? 0) > 300)) {
-    session_regenerate_id(true);
-    $_SESSION['init_time'] = time();
-}
+// Use centralized session configuration
+require_once __DIR__ . '/../session_config.php';
 
 require_once __DIR__ . '/../db_connect.php';
 

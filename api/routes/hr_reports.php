@@ -158,7 +158,7 @@ class HRReportsController {
     private function getReportsDashboard($filters) {
         $data = $this->reportsIntegration->getHRReportsDashboard($filters);
         
-        Response::success('HR Reports dashboard data retrieved successfully', $data);
+        Response::success($data, 'HR Reports dashboard data retrieved successfully');
     }
 
     /**
@@ -173,7 +173,7 @@ class HRReportsController {
             $data = $this->reportsIntegration->getEmployeeDemographicsReport($filters);
             $filteredData = $this->accessControl->filterDataByAccess($userId, 'employee-demographics', $data);
             
-            Response::success('Employee demographics report generated successfully', $filteredData);
+            Response::success($filteredData, 'Employee demographics report generated successfully');
         } catch (Exception $e) {
             Response::error($e->getMessage());
         }
@@ -185,7 +185,7 @@ class HRReportsController {
     private function getRecruitmentApplicationReport($filters) {
         $data = $this->reportsIntegration->getRecruitmentApplicationReport($filters);
         
-        Response::success('Recruitment application report generated successfully', $data);
+        Response::success($data, 'Recruitment application report generated successfully');
     }
 
     /**
@@ -194,7 +194,7 @@ class HRReportsController {
     private function getPayrollCompensationReport($filters) {
         $data = $this->reportsIntegration->getPayrollCompensationReport($filters);
         
-        Response::success('Payroll compensation report generated successfully', $data);
+        Response::success($data, 'Payroll compensation report generated successfully');
     }
 
     /**
@@ -203,7 +203,7 @@ class HRReportsController {
     private function getAttendanceLeaveReport($filters) {
         $data = $this->reportsIntegration->getAttendanceLeaveReport($filters);
         
-        Response::success('Attendance leave report generated successfully', $data);
+        Response::success($data, 'Attendance leave report generated successfully');
     }
 
     /**
@@ -212,7 +212,7 @@ class HRReportsController {
     private function getBenefitsHMOUtilizationReport($filters) {
         $data = $this->reportsIntegration->getBenefitsHMOUtilizationReport($filters);
         
-        Response::success('Benefits HMO utilization report generated successfully', $data);
+        Response::success($data, 'Benefits HMO utilization report generated successfully');
     }
 
     /**
@@ -221,7 +221,7 @@ class HRReportsController {
     private function getTrainingDevelopmentReport($filters) {
         $data = $this->reportsIntegration->getTrainingDevelopmentReport($filters);
         
-        Response::success('Training development report generated successfully', $data);
+        Response::success($data, 'Training development report generated successfully');
     }
 
     /**
@@ -230,7 +230,7 @@ class HRReportsController {
     private function getEmployeeRelationsEngagementReport($filters) {
         $data = $this->reportsIntegration->getEmployeeRelationsEngagementReport($filters);
         
-        Response::success('Employee relations engagement report generated successfully', $data);
+        Response::success($data, 'Employee relations engagement report generated successfully');
     }
 
     /**
@@ -239,7 +239,7 @@ class HRReportsController {
     private function getTurnoverRetentionReport($filters) {
         $data = $this->reportsIntegration->getTurnoverRetentionReport($filters);
         
-        Response::success('Turnover retention report generated successfully', $data);
+        Response::success($data, 'Turnover retention report generated successfully');
     }
 
     /**
@@ -248,7 +248,7 @@ class HRReportsController {
     private function getComplianceDocumentReport($filters) {
         $data = $this->reportsIntegration->getComplianceDocumentReport($filters);
         
-        Response::success('Compliance document report generated successfully', $data);
+        Response::success($data, 'Compliance document report generated successfully');
     }
 
     /**
@@ -257,7 +257,7 @@ class HRReportsController {
     private function getExecutiveSummaryReport($filters) {
         $data = $this->reportsIntegration->getExecutiveSummaryReport($filters);
         
-        Response::success('Executive summary report generated successfully', $data);
+        Response::success($data, 'Executive summary report generated successfully');
     }
 
     /**
@@ -299,7 +299,7 @@ class HRReportsController {
         
         $data = $this->reportsIntegration->generateScheduledReports($scheduleType);
         
-        Response::success('Scheduled reports generated successfully', $data);
+        Response::success($data, 'Scheduled reports generated successfully');
     }
 
     /**
@@ -373,7 +373,7 @@ class HRReportsController {
             $data = $this->applyCustomizations($data, $customizations);
         }
         
-        Response::success('Custom report generated successfully', $data);
+        Response::success($data, 'Custom report generated successfully');
     }
 
     /**
@@ -420,7 +420,7 @@ class HRReportsController {
         
         $auditTrail = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
-        Response::success('Audit trail retrieved successfully', $auditTrail);
+        Response::success($auditTrail, 'Audit trail retrieved successfully');
     }
 
     /**
@@ -493,7 +493,7 @@ class HRReportsController {
     private function processScheduledReports() {
         try {
             $result = $this->scheduler->processScheduledReports();
-            Response::success('Scheduled reports processed', $result);
+            Response::success($result, 'Scheduled reports processed');
         } catch (Exception $e) {
             Response::error('Failed to process scheduled reports: ' . $e->getMessage());
         }
@@ -534,7 +534,7 @@ class HRReportsController {
         
         try {
             $accessSummary = $this->accessControl->getUserAccessSummary($userId);
-            Response::success('User access summary retrieved successfully', $accessSummary);
+            Response::success($accessSummary, 'User access summary retrieved successfully');
         } catch (Exception $e) {
             Response::error('Failed to get user access summary: ' . $e->getMessage());
         }

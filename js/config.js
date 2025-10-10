@@ -6,7 +6,7 @@
 export const BASE_URL = window.location.origin + '/hospital-HR4/';
 
 // API endpoints base URL
-export const API_BASE_URL = BASE_URL + 'php/api/';
+export const API_BASE_URL = BASE_URL + 'api/';
 
 // Asset URLs
 export const ASSETS_URL = BASE_URL + 'assets/';

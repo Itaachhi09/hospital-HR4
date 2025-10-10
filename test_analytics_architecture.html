@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analytics Architecture Test</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        h1 { color: #1a1a1a; margin-bottom: 10px; }
+        .subtitle { color: #666; margin-bottom: 30px; }
+        .category { background: white; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .category-title { font-size: 18px; font-weight: 600; color: #1a1a1a; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid #3b82f6; }
+        .test-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 15px; }
+        .test-item { padding: 12px; border: 1px solid #e5e5e5; border-radius: 6px; background: #fafafa; }
+        .test-name { font-weight: 600; color: #333; margin-bottom: 8px; }
+        .test-endpoint { font-family: 'Courier New', monospace; font-size: 12px; color: #666; margin-bottom: 8px; padding: 6px; background: #fff; border-radius: 4px; }
+        .test-result { padding: 8px; border-radius: 4px; font-size: 13px; margin-top: 8px; }
+        .test-result.loading { background: #fef3c7; color: #92400e; }
+        .test-result.success { background: #d1fae5; color: #065f46; }
+        .test-result.error { background: #fee2e2; color: #991b1b; }
+        .test-result pre { margin-top: 8px; font-size: 11px; max-height: 100px; overflow: auto; background: white; padding: 8px; border-radius: 4px; }
+        .test-all-btn { background: #3b82f6; color: white; border: none; padding: 12px 24px; border-radius: 6px; font-size: 16px; font-weight: 600; cursor: pointer; margin-bottom: 20px; }
+        .test-all-btn:hover { background: #2563eb; }
+        .test-all-btn:disabled { background: #9ca3af; cursor: not-allowed; }
+        .summary { display: flex; gap: 20px; margin-bottom: 20px; }
+        .summary-card { flex: 1; background: white; padding: 15px; border-radius: 8px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .summary-card .value { font-size: 32px; font-weight: 700; margin-bottom: 5px; }
+        .summary-card .label { color: #666; font-size: 14px; }
+        .summary-card.passed .value { color: #059669; }
+        .summary-card.failed .value { color: #dc2626; }
+        .summary-card.total .value { color: #3b82f6; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔬 Analytics Architecture Test Suite</h1>
+        <p class="subtitle">Comprehensive test of all API endpoints and routing architecture</p>
+        
+        <button class="test-all-btn" onclick="runAllTests()">🚀 Run All Tests</button>
+        
+        <div class="summary">
+            <div class="summary-card total">
+                <div class="value" id="total-tests">0</div>
+                <div class="label">Total Tests</div>
+            </div>
+            <div class="summary-card passed">
+                <div class="value" id="passed-tests">0</div>
+                <div class="label">Passed</div>
+            </div>
+            <div class="summary-card failed">
+                <div class="value" id="failed-tests">0</div>
+                <div class="label">Failed</div>
+            </div>
+        </div>
+        
+        <!-- Dashboard KPIs & Charts -->
+        <div class="category">
+            <div class="category-title">📊 Dashboard - KPIs & Charts</div>
+            <div class="test-grid">
+                <div class="test-item" id="test-overview-kpis">
+                    <div class="test-name">Overview KPIs (8 metrics)</div>
+                    <div class="test-endpoint">GET /api/hr-analytics/overview</div>
+                    <div class="test-result loading">Waiting...</div>
+                </div>
+                <div class="test-item" id="test-headcount-trend">
+                    <div class="test-name">Headcount Trend Chart</div>
+                    <div class="test-endpoint">GET /api/hr-analytics/headcount-trend</div>
+                    <div class="test-result loading">Waiting...</div>
+                </div>
+                <div class="test-item" id="test-turnover-dept">
+                    <div class="test-name">Turnover by Department</div>
+                    <div class="test-endpoint">GET /api/hr-analytics/turnover-by-department</div>
+                    <div class="test-result loading">Waiting...</div>
+                </div>
+                <div class="test-item" id="test-payroll-trend">
+                    <div class="test-name">Payroll Trend Chart</div>
+                    <div class="test-endpoint">GET /api/hr-analytics/payroll-trend</div>
+                    <div class="test-result loading">Waiting...</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Dashboard Tabs -->
+        <div class="category">
+            <div class="category-title">📑 Dashboard - Tab Data</div>
+            <div class="test-grid">
+                <div class="test-item" id="test-workforce-data">
+                    <div class="test-name">Workforce Analytics Tab</div>
+                    <div class="test-endpoint">GET /api/hr-analytics/employee-demographics</div>
+                    <div class="test-result loading">Waiting...</div>
+                </div>
+                <div class="test-item" id="test-payroll-data">
+                    <div class="test-name">Payroll Insights Tab</div>
+                    <div class="test-endpoint">GET /api/hr-analytics/payroll-compensation</div>
+                    <div class="test-result loading">Waiting...</div>
+                </div>
+                <div class="test-item" id="test-benefits-data">
+                    <div class="test-name">Benefits Utilization Tab</div>
+                    <div class="test-endpoint">GET /api/hr-analytics/benefits-hmo</div>
+                    <div class="test-result loading">Waiting...</div>
+                </div>
+                <div class="test-item" id="test-training-data">
+                    <div class="test-name">Training & Performance Tab</div>
+                    <div class="test-endpoint">GET /api/hr-analytics/training-development</div>
+                    <div class="test-result loading">Waiting...</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Reports Module -->
+        <div class="category">
+            <div class="category-title">📄 Reports Module</div>
+            <div class="test-grid">
+                <div class="test-item" id="test-report-demographics">
+                    <div class="test-name">Demographics Report</div>
+                    <div class="test-endpoint">GET /api/hr-reports/employee-demographics</div>
+                    <div class="test-result loading">Waiting...</div>
+                </div>
+                <div class="test-item" id="test-report-recruitment">
+                    <div class="test-name">Recruitment Report</div>
+                    <div class="test-endpoint">GET /api/hr-reports/recruitment-application</div>
+                    <div class="test-result loading">Waiting...</div>
+                </div>
+                <div class="test-item" id="test-report-payroll">
+                    <div class="test-name">Payroll Report</div>
+                    <div class="test-endpoint">GET /api/hr-reports/payroll-compensation</div>
+                    <div class="test-result loading">Waiting...</div>
+                </div>
+                <div class="test-item" id="test-report-executive">
+                    <div class="test-name">Executive Summary Report</div>
+                    <div class="test-endpoint">GET /api/hr-reports/executive-summary</div>
+                    <div class="test-result loading">Waiting...</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Export & Schedule -->
+        <div class="category">
+            <div class="category-title">💾 Export & Schedule Functionality</div>
+            <div class="test-grid">
+                <div class="test-item" id="test-scheduled-list">
+                    <div class="test-name">List Scheduled Reports</div>
+                    <div class="test-endpoint">GET /api/hr-reports/scheduled</div>
+                    <div class="test-result loading">Waiting...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost/hospital-HR4/api/';
+        let totalTests = 0;
+        let passedTests = 0;
+        let failedTests = 0;
+
+        const tests = [
+            { id: 'test-overview-kpis', url: 'hr-analytics/overview', expectedKeys: ['overview', 'total_active_employees'] },
+            { id: 'test-headcount-trend', url: 'hr-analytics/headcount-trend', expectedKeys: ['month'] },
+            { id: 'test-turnover-dept', url: 'hr-analytics/turnover-by-department', expectedKeys: ['department'] },
+            { id: 'test-payroll-trend', url: 'hr-analytics/payroll-trend', expectedKeys: ['month'] },
+            { id: 'test-workforce-data', url: 'hr-analytics/employee-demographics', expectedKeys: ['kpis', 'charts'] },
+            { id: 'test-payroll-data', url: 'hr-analytics/payroll-compensation', expectedKeys: ['kpis'] },
+            { id: 'test-benefits-data', url: 'hr-analytics/benefits-hmo', expectedKeys: ['kpis'] },
+            { id: 'test-training-data', url: 'hr-analytics/training-development', expectedKeys: ['kpis'] },
+            { id: 'test-report-demographics', url: 'hr-reports/employee-demographics', expectedKeys: ['summary', 'data'] },
+            { id: 'test-report-recruitment', url: 'hr-reports/recruitment-application', expectedKeys: ['summary'] },
+            { id: 'test-report-payroll', url: 'hr-reports/payroll-compensation', expectedKeys: ['summary'] },
+            { id: 'test-report-executive', url: 'hr-reports/executive-summary', expectedKeys: ['kpi_metrics'] },
+            { id: 'test-scheduled-list', url: 'hr-reports/scheduled', expectedKeys: [] }
+        ];
+
+        totalTests = tests.length;
+        document.getElementById('total-tests').textContent = totalTests;
+
+        async function runTest(test) {
+            const testItem = document.getElementById(test.id);
+            const resultDiv = testItem.querySelector('.test-result');
+            
+            try {
+                resultDiv.className = 'test-result loading';
+                resultDiv.textContent = '🔄 Testing...';
+                
+                const response = await fetch(API_BASE + test.url);
+                const result = await response.json();
+                
+                // Check if response is successful
+                if (!result.success) {
+                    throw new Error(result.message || 'API returned success: false');
+                }
+                
+                // Check for expected keys (flexible check)
+                let hasExpectedData = true;
+                if (test.expectedKeys.length > 0) {
+                    const dataStr = JSON.stringify(result.data || result);
+                    hasExpectedData = test.expectedKeys.some(key => dataStr.includes(key));
+                }
+                
+                if (hasExpectedData) {
+                    resultDiv.className = 'test-result success';
+                    resultDiv.innerHTML = `✅ PASSED<pre>${JSON.stringify(result.data || result, null, 2).substring(0, 200)}...</pre>`;
+                    passedTests++;
+                } else {
+                    throw new Error('Expected keys not found in response');
+                }
+                
+            } catch (error) {
+                resultDiv.className = 'test-result error';
+                resultDiv.innerHTML = `❌ FAILED<pre>${error.message}</pre>`;
+                failedTests++;
+            }
+            
+            updateSummary();
+        }
+
+        function updateSummary() {
+            document.getElementById('passed-tests').textContent = passedTests;
+            document.getElementById('failed-tests').textContent = failedTests;
+        }
+
+        async function runAllTests() {
+            const btn = document.querySelector('.test-all-btn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Testing...';
+            
+            passedTests = 0;
+            failedTests = 0;
+            updateSummary();
+            
+            for (const test of tests) {
+                await runTest(test);
+                await new Promise(resolve => setTimeout(resolve, 200)); // Small delay between tests
+            }
+            
+            btn.disabled = false;
+            btn.textContent = '🔄 Run Again';
+            
+            // Show final summary
+            if (failedTests === 0) {
+                alert(`🎉 All ${totalTests} tests passed!`);
+            } else {
+                alert(`⚠️ ${passedTests}/${totalTests} tests passed. ${failedTests} failed.`);
+            }
+        }
+    </script>
+</body>
+</html>
+

@@ -4,6 +4,13 @@
  * Generates and sends a 2FA code to the logged-in user's email for a specific context (e.g., password change).
  */
 
+// --- PHPMailer Wrapper ---
+require_once __DIR__ . '/../phpmailer_wrapper.php';
+
+/**
+ * @var PHPMailer\PHPMailer\PHPMailer $mail
+ * @var PHPMailer\PHPMailer\Exception $e
+ */
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
@@ -13,7 +20,8 @@ ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 // ini_set('error_log', __DIR__ . '/../../php-error.log'); // Ensure this path is writable
 
-session_start();
+// Use simplified session configuration
+require_once __DIR__ . '/../session_config_simple.php';
 
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');

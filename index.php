@@ -88,6 +88,7 @@
           headers: {
             'Content-Type': 'application/json'
           },
+          credentials: 'include',  // Important: Include cookies for session management
           body: JSON.stringify({ username: email, password: password })
         })
         .then(response => response.json())
@@ -118,6 +119,7 @@
                   headers: {
                     'Content-Type': 'application/json'
                   },
+                  credentials: 'include',  // Important: Include cookies for session management
                   body: JSON.stringify({ user_id: data.user_id_temp, code: code })
                 })
                 .then(response => {

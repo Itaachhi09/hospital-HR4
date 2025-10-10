@@ -6,7 +6,13 @@
  * v1.4 - Integrated PHPMailer.
  */
 
-// --- PHPMailer ---
+// --- PHPMailer Wrapper ---
+require_once __DIR__ . '/../phpmailer_wrapper.php';
+
+/**
+ * @var PHPMailer\PHPMailer\PHPMailer $mail
+ * @var PHPMailer\PHPMailer\Exception $e
+ */
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
@@ -16,7 +22,8 @@ ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 // ini_set('error_log', '/path/to/your/php-error.log');
 
-session_start(); // Start session early
+// Use simplified session configuration (BEFORE any output)
+require_once __DIR__ . '/../session_config_simple.php';
 
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *'); // Adjust for production
@@ -267,14 +274,22 @@ try {
 
     } else {
         // 2FA is NOT enabled - Proceed with normal login
-        session_regenerate_id(true); // Regenerate session ID for security
-
+        // Regenerate session ID for security (prevent session fixation)
+        session_regenerate_id(true);
+        
+        // Clear any previous session data
+        $_SESSION = array();
+        
+        // Set new session data
         $_SESSION['user_id'] = $user['UserID'];
         $_SESSION['employee_id'] = $user['EmployeeID'];
         $_SESSION['username'] = $user['Username'];
         $_SESSION['role_id'] = $user['RoleID'];
         $_SESSION['role_name'] = $user['RoleName'];
         $_SESSION['full_name'] = $user['FirstName'] . ' ' . $user['LastName'];
+        $_SESSION['session_started'] = true;
+        $_SESSION['created_at'] = time();
+        $_SESSION['last_activity'] = time();
 
         // --- Fetch and store HMO enrollment data in session ---
         try {

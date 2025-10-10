@@ -14,26 +14,52 @@ import { loadModule } from './utils.js';
 function initializeSectionDisplayFunctions() {
     const mainContentArea = document.getElementById('main-content-area');
     const sectionDisplayFunctions = {
-        displayAnalyticsDashboardsSection: async () => {
-            // Prefer the modern HR analytics dashboard module. If import fails, fall back to legacy analytics module.
-            const mainContentArea = document.getElementById('main-content-area');
-            try {
-                const mod = await import('./analytics/hr_analytics_dashboard.js');
-                if (mod && typeof mod.displayHRAnalyticsDashboard === 'function') {
-                    await mod.displayHRAnalyticsDashboard();
-                    return;
+        displayDashboardSection: async () => {
+            // For modern dashboard, we don't need to load a separate module
+            // The dashboard is already built into admin_landing.php
+            console.log('Displaying modern dashboard - already loaded in admin_landing.php');
+            
+            // Ensure the dashboard is visible
+            const mainContent = document.getElementById('main-content-area');
+            if (mainContent) {
+                mainContent.style.display = 'block';
+                
+                // Check if modern dashboard content exists
+                if (mainContent.querySelector('#total-employees')) {
+                    console.log('Modern dashboard content already exists, just refreshing data');
+                    // Dashboard is already loaded, just refresh the data
+                    if (window.loadDashboardData) {
+                        window.loadDashboardData();
+                    }
+                    if (window.initializeCharts) {
+                        window.initializeCharts();
+                    }
+                    if (window.loadRecentActivities) {
+                        window.loadRecentActivities();
+                    }
+                } else {
+                    console.log('Modern dashboard content missing, restoring...');
+                    // The modern dashboard content should be in the HTML already
+                    // If it's missing, we need to restore it
+                    if (window.displayModernDashboard) {
+                        window.displayModernDashboard();
+                    }
+                    
+                    // Load data and initialize charts after restoring
+                    setTimeout(() => {
+                        if (window.loadDashboardData) {
+                            window.loadDashboardData();
+                        }
+                        if (window.initializeCharts) {
+                            window.initializeCharts();
+                        }
+                        if (window.loadRecentActivities) {
+                            window.loadRecentActivities();
+                        }
+                    }, 100);
                 }
-            } catch (err) {
-                console.warn('Failed to load hr_analytics_dashboard.js, falling back to legacy analytics:', err);
             }
-
-            // Fallback: load legacy analytics module
-            try {
-                await loadModule('analytics/analytics.js', mainContentArea, 'Analytics Dashboard');
-            } catch (fallbackErr) {
-                console.error('Failed to load legacy analytics module as fallback:', fallbackErr);
-                if (mainContentArea) mainContentArea.innerHTML = '<p class="text-red-500 p-4">Failed to load Analytics Dashboard. See console for details.</p>';
-            }
+            return;
         },
         displayEmployeeSection: async () => {
             await loadModule('core_hr/employees.js', mainContentArea, 'Employee Management');
@@ -135,15 +161,43 @@ function initializeSectionDisplayFunctions() {
             }
         },
         displayAnalyticsDashboardsSection: async () => {
-            // Use the integrated analytics dashboard with reports functionality
-            await loadModule('analytics/analytics.js', mainContentArea, 'Analytics Dashboard');
+            try {
+                const mod = await import(`./analytics/analytics.js?v=${Date.now()}`);
+                if (mod && typeof mod.displayAnalyticsDashboardsSection === 'function') {
+                    await mod.displayAnalyticsDashboardsSection();
+                } else {
+                    throw new Error('displayAnalyticsDashboardsSection export not found in analytics module');
+                }
+            } catch (err) {
+                console.error('Failed to load/display Analytics Dashboards module:', err);
+                throw err;
+            }
         },
         displayAnalyticsReportsSection: async () => {
-            // Redirect to the integrated analytics dashboard with reports functionality
-            await loadModule('analytics/analytics.js', mainContentArea, 'Analytics Dashboard');
+            try {
+                const mod = await import(`./analytics/analytics.js?v=${Date.now()}`);
+                if (mod && typeof mod.displayAnalyticsReportsSection === 'function') {
+                    await mod.displayAnalyticsReportsSection();
+                } else {
+                    throw new Error('displayAnalyticsReportsSection export not found in analytics module');
+                }
+            } catch (err) {
+                console.error('Failed to load/display Analytics Reports module:', err);
+                throw err;
+            }
         },
         displayAnalyticsMetricsSection: async () => {
-            await loadModule('analytics/analytics.js', mainContentArea, 'Analytics Metrics');
+            try {
+                const mod = await import(`./analytics/analytics.js?v=${Date.now()}`);
+                if (mod && typeof mod.displayAnalyticsMetricsSection === 'function') {
+                    await mod.displayAnalyticsMetricsSection();
+                } else {
+                    throw new Error('displayAnalyticsMetricsSection export not found in analytics module');
+                }
+            } catch (err) {
+                console.error('Failed to load/display Analytics Metrics module:', err);
+                throw err;
+            }
         },
         displayHMOProvidersSection: async () => {
             await loadModule('admin/hmo/providers.js', mainContentArea, 'HMO Providers');
@@ -538,51 +592,44 @@ export async function initializeApp() {
     // Analytics modules
     window.displayAnalyticsDashboardsSection = async () => {
         console.log('Loading Analytics Dashboards module...');
-        // Load new comprehensive HR Analytics Dashboard
         try {
-            const hrAnalyticsMod = await import('./analytics/hr_analytics_dashboard.js');
-            if (hrAnalyticsMod?.displayHRAnalyticsDashboard) {
-                await hrAnalyticsMod.displayHRAnalyticsDashboard();
+            const mod = await import(`./analytics/analytics.js?v=${Date.now()}`);
+            if (mod && typeof mod.displayAnalyticsDashboardsSection === 'function') {
+                await mod.displayAnalyticsDashboardsSection();
             } else {
-                // Fallback to old analytics
-                await loadModule('analytics/analytics.js', document.getElementById('main-content-area'), 'Analytics Dashboards');
+                throw new Error('displayAnalyticsDashboardsSection not found in analytics module');
             }
         } catch (err) {
-            console.error('Failed to load HR Analytics Dashboard:', err);
-            // Fallback to old analytics
-            await loadModule('analytics/analytics.js', document.getElementById('main-content-area'), 'Analytics Dashboards');
+            console.error('Failed to load Analytics Dashboards:', err);
+            throw err;
         }
     };
     window.displayAnalyticsReportsSection = async () => {
         console.log('Loading Analytics Reports module...');
         try {
-            const hrReportsMod = await import('./analytics/hr_reports_dashboard.js');
-            if (hrReportsMod?.displayHRReportsDashboard) {
-                await hrReportsMod.displayHRReportsDashboard();
+            const mod = await import(`./analytics/analytics.js?v=${Date.now()}`);
+            if (mod && typeof mod.displayAnalyticsReportsSection === 'function') {
+                await mod.displayAnalyticsReportsSection();
             } else {
-                // Fallback to old analytics
-                await loadModule('analytics/analytics.js', document.getElementById('main-content-area'), 'Analytics Reports');
+                throw new Error('displayAnalyticsReportsSection not found in analytics module');
             }
         } catch (err) {
-            console.error('Failed to load HR Reports Dashboard:', err);
-            // Fallback to old analytics
-            await loadModule('analytics/analytics.js', document.getElementById('main-content-area'), 'Analytics Reports');
+            console.error('Failed to load Analytics Reports:', err);
+            throw err;
         }
     };
     window.displayAnalyticsMetricsSection = async () => {
         console.log('Loading Analytics Metrics module...');
         try {
-            const hrMetricsMod = await import('./analytics/hr_analytics_metrics_dashboard.js');
-            if (hrMetricsMod?.displayHRAnalyticsMetricsDashboard) {
-                await hrMetricsMod.displayHRAnalyticsMetricsDashboard();
+            const mod = await import(`./analytics/analytics.js?v=${Date.now()}`);
+            if (mod && typeof mod.displayAnalyticsMetricsSection === 'function') {
+                await mod.displayAnalyticsMetricsSection();
             } else {
-                // Fallback to old analytics
-                await loadModule('analytics/analytics.js', document.getElementById('main-content-area'), 'Analytics Metrics');
+                throw new Error('displayAnalyticsMetricsSection not found in analytics module');
             }
         } catch (err) {
-            console.error('Failed to load HR Metrics Dashboard:', err);
-            // Fallback to old analytics
-            await loadModule('analytics/analytics.js', document.getElementById('main-content-area'), 'Analytics Metrics');
+            console.error('Failed to load Analytics Metrics:', err);
+            throw err;
         }
     };
     
@@ -1654,27 +1701,7 @@ export async function initializeApp() {
                 navigateToSectionById('dashboard');
                 initializeNotificationSystem();
             } else {
-                // Do NOT hard-redirect on refresh if the PHP page already established a session
-                // Some environments may fail the ajax session check intermittently. If the
-                // server-side rendered page exposed window.currentUser, proceed using it.
-                if (window.currentUser && window.currentUser.user_id) {
-                    try {
-                        showAppUI();
-                        updateUserDisplay(window.currentUser);
-                        updateSidebarAccess(window.currentUser.role_name);
-                        attachSidebarListeners();
-                        navigateToSectionById('dashboard');
-                        initializeNotificationSystem();
-                    } catch (e) {
-                        console.warn('Proceeding with server-side session context failed:', e);
-                    }
-                } else {
-                    // As a last resort, show a login prompt rather than forcing navigation
-                    const initialMainContent = document.getElementById('main-content-area');
-                    if (initialMainContent) {
-                        initialMainContent.innerHTML = '<div class="bg-white rounded-lg shadow-sm border p-6"><h3 class="text-lg font-semibold mb-2">Session not detected</h3><p class="text-sm text-gray-600">Please <a class="text-blue-600 underline" href="index.php">log in</a> again.</p></div>';
-                    }
-                }
+                window.location.href = 'index.php';
             }
         })
         .catch((error) => {

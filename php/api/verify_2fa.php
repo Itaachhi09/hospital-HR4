@@ -10,7 +10,8 @@ ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 // ini_set('error_log', '/path/to/your/php-error.log');
 
-session_start(); // Start session to potentially store final login state
+// Use simplified session configuration
+require_once __DIR__ . '/../session_config_simple.php';
 
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *'); // Adjust for production
@@ -118,8 +119,12 @@ try {
     // --- Handle Verification Result ---
     if ($is_code_valid) {
         // Code is valid - Complete the login process
-        session_regenerate_id(true); // Regenerate session ID for security
-
+        // Regenerate session ID for security (prevent session fixation)
+        session_regenerate_id(true);
+        
+        // Clear any previous session data
+        $_SESSION = array();
+        
         // Store user information in session
         $_SESSION['user_id'] = $user['UserID'];
         $_SESSION['employee_id'] = $user['EmployeeID'];
@@ -127,6 +132,9 @@ try {
         $_SESSION['role_id'] = $user['RoleID'];
         $_SESSION['role_name'] = $user['RoleName'];
         $_SESSION['full_name'] = $user['FirstName'] . ' ' . $user['LastName'];
+        $_SESSION['session_started'] = true;
+        $_SESSION['created_at'] = time();
+        $_SESSION['last_activity'] = time();
 
         http_response_code(200);
         echo json_encode([

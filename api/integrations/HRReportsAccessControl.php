@@ -1,7 +1,7 @@
 <?php
 /**
  * HR Reports Access Control
- * Manages user permissions and data filtering for reports
+ * Manages role-based access to different report levels and features
  */
 
 require_once __DIR__ . '/../config.php';
@@ -15,69 +15,144 @@ class HRReportsAccessControl {
     }
 
     /**
-     * Validate report access for user
+     * Define report access levels
      */
-    public function validateReportAccess($userId, $reportType, $filters = []) {
-        try {
-            // Get user role and permissions
-            $userPermissions = $this->getUserPermissions($userId);
-            
-            // Check if user has access to this report type
-            if (!$this->hasReportAccess($userPermissions, $reportType)) {
-                throw new Exception("Access denied for report type: $reportType");
-            }
-            
-            // Validate filters based on user permissions
-            $this->validateFilters($userPermissions, $filters);
-            
-            return true;
-        } catch (Exception $e) {
-            error_log("Report access validation error: " . $e->getMessage());
-            throw $e;
-        }
+    private function getReportAccessLevels() {
+        return [
+            'executive-summary' => [
+                'roles' => ['System Admin', 'HR Manager', 'Executive', 'Finance Manager'],
+                'level' => 'executive',
+                'description' => 'Top-level KPIs and strategic insights'
+            ],
+            'employee-demographics' => [
+                'roles' => ['System Admin', 'HR Manager', 'HR Staff', 'Executive'],
+                'level' => 'manager',
+                'description' => 'Workforce composition and demographics'
+            ],
+            'recruitment-application' => [
+                'roles' => ['System Admin', 'HR Manager', 'HR Staff'],
+                'level' => 'hr',
+                'description' => 'Hiring efficiency and pipeline performance'
+            ],
+            'payroll-compensation' => [
+                'roles' => ['System Admin', 'HR Manager', 'Finance Manager', 'Executive'],
+                'level' => 'finance',
+                'description' => 'Payroll expenses and compensation analysis'
+            ],
+            'attendance-leave' => [
+                'roles' => ['System Admin', 'HR Manager', 'HR Staff', 'Department Manager'],
+                'level' => 'manager',
+                'description' => 'Attendance patterns and leave utilization'
+            ],
+            'benefits-hmo-utilization' => [
+                'roles' => ['System Admin', 'HR Manager', 'Finance Manager', 'Executive'],
+                'level' => 'finance',
+                'description' => 'Benefits costs and HMO utilization'
+            ],
+            'training-development' => [
+                'roles' => ['System Admin', 'HR Manager', 'HR Staff', 'Department Manager'],
+                'level' => 'manager',
+                'description' => 'Training effectiveness and development'
+            ],
+            'employee-relations-engagement' => [
+                'roles' => ['System Admin', 'HR Manager', 'Executive'],
+                'level' => 'executive',
+                'description' => 'Employee engagement and relations'
+            ],
+            'turnover-retention' => [
+                'roles' => ['System Admin', 'HR Manager', 'Executive'],
+                'level' => 'executive',
+                'description' => 'Turnover analysis and retention strategies'
+            ],
+            'compliance-document' => [
+                'roles' => ['System Admin', 'HR Manager', 'HR Staff', 'Compliance Officer'],
+                'level' => 'compliance',
+                'description' => 'Document compliance and expiring credentials'
+            ]
+        ];
     }
 
     /**
-     * Filter data based on user access level
+     * Define feature access levels
      */
-    public function filterDataByAccess($userId, $reportType, $data) {
-        try {
-            $userPermissions = $this->getUserPermissions($userId);
-            
-            // Apply data filtering based on user role
-            switch ($userPermissions['role_name']) {
-                case 'System Admin':
-                case 'HR Manager':
-                    // Full access to all data
-                    return $data;
-                    
-                case 'HR Staff':
-                    // Limited access - filter sensitive information
-                    return $this->filterSensitiveData($data);
-                    
-                case 'Finance Manager':
-                    // Access to financial data only
-                    return $this->filterFinancialData($data);
-                    
-                case 'Department Head':
-                    // Access to department data only
-                    return $this->filterDepartmentData($data, $userPermissions['department_id']);
-                    
-                default:
-                    // Minimal access
-                    return $this->filterMinimalData($data);
-            }
-        } catch (Exception $e) {
-            error_log("Data filtering error: " . $e->getMessage());
-            return $data; // Return original data if filtering fails
-        }
+    private function getFeatureAccessLevels() {
+        return [
+            'export_pdf' => [
+                'roles' => ['System Admin', 'HR Manager', 'Executive', 'Finance Manager'],
+                'level' => 'manager',
+                'description' => 'Export reports to PDF format'
+            ],
+            'export_excel' => [
+                'roles' => ['System Admin', 'HR Manager', 'HR Staff', 'Finance Manager'],
+                'level' => 'staff',
+                'description' => 'Export reports to Excel format'
+            ],
+            'export_csv' => [
+                'roles' => ['System Admin', 'HR Manager', 'HR Staff', 'Department Manager'],
+                'level' => 'staff',
+                'description' => 'Export reports to CSV format'
+            ],
+            'schedule_reports' => [
+                'roles' => ['System Admin', 'HR Manager'],
+                'level' => 'admin',
+                'description' => 'Schedule automatic report generation'
+            ],
+            'view_audit_trail' => [
+                'roles' => ['System Admin', 'HR Manager'],
+                'level' => 'admin',
+                'description' => 'View report generation audit trail'
+            ],
+            'custom_filters' => [
+                'roles' => ['System Admin', 'HR Manager', 'HR Staff'],
+                'level' => 'staff',
+                'description' => 'Apply custom filters to reports'
+            ],
+            'department_data' => [
+                'roles' => ['System Admin', 'HR Manager', 'Department Manager'],
+                'level' => 'manager',
+                'description' => 'View department-specific data'
+            ],
+            'financial_data' => [
+                'roles' => ['System Admin', 'HR Manager', 'Finance Manager', 'Executive'],
+                'level' => 'finance',
+                'description' => 'View financial and cost data'
+            ]
+        ];
     }
 
     /**
-     * Get user permissions
+     * Check if user has access to a specific report
      */
-    private function getUserPermissions($userId) {
-        $sql = "SELECT u.UserID, u.Username, r.RoleName, u.DepartmentID, u.BranchID
+    public function hasReportAccess($userId, $reportType) {
+        $userRole = $this->getUserRole($userId);
+        $accessLevels = $this->getReportAccessLevels();
+        
+        if (!isset($accessLevels[$reportType])) {
+            return false; // Unknown report type
+        }
+        
+        return in_array($userRole, $accessLevels[$reportType]['roles']);
+    }
+
+    /**
+     * Check if user has access to a specific feature
+     */
+    public function hasFeatureAccess($userId, $feature) {
+        $userRole = $this->getUserRole($userId);
+        $accessLevels = $this->getFeatureAccessLevels();
+        
+        if (!isset($accessLevels[$feature])) {
+            return false; // Unknown feature
+        }
+        
+        return in_array($userRole, $accessLevels[$feature]['roles']);
+    }
+
+    /**
+     * Get user's role
+     */
+    private function getUserRole($userId) {
+        $sql = "SELECT r.RoleName 
                 FROM users u
                 LEFT JOIN roles r ON u.RoleID = r.RoleID
                 WHERE u.UserID = :user_id";
@@ -87,138 +162,114 @@ class HRReportsAccessControl {
         $stmt->execute();
         
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        if (!$result) {
-            throw new Exception("User not found");
-        }
-        
-        return [
-            'user_id' => $result['UserID'],
-            'username' => $result['Username'],
-            'role_name' => $result['RoleName'],
-            'department_id' => $result['DepartmentID'],
-            'branch_id' => $result['BranchID']
-        ];
+        return $result['RoleName'] ?? 'Guest';
     }
 
     /**
-     * Check if user has access to specific report type
+     * Get accessible reports for user
      */
-    private function hasReportAccess($userPermissions, $reportType) {
-        $roleName = $userPermissions['role_name'];
+    public function getAccessibleReports($userId) {
+        $userRole = $this->getUserRole($userId);
+        $accessLevels = $this->getReportAccessLevels();
+        $accessibleReports = [];
         
-        // Define access matrix
-        $accessMatrix = [
-            'System Admin' => ['*'], // Access to all reports
-            'HR Manager' => [
-                'executive-summary', 'employee-demographics', 'recruitment-application',
-                'payroll-compensation', 'attendance-leave', 'benefits-hmo-utilization',
-                'training-development', 'employee-relations-engagement', 'turnover-retention',
-                'compliance-document'
-            ],
-            'HR Staff' => [
-                'employee-demographics', 'attendance-leave', 'training-development',
-                'employee-relations-engagement', 'compliance-document'
-            ],
-            'Finance Manager' => [
-                'executive-summary', 'payroll-compensation', 'benefits-hmo-utilization'
-            ],
-            'Department Head' => [
-                'employee-demographics', 'attendance-leave', 'training-development'
-            ]
-        ];
-        
-        $allowedReports = $accessMatrix[$roleName] ?? [];
-        
-        return in_array('*', $allowedReports) || in_array($reportType, $allowedReports);
-    }
-
-    /**
-     * Validate filters based on user permissions
-     */
-    private function validateFilters($userPermissions, $filters) {
-        $roleName = $userPermissions['role_name'];
-        
-        // Department heads can only access their department data
-        if ($roleName === 'Department Head' && !empty($filters['department_id'])) {
-            if ($filters['department_id'] != $userPermissions['department_id']) {
-                throw new Exception("Access denied: Cannot access other department data");
+        foreach ($accessLevels as $reportType => $config) {
+            if (in_array($userRole, $config['roles'])) {
+                $accessibleReports[$reportType] = [
+                    'name' => ucwords(str_replace('-', ' ', $reportType)),
+                    'level' => $config['level'],
+                    'description' => $config['description']
+                ];
             }
         }
         
-        // Branch managers can only access their branch data
-        if ($roleName === 'Branch Manager' && !empty($filters['branch_id'])) {
-            if ($filters['branch_id'] != $userPermissions['branch_id']) {
-                throw new Exception("Access denied: Cannot access other branch data");
+        return $accessibleReports;
+    }
+
+    /**
+     * Get accessible features for user
+     */
+    public function getAccessibleFeatures($userId) {
+        $userRole = $this->getUserRole($userId);
+        $accessLevels = $this->getFeatureAccessLevels();
+        $accessibleFeatures = [];
+        
+        foreach ($accessLevels as $feature => $config) {
+            if (in_array($userRole, $config['roles'])) {
+                $accessibleFeatures[$feature] = [
+                    'name' => ucwords(str_replace('_', ' ', $feature)),
+                    'level' => $config['level'],
+                    'description' => $config['description']
+                ];
             }
+        }
+        
+        return $accessibleFeatures;
+    }
+
+    /**
+     * Filter data based on user access level
+     */
+    public function filterDataByAccess($userId, $reportType, $data) {
+        $userRole = $this->getUserRole($userId);
+        
+        // Apply role-based data filtering
+        switch ($userRole) {
+            case 'Department Manager':
+                return $this->filterDepartmentData($userId, $data);
+            case 'HR Staff':
+                return $this->filterHRStaffData($data);
+            case 'Finance Manager':
+                return $this->filterFinanceData($data);
+            case 'Executive':
+                return $this->filterExecutiveData($data);
+            default:
+                return $data; // System Admin and HR Manager see all data
         }
     }
 
     /**
-     * Filter sensitive data for HR Staff
+     * Filter data for Department Manager
      */
-    private function filterSensitiveData($data) {
-        // Remove sensitive fields like salary details, personal information
-        $sensitiveFields = ['salary', 'sss_number', 'tin_number', 'bank_account'];
+    private function filterDepartmentData($userId, $data) {
+        // Get user's department
+        $userDepartment = $this->getUserDepartment($userId);
         
-        if (is_array($data)) {
-            foreach ($data as $key => $value) {
-                if (in_array(strtolower($key), $sensitiveFields)) {
-                    unset($data[$key]);
-                } elseif (is_array($value)) {
-                    $data[$key] = $this->filterSensitiveData($value);
+        if (!$userDepartment) {
+            return []; // No department access
+        }
+        
+        // Filter data to show only user's department
+        $filteredData = [];
+        
+        foreach ($data as $key => $value) {
+            if (is_array($value)) {
+                if (isset($value[0]) && is_array($value[0])) {
+                    // Array of objects - filter by department
+                    $filteredData[$key] = array_filter($value, function($item) use ($userDepartment) {
+                        return isset($item['DepartmentName']) && $item['DepartmentName'] === $userDepartment;
+                    });
+                } else {
+                    $filteredData[$key] = $value;
                 }
+            } else {
+                $filteredData[$key] = $value;
             }
         }
         
-        return $data;
+        return $filteredData;
     }
 
     /**
-     * Filter financial data for Finance Manager
+     * Filter data for HR Staff
      */
-    private function filterFinancialData($data) {
-        // Keep only financial-related fields
-        $financialFields = ['cost', 'salary', 'payroll', 'benefits', 'premium', 'amount'];
+    private function filterHRStaffData($data) {
+        // HR Staff can see most data but not sensitive financial information
+        $sensitiveKeys = ['monthly_payroll_cost', 'total_monthly_payroll', 'avg_monthly_salary'];
         
-        if (is_array($data)) {
-            $filtered = [];
-            foreach ($data as $key => $value) {
-                $keyLower = strtolower($key);
-                $isFinancial = false;
-                
-                foreach ($financialFields as $field) {
-                    if (strpos($keyLower, $field) !== false) {
-                        $isFinancial = true;
-                        break;
-                    }
-                }
-                
-                if ($isFinancial) {
-                    $filtered[$key] = $value;
-                } elseif (is_array($value)) {
-                    $filtered[$key] = $this->filterFinancialData($value);
-                }
-            }
-            return $filtered;
-        }
-        
-        return $data;
-    }
-
-    /**
-     * Filter data for specific department
-     */
-    private function filterDepartmentData($data, $departmentId) {
-        if (is_array($data)) {
-            foreach ($data as $key => $value) {
-                if (is_array($value) && isset($value['department_id'])) {
-                    if ($value['department_id'] != $departmentId) {
-                        unset($data[$key]);
-                    }
-                } elseif (is_array($value)) {
-                    $data[$key] = $this->filterDepartmentData($value, $departmentId);
-                }
+        foreach ($sensitiveKeys as $key) {
+            if (isset($data[$key])) {
+                unset($data[$key]);
             }
         }
         
@@ -226,123 +277,193 @@ class HRReportsAccessControl {
     }
 
     /**
-     * Filter to minimal data for basic users
+     * Filter data for Finance Manager
      */
-    private function filterMinimalData($data) {
-        // Return only basic counts and non-sensitive information
-        $minimalFields = ['count', 'total', 'summary', 'overview'];
+    private function filterFinanceData($data) {
+        // Finance Manager sees financial data but not personal details
+        $personalKeys = ['employee_name', 'personal_details'];
         
-        if (is_array($data)) {
-            $filtered = [];
-            foreach ($data as $key => $value) {
-                $keyLower = strtolower($key);
-                $isMinimal = false;
-                
-                foreach ($minimalFields as $field) {
-                    if (strpos($keyLower, $field) !== false) {
-                        $isMinimal = true;
-                        break;
-                    }
-                }
-                
-                if ($isMinimal) {
-                    $filtered[$key] = $value;
-                } elseif (is_array($value)) {
-                    $filtered[$key] = $this->filterMinimalData($value);
-                }
+        foreach ($personalKeys as $key) {
+            if (isset($data[$key])) {
+                unset($data[$key]);
             }
-            return $filtered;
         }
         
         return $data;
     }
 
     /**
-     * Get user access summary
+     * Filter data for Executive
+     */
+    private function filterExecutiveData($data) {
+        // Executive sees high-level summaries and KPIs
+        $executiveKeys = ['kpi_metrics', 'summary', 'overview', 'trend_indicators'];
+        $filteredData = [];
+        
+        foreach ($executiveKeys as $key) {
+            if (isset($data[$key])) {
+                $filteredData[$key] = $data[$key];
+            }
+        }
+        
+        return $filteredData;
+    }
+
+    /**
+     * Get user's department
+     */
+    private function getUserDepartment($userId) {
+        $sql = "SELECT d.DepartmentName 
+                FROM users u
+                LEFT JOIN employees e ON u.EmployeeID = e.EmployeeID
+                LEFT JOIN organizationalstructure d ON e.DepartmentID = d.DepartmentID
+                WHERE u.UserID = :user_id";
+        
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->bindValue(':user_id', $userId);
+        $stmt->execute();
+        
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $result['DepartmentName'] ?? null;
+    }
+
+    /**
+     * Check if user can access department-specific data
+     */
+    public function canAccessDepartmentData($userId, $departmentId) {
+        $userRole = $this->getUserRole($userId);
+        
+        // System Admin and HR Manager can access all departments
+        if (in_array($userRole, ['System Admin', 'HR Manager'])) {
+            return true;
+        }
+        
+        // Department Manager can only access their own department
+        if ($userRole === 'Department Manager') {
+            $userDepartment = $this->getUserDepartment($userId);
+            $targetDepartment = $this->getDepartmentName($departmentId);
+            
+            return $userDepartment === $targetDepartment;
+        }
+        
+        return false;
+    }
+
+    /**
+     * Get department name by ID
+     */
+    private function getDepartmentName($departmentId) {
+        $sql = "SELECT DepartmentName FROM organizationalstructure WHERE DepartmentID = :department_id";
+        
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->bindValue(':department_id', $departmentId);
+        $stmt->execute();
+        
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $result['DepartmentName'] ?? null;
+    }
+
+    /**
+     * Get user's access summary
      */
     public function getUserAccessSummary($userId) {
-        try {
-            $userPermissions = $this->getUserPermissions($userId);
-            
-            return [
-                'user_id' => $userPermissions['user_id'],
-                'username' => $userPermissions['username'],
-                'role_name' => $userPermissions['role_name'],
-                'department_id' => $userPermissions['department_id'],
-                'branch_id' => $userPermissions['branch_id'],
-                'access_level' => $this->getAccessLevel($userPermissions['role_name']),
-                'allowed_reports' => $this->getAllowedReports($userPermissions['role_name']),
-                'restrictions' => $this->getUserRestrictions($userPermissions)
-            ];
-        } catch (Exception $e) {
-            error_log("Get user access summary error: " . $e->getMessage());
-            return [];
-        }
+        $userRole = $this->getUserRole($userId);
+        $accessibleReports = $this->getAccessibleReports($userId);
+        $accessibleFeatures = $this->getAccessibleFeatures($userId);
+        
+        return [
+            'user_id' => $userId,
+            'role' => $userRole,
+            'accessible_reports' => $accessibleReports,
+            'accessible_features' => $accessibleFeatures,
+            'access_level' => $this->getAccessLevel($userRole),
+            'department_access' => $this->getUserDepartment($userId)
+        ];
     }
 
     /**
      * Get access level for role
      */
-    private function getAccessLevel($roleName) {
+    private function getAccessLevel($role) {
         $accessLevels = [
-            'System Admin' => 'full',
-            'HR Manager' => 'high',
-            'HR Staff' => 'medium',
-            'Finance Manager' => 'financial',
-            'Department Head' => 'department',
-            'Branch Manager' => 'branch',
-            'Employee' => 'minimal'
+            'System Admin' => 'admin',
+            'HR Manager' => 'manager',
+            'Executive' => 'executive',
+            'Finance Manager' => 'finance',
+            'HR Staff' => 'staff',
+            'Department Manager' => 'department',
+            'Compliance Officer' => 'compliance',
+            'Guest' => 'guest'
         ];
         
-        return $accessLevels[$roleName] ?? 'minimal';
+        return $accessLevels[$role] ?? 'guest';
     }
 
     /**
-     * Get allowed reports for role
+     * Validate report access before processing
      */
-    private function getAllowedReports($roleName) {
-        $accessMatrix = [
-            'System Admin' => ['*'],
-            'HR Manager' => [
-                'executive-summary', 'employee-demographics', 'recruitment-application',
-                'payroll-compensation', 'attendance-leave', 'benefits-hmo-utilization',
-                'training-development', 'employee-relations-engagement', 'turnover-retention',
-                'compliance-document'
+    public function validateReportAccess($userId, $reportType, $filters = []) {
+        // Check basic report access
+        if (!$this->hasReportAccess($userId, $reportType)) {
+            throw new Exception("Access denied: You don't have permission to access this report");
+        }
+        
+        // Check department access if department filter is applied
+        if (isset($filters['department_id']) && !empty($filters['department_id'])) {
+            if (!$this->canAccessDepartmentData($userId, $filters['department_id'])) {
+                throw new Exception("Access denied: You don't have permission to access this department's data");
+            }
+        }
+        
+        return true;
+    }
+
+    /**
+     * Get role hierarchy
+     */
+    public function getRoleHierarchy() {
+        return [
+            'System Admin' => [
+                'level' => 1,
+                'description' => 'Full system access',
+                'can_access' => 'all'
             ],
-            'HR Staff' => [
-                'employee-demographics', 'attendance-leave', 'training-development',
-                'employee-relations-engagement', 'compliance-document'
+            'HR Manager' => [
+                'level' => 2,
+                'description' => 'HR management access',
+                'can_access' => 'hr_all'
+            ],
+            'Executive' => [
+                'level' => 3,
+                'description' => 'Executive level access',
+                'can_access' => 'executive_reports'
             ],
             'Finance Manager' => [
-                'executive-summary', 'payroll-compensation', 'benefits-hmo-utilization'
+                'level' => 3,
+                'description' => 'Financial data access',
+                'can_access' => 'financial_reports'
             ],
-            'Department Head' => [
-                'employee-demographics', 'attendance-leave', 'training-development'
+            'HR Staff' => [
+                'level' => 4,
+                'description' => 'HR operational access',
+                'can_access' => 'hr_operational'
+            ],
+            'Department Manager' => [
+                'level' => 4,
+                'description' => 'Department-specific access',
+                'can_access' => 'department_data'
+            ],
+            'Compliance Officer' => [
+                'level' => 4,
+                'description' => 'Compliance monitoring access',
+                'can_access' => 'compliance_data'
+            ],
+            'Guest' => [
+                'level' => 5,
+                'description' => 'Limited access',
+                'can_access' => 'none'
             ]
         ];
-        
-        return $accessMatrix[$roleName] ?? [];
-    }
-
-    /**
-     * Get user restrictions
-     */
-    private function getUserRestrictions($userPermissions) {
-        $restrictions = [];
-        
-        if ($userPermissions['role_name'] === 'Department Head') {
-            $restrictions[] = 'department_limited';
-        }
-        
-        if ($userPermissions['role_name'] === 'Branch Manager') {
-            $restrictions[] = 'branch_limited';
-        }
-        
-        if (in_array($userPermissions['role_name'], ['HR Staff', 'Employee'])) {
-            $restrictions[] = 'no_sensitive_data';
-        }
-        
-        return $restrictions;
     }
 }
 ?>

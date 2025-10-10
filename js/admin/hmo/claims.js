@@ -5,180 +5,59 @@ export async function renderHMOClaims(containerId = 'main-content-area') {
     const container = document.getElementById(containerId);
     if (!container) return;
 
-    // Show loading state
-    container.innerHTML = `
-        <div class="flex items-center justify-center py-12">
-            <div class="text-center">
-                <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
-                <p class="text-gray-500 mt-4">Loading claims...</p>
-            </div>
-        </div>
-    `;
-
     try {
-        const res = await fetch(`${API_BASE_URL}hmo_unified.php/hmo_claims`, { credentials: 'include' });
-        if (!res.ok) {
-            const text = await res.text();
-            console.error('API Error Response:', text);
-            throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-        }
+        const res = await fetch(`${API_BASE_URL}hmo_claims.php`, { credentials: 'include' });
         const data = await res.json();
-        const claims = data.data?.claims || data.claims || [];
+        const claims = data.claims || [];
 
-        // Calculate statistics
-        const submittedCount = claims.filter(c => c.Status === 'Submitted' || c.ClaimStatus === 'Submitted').length;
-        const approvedCount = claims.filter(c => c.Status === 'Approved' || c.ClaimStatus === 'Approved').length;
-        const paidCount = claims.filter(c => c.Status === 'Paid' || c.ClaimStatus === 'Paid').length;
-        const totalAmount = claims.reduce((sum, c) => sum + parseFloat(c.Amount || c.ClaimAmount || 0), 0);
-
-        // Build a modern table view
+        // Build a simple table view
         let html = `
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200">
-                <!-- Enhanced Header -->
-                <div class="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-6 py-4 rounded-t-lg">
-                    <div class="flex justify-between items-center">
-                        <div>
-                            <h2 class="text-2xl font-bold mb-1">HMO Claims</h2>
-                            <p class="text-sm text-green-100">Process and manage employee healthcare claims</p>
-                        </div>
-                        <div class="flex items-center space-x-3">
-                            <button id="refresh-claims" class="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition duration-150 ease-in-out flex items-center space-x-2">
-                                <i class="fas fa-sync-alt"></i>
-                                <span>Refresh</span>
-                            </button>
-                            <button id="export-claims" class="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition duration-150 ease-in-out flex items-center space-x-2">
-                                <i class="fas fa-download"></i>
-                                <span>Export</span>
-                            </button>
-                            <button id="add-claim-btn" class="px-4 py-2 bg-white text-green-600 hover:bg-green-50 font-semibold rounded-lg transition duration-150 ease-in-out flex items-center space-x-2">
-                                <i class="fas fa-file-medical"></i>
-                                <span>File Claim</span>
-                            </button>
-                        </div>
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-semibold">HMO Claims</h2>
+                    <div>
+                        <button id="refresh-claims" class="hmo-btn hmo-btn-primary">Refresh</button>
+                        <button id="add-claim-btn" class="hmo-btn hmo-btn-success">File Claim</button>
                     </div>
                 </div>
-
-                <!-- Summary Statistics -->
-                <div class="px-6 py-4 bg-green-50 border-b border-green-100">
-                    <div class="flex items-center space-x-6">
-                        <div class="flex items-center space-x-2">
-                            <i class="fas fa-file-invoice-dollar text-green-600"></i>
-                            <span class="text-sm text-gray-600">Total Claims:</span>
-                            <span class="font-semibold text-gray-900">${claims.length}</span>
-                        </div>
-                        <div class="flex items-center space-x-2">
-                            <i class="fas fa-paper-plane text-blue-600"></i>
-                            <span class="text-sm text-gray-600">Submitted:</span>
-                            <span class="font-semibold text-blue-600">${submittedCount}</span>
-                        </div>
-                        <div class="flex items-center space-x-2">
-                            <i class="fas fa-check-double text-green-600"></i>
-                            <span class="text-sm text-gray-600">Approved:</span>
-                            <span class="font-semibold text-green-600">${approvedCount}</span>
-                        </div>
-                        <div class="flex items-center space-x-2">
-                            <i class="fas fa-money-bill-wave text-emerald-600"></i>
-                            <span class="text-sm text-gray-600">Paid:</span>
-                            <span class="font-semibold text-emerald-600">${paidCount}</span>
-                        </div>
-                        <div class="flex items-center space-x-2">
-                            <i class="fas fa-coins text-yellow-600"></i>
-                            <span class="text-sm text-gray-600">Total Amount:</span>
-                            <span class="font-semibold text-yellow-600">₱${totalAmount.toLocaleString()}</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Table -->
-                <div class="overflow-x-auto">
+                <div class="bg-white rounded-lg shadow">
                     <table class="w-full text-left" id="hmo-claims-table">
                         <thead>
-                            <tr class="bg-gray-100 border-b border-gray-200">
-                                <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Employee</th>
-                                <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Plan</th>
-                                <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                                <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                                <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider text-right">Actions</th>
+                            <tr class="bg-gray-100">
+                                <th class="p-3">Employee</th>
+                                <th class="p-3">Plan</th>
+                                <th class="p-3">Date</th>
+                                <th class="p-3">Hospital/Clinic</th>
+                                <th class="p-3">Amount</th>
+                                <th class="p-3">Status</th>
+                                <th class="p-3">Actions</th>
                             </tr>
                         </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">
+                        <tbody>
         `;
 
         if (claims.length === 0) {
             html += `
                 <tr>
-                    <td colspan="7" class="px-6 py-12 text-center">
-                        <div class="flex flex-col items-center justify-center space-y-3">
-                            <i class="fas fa-file-medical-alt text-gray-300 text-5xl"></i>
-                            <p class="text-gray-500 text-lg font-medium">No claims found</p>
-                            <p class="text-gray-400 text-sm">File a claim to get started</p>
-                            <button id="empty-add-claim" class="mt-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition duration-150 ease-in-out">
-                                <i class="fas fa-file-medical mr-2"></i>File Your First Claim
-                            </button>
-                        </div>
+                    <td class="p-6 text-center text-sm text-gray-500" colspan="7">
+                        No claims found.
                     </td>
                 </tr>`;
         } else {
             for (const c of claims) {
-                const employeeName = c.FirstName ? `${c.FirstName} ${c.LastName || ''}`.trim() : `Employee #${c.EmployeeID || ''}`;
-                const status = c.Status || c.ClaimStatus || '';
-                let statusBadge = '';
-                
-                if (status === 'Submitted') {
-                    statusBadge = '<span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800"><i class="fas fa-paper-plane mr-1"></i>Submitted</span>';
-                } else if (status === 'Approved') {
-                    statusBadge = '<span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800"><i class="fas fa-check-circle mr-1"></i>Approved</span>';
-                } else if (status === 'Rejected') {
-                    statusBadge = '<span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800"><i class="fas fa-times-circle mr-1"></i>Rejected</span>';
-                } else if (status === 'Paid') {
-                    statusBadge = '<span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-emerald-100 text-emerald-800"><i class="fas fa-money-bill-wave mr-1"></i>Paid</span>';
-                } else {
-                    statusBadge = '<span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">' + status + '</span>';
-                }
-                
-                const amount = c.Amount || c.ClaimAmount || 0;
-                const description = c.Description || c.Diagnosis || c.HospitalClinic || 'N/A';
-                
+                const name = c.FirstName ? (c.FirstName + (c.LastName ? ' ' + c.LastName : '')) : (c.EmployeeID || '');
                 html += `
-                    <tr class="hover:bg-gray-50 transition duration-150 ease-in-out">
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="flex items-center">
-                                <div class="flex-shrink-0 h-10 w-10 bg-green-100 rounded-full flex items-center justify-center">
-                                    <i class="fas fa-user text-green-600"></i>
-                                </div>
-                                <div class="ml-3">
-                                    <div class="text-sm font-medium text-gray-900">${employeeName}</div>
-                                    <div class="text-xs text-gray-500">ID: ${c.EmployeeID || 'N/A'}</div>
-                                </div>
-                            </div>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm text-gray-900">${c.PlanName || 'N/A'}</div>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm text-gray-700">${c.ClaimDate || c.SubmittedDate || 'N/A'}</div>
-                        </td>
-                        <td class="px-6 py-4">
-                            <div class="text-sm text-gray-700 max-w-xs truncate" title="${description}">${description}</div>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm font-medium text-gray-900">₱${parseFloat(amount).toLocaleString()}</div>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap">${statusBadge}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <div class="flex items-center justify-end space-x-2">
-                                <button class="text-blue-600 hover:text-blue-800 manage-claim" data-id="${c.ClaimID}" title="Manage Claim">
-                                    <i class="fas fa-tasks"></i>
-                                </button>
-                                <button class="text-purple-600 hover:text-purple-800 view-attachments" data-id="${c.ClaimID}" title="View Attachments">
-                                    <i class="fas fa-paperclip"></i>
-                                </button>
-                                <button class="text-red-600 hover:text-red-800 delete-claim" data-id="${c.ClaimID}" title="Delete Claim">
-                                    <i class="fas fa-trash-alt"></i>
-                                </button>
-                            </div>
+                    <tr>
+                        <td class="p-3">${name}</td>
+                        <td class="p-3">${c.PlanName || ''}</td>
+                        <td class="p-3">${c.ClaimDate || ''}</td>
+                        <td class="p-3">${c.HospitalClinic || ''}</td>
+                        <td class="p-3">${c.ClaimAmount || ''}</td>
+                        <td class="p-3">${c.ClaimStatus || ''}</td>
+                        <td class="p-3">
+                            <button class="hmo-btn hmo-btn-primary manage-claim" data-id="${c.ClaimID}">Manage</button>
+                            <button class="hmo-btn hmo-btn-secondary view-attachments" data-id="${c.ClaimID}">Attachments</button>
+                            <button class="hmo-btn hmo-btn-danger delete-claim" data-id="${c.ClaimID}">Delete</button>
                         </td>
                     </tr>`;
             }
@@ -195,8 +74,6 @@ export async function renderHMOClaims(containerId = 'main-content-area') {
         // Wire buttons
         document.getElementById('refresh-claims')?.addEventListener('click', () => renderHMOClaims(containerId));
         document.getElementById('add-claim-btn')?.addEventListener('click', () => showAddClaimModal(containerId));
-        document.getElementById('empty-add-claim')?.addEventListener('click', () => showAddClaimModal(containerId));
-        document.getElementById('export-claims')?.addEventListener('click', () => exportClaimsToCSV(claims));
 
         // Row actions
         container.querySelectorAll('.manage-claim').forEach(btn => btn.addEventListener('click', (ev) => {
@@ -206,7 +83,7 @@ export async function renderHMOClaims(containerId = 'main-content-area') {
 
         container.querySelectorAll('.view-attachments').forEach(btn => btn.addEventListener('click', async (ev) => {
             const id = ev.currentTarget.dataset.id;
-            const r = await fetch(`${API_BASE_URL}hmo_unified.php/hmo_claims?id=${id}`, { credentials: 'include' });
+            const r = await fetch(`${API_BASE_URL}hmo_claims.php?id=${id}`, { credentials: 'include' });
             const j = await r.json();
             const claim = j.claim || {};
             const modal = document.getElementById('modalContainer'); if (!modal) return;
@@ -232,7 +109,7 @@ export async function renderHMOClaims(containerId = 'main-content-area') {
             const id = ev.currentTarget.dataset.id;
             if (!confirm('Delete claim?')) return;
             try {
-                const r = await fetch(`${API_BASE_URL}hmo_unified.php/hmo_claims?id=${id}`, { method: 'DELETE', credentials: 'include' });
+                const r = await fetch(`${API_BASE_URL}hmo_claims.php?id=${id}`, { method: 'DELETE', credentials: 'include' });
                 const j = await r.json();
                 if (j.success) renderHMOClaims(containerId); else alert(j.error || 'Failed to delete');
             } catch (e) { console.error(e); alert('Failed to delete claim'); }
@@ -240,75 +117,15 @@ export async function renderHMOClaims(containerId = 'main-content-area') {
 
     } catch (e) {
         console.error('Error loading HMO claims', e);
-        container.innerHTML = `
-            <div class="bg-white rounded-lg shadow-sm border border-red-200 p-6">
-                <div class="flex items-center space-x-3 text-red-600">
-                    <i class="fas fa-exclamation-circle text-2xl"></i>
-                    <div>
-                        <h3 class="text-lg font-semibold">Error Loading Claims</h3>
-                        <p class="text-sm text-red-500 mt-1">${e.message}</p>
-                    </div>
-                </div>
-            </div>
-        `;
+        container.innerHTML = '<div class="p-6">Error loading claims</div>';
     }
-}
-
-// CSV Export Function
-function exportClaimsToCSV(claims) {
-    if (!claims || claims.length === 0) {
-        alert('No claims to export');
-        return;
-    }
-
-    // Define CSV headers
-    const headers = ['Claim ID', 'Employee ID', 'Employee Name', 'Plan', 'Date', 'Description', 'Amount', 'Status'];
-    
-    // Convert claims data to CSV rows
-    const rows = claims.map(c => {
-        const employeeName = c.FirstName ? `${c.FirstName} ${c.LastName || ''}`.trim() : '';
-        const description = c.Description || c.Diagnosis || c.HospitalClinic || '';
-        const status = c.Status || c.ClaimStatus || '';
-        const amount = c.Amount || c.ClaimAmount || 0;
-        const claimDate = c.ClaimDate || c.SubmittedDate || '';
-        
-        return [
-            c.ClaimID || '',
-            c.EmployeeID || '',
-            employeeName,
-            c.PlanName || '',
-            claimDate,
-            description,
-            amount,
-            status
-        ];
-    });
-
-    // Combine headers and rows
-    const csvContent = [
-        headers.join(','),
-        ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-    ].join('\n');
-
-    // Create and trigger download
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `hmo_claims_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    console.log(`Exported ${claims.length} claims to CSV`);
 }
 
 // Modal helpers (lightweight implementations)
 export async function showAddClaimModal(containerId = 'main-content-area') {
     const modal = document.getElementById('modalContainer'); if (!modal) return;
     try {
-        const pres = await fetch(`${API_BASE_URL}hmo_unified.php/hmo_enrollments`, { credentials: 'include' });
+        const pres = await fetch(`${API_BASE_URL}hmo_enrollments.php`, { credentials: 'include' });
         const pdata = await pres.json();
         const enrollments = pdata.enrollments || [];
 
@@ -351,7 +168,7 @@ export async function showAddClaimModal(containerId = 'main-content-area') {
             const form = e.target;
             const fd = new FormData(form);
             try {
-                const res = await fetch(`${API_BASE_URL}hmo_unified.php/hmo_claims`, { method: 'POST', credentials: 'include', body: fd });
+                const res = await fetch(`${API_BASE_URL}hmo_claims.php`, { method: 'POST', credentials: 'include', body: fd });
                 const j = await res.json(); if (j.success) { document.getElementById('add-claim-overlay')?.remove(); renderHMOClaims(containerId); } else alert(j.error || 'Failed');
             } catch (err) { console.error(err); alert('Failed to submit claim'); }
         });
@@ -362,9 +179,9 @@ export async function showAddClaimModal(containerId = 'main-content-area') {
 export async function showEditClaimModal(id, containerId = 'main-content-area') {
     const modal = document.getElementById('modalContainer'); if (!modal) return;
     try {
-        const r = await fetch(`${API_BASE_URL}hmo_unified.php/hmo_claims?id=${id}`, { credentials: 'include' });
+        const r = await fetch(`${API_BASE_URL}hmo_claims.php?id=${id}`, { credentials: 'include' });
         const data = await r.json(); const c = data.claim || {};
-        const pres = await fetch(`${API_BASE_URL}hmo_unified.php/hmo_enrollments`, { credentials: 'include' });
+        const pres = await fetch(`${API_BASE_URL}hmo_enrollments.php`, { credentials: 'include' });
         const pdata = await pres.json(); const enrollments = pdata.enrollments || [];
 
         modal.innerHTML = `
@@ -397,7 +214,7 @@ export async function showEditClaimModal(id, containerId = 'main-content-area') 
         document.getElementById('editClaimForm')?.addEventListener('submit', async (e) => {
             e.preventDefault(); const form = e.target; const fd = new FormData(form);
             try {
-                const res2 = await fetch(`${API_BASE_URL}hmo_unified.php/hmo_claims?id=${id}`, { method: 'PUT', credentials: 'include', body: fd });
+                const res2 = await fetch(`${API_BASE_URL}hmo_claims.php?id=${id}`, { method: 'PUT', credentials: 'include', body: fd });
                 const j2 = await res2.json(); if (j2.success) { document.getElementById('edit-claim-overlay')?.remove(); renderHMOClaims(containerId); } else alert(j2.error || 'Failed');
             } catch (err) { console.error(err); alert('Failed to save claim'); }
         });
@@ -441,7 +258,7 @@ export function showManageModal(claimIds = [], containerId = 'main-content-area'
         e.preventDefault(); const fd = new FormData(e.target); const action = fd.get('action'); const notes = fd.get('notes');
         for (const id of ids) {
             try {
-                const res = await fetch(`${API_BASE_URL}hmo_unified.php/hmo_claims?id=${id}`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ claim_status: action === 'Approve' ? 'Approved' : 'Denied', remarks: notes }) });
+                const res = await fetch(`${API_BASE_URL}hmo_claims.php?id=${id}`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ claim_status: action === 'Approve' ? 'Approved' : 'Denied', remarks: notes }) });
                 const j = await res.json(); if (!j.success) alert('Failed to update ' + id);
             } catch (err) { console.error(err); alert('Failed to update ' + id); }
         }
@@ -475,7 +292,7 @@ export function showClaimHistoryModal(employeeId, containerId = 'main-content-ar
         const status = document.getElementById('history-status').value; const from = document.getElementById('history-from').value; const to = document.getElementById('history-to').value;
         const q = new URLSearchParams({ mode: 'history', employee_id: employeeId, status, from, to });
         try {
-            const r = await fetch(`${API_BASE_URL}hmo_unified.php/hmo_claims?` + q.toString(), { credentials: 'include' });
+            const r = await fetch(`${API_BASE_URL}hmo_claims.php?` + q.toString(), { credentials: 'include' });
             const j = await r.json(); const rows = j.claims || [];
             document.getElementById('history-results').innerHTML = `<table class="w-full text-left"><thead><tr><th>Plan</th><th>Date</th><th>Hospital</th><th>Amount</th><th>Status</th><th>Remarks</th></tr></thead><tbody>` + rows.map(rr => `<tr><td>${rr.PlanName||''}</td><td>${rr.ClaimDate||''}</td><td>${rr.HospitalClinic||''}</td><td>${rr.ClaimAmount||''}</td><td>${rr.ClaimStatus||''}</td><td>${rr.Remarks||''}</td></tr>`).join('') + `</tbody></table>`;
         } catch (err) { console.error(err); document.getElementById('history-results').innerText = 'Failed to load history'; }

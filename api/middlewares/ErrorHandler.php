@@ -1,50 +1,83 @@
 <?php
 /**
  * Error Handler Middleware
- * Provides centralized error handling and logging
+ * Handles and formats application errors
  */
 
-require_once __DIR__ . '/../utils/Response.php';
-
 class ErrorHandler {
+    private $debugMode;
+
+    public function __construct($debugMode = false) {
+        $this->debugMode = $debugMode;
+    }
+
     /**
-     * Handle exceptions and errors
+     * Handle application errors
      */
-    public function handle($exception) {
-        $this->logError($exception);
+    public function handle($error) {
+        $this->logError($error);
         
-        if ($exception instanceof ValidationException) {
-            Response::validationError($exception->getErrors(), $exception->getMessage());
-        } elseif ($exception instanceof AuthenticationException) {
-            Response::unauthorized($exception->getMessage());
-        } elseif ($exception instanceof AuthorizationException) {
-            Response::forbidden($exception->getMessage());
-        } elseif ($exception instanceof NotFoundException) {
-            Response::notFound($exception->getMessage());
-        } elseif ($exception instanceof PDOException) {
-            Response::error('Database error occurred', 500);
+        if ($this->debugMode) {
+            $this->sendDebugError($error);
         } else {
-            Response::error('An unexpected error occurred', 500);
+            $this->sendUserFriendlyError();
         }
     }
 
     /**
-     * Log error details
+     * Log error to file
      */
-    private function logError($exception) {
-        $errorMessage = sprintf(
-            "[%s] %s in %s on line %d: %s",
-            date('Y-m-d H:i:s'),
-            get_class($exception),
-            $exception->getFile(),
-            $exception->getLine(),
-            $exception->getMessage()
-        );
+    private function logError($error) {
+        $logMessage = date('Y-m-d H:i:s') . ' - ';
         
-        error_log($errorMessage);
+        if ($error instanceof Exception) {
+            $logMessage .= 'Exception: ' . $error->getMessage() . ' in ' . $error->getFile() . ':' . $error->getLine();
+        } else {
+            $logMessage .= 'Error: ' . $error;
+        }
         
-        // Log stack trace for debugging
-        error_log("Stack trace: " . $exception->getTraceAsString());
+        $logMessage .= PHP_EOL;
+        
+        error_log($logMessage, 3, __DIR__ . '/../logs/error.log');
+    }
+
+    /**
+     * Send debug error response
+     */
+    private function sendDebugError($error) {
+        http_response_code(500);
+        
+        $response = [
+            'success' => false,
+            'message' => 'Internal Server Error',
+            'error' => [
+                'type' => get_class($error),
+                'message' => $error->getMessage(),
+                'file' => $error->getFile(),
+                'line' => $error->getLine(),
+                'trace' => $error->getTraceAsString()
+            ],
+            'timestamp' => date('Y-m-d H:i:s')
+        ];
+        
+        echo json_encode($response, JSON_PRETTY_PRINT);
+        exit;
+    }
+
+    /**
+     * Send user-friendly error response
+     */
+    private function sendUserFriendlyError() {
+        http_response_code(500);
+        
+        $response = [
+            'success' => false,
+            'message' => 'An internal server error occurred. Please try again later.',
+            'timestamp' => date('Y-m-d H:i:s')
+        ];
+        
+        echo json_encode($response);
+        exit;
     }
 
     /**
@@ -52,54 +85,32 @@ class ErrorHandler {
      */
     public function handleFatalError() {
         $error = error_get_last();
+        
         if ($error && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR])) {
-            $this->logError(new ErrorException(
-                $error['message'],
-                0,
-                $error['type'],
-                $error['file'],
-                $error['line']
-            ));
-            Response::error('A fatal error occurred', 500);
+            $this->handle(new Exception($error['message'] . ' in ' . $error['file'] . ':' . $error['line']));
         }
     }
-}
 
-/**
- * Custom Exception Classes
- */
-class ValidationException extends Exception {
-    private $errors;
-
-    public function __construct($message, $errors = []) {
-        parent::__construct($message);
-        $this->errors = $errors;
-    }
-
-    public function getErrors() {
-        return $this->errors;
+    /**
+     * Set debug mode
+     */
+    public function setDebugMode($debugMode) {
+        $this->debugMode = $debugMode;
     }
 }
 
-class AuthenticationException extends Exception {
-    public function __construct($message = 'Authentication failed') {
-        parent::__construct($message);
-    }
-}
+// Set up error handlers
+set_error_handler(function($severity, $message, $file, $line) {
+    throw new ErrorException($message, 0, $severity, $file, $line);
+});
 
-class AuthorizationException extends Exception {
-    public function __construct($message = 'Access denied') {
-        parent::__construct($message);
-    }
-}
+set_exception_handler(function($exception) {
+    $errorHandler = new ErrorHandler();
+    $errorHandler->handle($exception);
+});
 
-class NotFoundException extends Exception {
-    public function __construct($message = 'Resource not found') {
-        parent::__construct($message);
-    }
-}
-
-// Register error handlers
-register_shutdown_function([new ErrorHandler(), 'handleFatalError']);
-set_exception_handler([new ErrorHandler(), 'handle']);
-
+register_shutdown_function(function() {
+    $errorHandler = new ErrorHandler();
+    $errorHandler->handleFatalError();
+});
+?>

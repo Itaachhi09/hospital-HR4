@@ -1,21 +1,6 @@
 AddType application/javascript .js
 AddType application/json .json
 
-# Enable URL rewriting
-RewriteEngine On
-
-# API Routes
-RewriteRule ^api/hr-analytics/(.*)$ api/routes/hr_analytics.php [QSA,L]
-RewriteRule ^api/hr-reports/(.*)$ api/routes/hr_reports.php [QSA,L]
-RewriteRule ^api/hr-analytics-metrics/(.*)$ api/routes/hr_analytics_metrics.php [QSA,L]
-
-# CORS Headers for API
-<FilesMatch "\.(php)$">
-    Header set Access-Control-Allow-Origin "*"
-    Header set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
-    Header set Access-Control-Allow-Headers "Content-Type, Authorization"
-</FilesMatch>
-
 <FilesMatch "\.(js|json)$">
     Header set Access-Control-Allow-Origin "*"
     Header set Access-Control-Allow-Methods "GET, OPTIONS"

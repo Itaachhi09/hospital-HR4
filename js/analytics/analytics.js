@@ -1,2782 +1,5383 @@
 /**
- * Analytics Module - Reports and Metrics Submodule
- * Consolidates HR, payroll, and benefits data into meaningful insights through automated reporting and performance metrics.
- * Empowers HR leaders and executives to track trends, measure efficiency, and support data-driven decisions.
+ * HR Analytics Dashboard Module
+ * Transforms raw HR and payroll data into actionable insights through interactive analytics
+ * Consolidates data from HR Core, Payroll, Compensation, and Benefits modules
  * 
- * v3.0 - Enhanced with comprehensive Reports and Metrics functionality:
- * - Standardized HR Reports with export capabilities
- * - Custom Report Builder with drag-and-drop widgets
- * - KPI and Metrics Dashboard with real-time indicators
- * - Predictive and Comparative Analytics
- * - Data Integration and Correlation
- * - Compliance and Audit Reporting
+ * API INTEGRATION STRATEGY:
+ * - Dashboard Charts: New Analytics API (hr-analytics/*) - Chart-optimized
+ * - Reports Module: Existing Reports API (hr-reports/*) - Full features + export
+ * - Metrics Module: Existing Metrics API (hr-analytics/metrics/*) - Real-time KPIs
  */
-import { API_BASE_URL } from '../utils.js'; // Import base URL
 
-// --- DOM Element References ---
-let pageTitleElement;
-let mainContentArea;
-let headcountChartInstance = null; 
-let leaveTypeChartInstance = null; 
-let metricChartInstance = null;
+import { API_BASE_URL } from '../utils.js';
 
-// --- Chart instances for cleanup ---
-let chartInstances = {};
+// ========================================================================
+// API ENDPOINT CONFIGURATION
+// ========================================================================
 
-// --- Report Builder State ---
-let reportBuilderState = {
-    widgets: [],
-    filters: {},
-    layout: 'grid'
+const API_ENDPOINTS = {
+    // New Analytics API - Chart-optimized data
+    charts: {
+        executiveSummary: 'hr-analytics/executive-summary',
+        headcountTrend: 'hr-analytics/headcount-trend',
+        turnoverByDept: 'hr-analytics/turnover-by-department',
+        payrollTrend: 'hr-analytics/payroll-trend',
+        demographics: 'hr-analytics/employee-demographics',
+        payrollCompensation: 'hr-analytics/payroll-compensation',
+        benefitsHMO: 'hr-analytics/benefits-hmo',
+        trainingDev: 'hr-analytics/training-development',
+        benefitTypes: 'hmo/analytics/benefit-types-summary'
+    },
+    
+    // Existing Reports API - Comprehensive reports with export
+    reports: {
+        dashboard: 'hr-reports/dashboard',
+        demographics: 'hr-reports/employee-demographics',
+        recruitment: 'hr-reports/recruitment-application',
+        payroll: 'hr-reports/payroll-compensation',
+        attendance: 'hr-reports/attendance-leave',
+        benefits: 'hr-reports/benefits-hmo-utilization',
+        training: 'hr-reports/training-development',
+        relations: 'hr-reports/employee-relations-engagement',
+        turnover: 'hr-reports/turnover-retention',
+        compliance: 'hr-reports/compliance-document',
+        executive: 'hr-reports/executive-summary',
+        export: 'hr-reports/export',
+        schedule: 'hr-reports/schedule',
+        scheduled: 'hr-reports/scheduled'
+    },
+    
+    // Existing Metrics API - Real-time KPIs
+    metrics: {
+        categories: 'hr-analytics/metrics/categories',
+        dashboard: 'hr-analytics/metrics/dashboard/',
+        calculate: 'hr-analytics/metrics/calculate/',
+        trends: 'hr-analytics/metrics/trends/',
+        summary: 'hr-analytics/metrics/summary/',
+        alerts: 'hr-analytics/metrics/alerts/'
+    }
 };
 
+// Chart instances for cleanup
+let chartInstances = {};
+
+// Shared elements
+let pageTitleElement;
+let mainContentArea;
+
+// Current active tab
+let currentTab = 'overview';
+
+// ========================================================================
+// HELPER FUNCTIONS
+// ========================================================================
+
 /**
- * Initializes common elements used by the analytics module.
+ * Get date from range selector
  */
-function initializeAnalyticsElements() {
+function getDateFromRange(range, type = 'from') {
+    const now = new Date();
+    let date = new Date();
+    
+    switch(range) {
+        case 'this-month':
+            date = type === 'from' ? new Date(now.getFullYear(), now.getMonth(), 1) : now;
+            break;
+        case 'last-month':
+            if (type === 'from') {
+                date = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+            } else {
+                date = new Date(now.getFullYear(), now.getMonth(), 0);
+            }
+            break;
+        case 'this-quarter':
+            const quarter = Math.floor(now.getMonth() / 3);
+            date = type === 'from' ? new Date(now.getFullYear(), quarter * 3, 1) : now;
+            break;
+        case 'this-year':
+            date = type === 'from' ? new Date(now.getFullYear(), 0, 1) : now;
+            break;
+        case 'last-year':
+            if (type === 'from') {
+                date = new Date(now.getFullYear() - 1, 0, 1);
+            } else {
+                date = new Date(now.getFullYear() - 1, 11, 31);
+            }
+            break;
+        default:
+            date = type === 'from' ? new Date(now.getFullYear(), 0, 1) : now;
+    }
+    
+    return date.toISOString().split('T')[0];
+}
+
+/**
+ * Build query string from filters
+ */
+function buildQueryString(filters) {
+    const params = new URLSearchParams();
+    Object.keys(filters).forEach(key => {
+        if (filters[key]) {
+            params.append(key, filters[key]);
+        }
+    });
+    return params.toString();
+}
+
+/**
+ * Initialize common elements
+ */
+function initializeElements() {
     pageTitleElement = document.getElementById('page-title');
     mainContentArea = document.getElementById('main-content-area');
     if (!pageTitleElement || !mainContentArea) {
-        console.error("Analytics Module: Core DOM elements (page-title or main-content-area) not found!");
+        console.error("Analytics Module: Core DOM elements not found!");
         return false;
     }
     return true;
 }
 
 /**
- * Displays the Analytics Dashboards section.
+ * Clean up existing charts
  */
-export async function displayAnalyticsDashboardsSection() {
-    console.log("[Display] Displaying Enhanced Analytics Dashboards Section...");
-    if (!initializeAnalyticsElements()) return;
-    pageTitleElement.textContent = 'HR Analytics Dashboard';
-    
-    // Clean up existing charts
+function cleanupCharts() {
     Object.values(chartInstances).forEach(chart => {
         if (chart && typeof chart.destroy === 'function') {
             chart.destroy();
         }
     });
     chartInstances = {};
+}
+
+/**
+ * Fetch departments for filters
+ */
+async function fetchDepartments() {
+    try {
+        const response = await fetch(`${API_BASE_URL}organizationalstructure`);
+        if (!response.ok) return [];
+        const data = await response.json();
+        return data.data || [];
+    } catch (error) {
+        console.error('Error fetching departments:', error);
+        return [];
+    }
+}
+
+// ========================================================================
+// DASHBOARD - Main Entry Point with Navigation Tabs
+// ========================================================================
+
+export async function displayAnalyticsDashboardsSection() {
+    console.log('[Analytics] Loading HR Analytics Dashboard...');
+    
+    if (!initializeElements()) return;
+    
+    pageTitleElement.textContent = 'HR Analytics Dashboard';
+    cleanupCharts();
+    
+    // Get departments for filters
+    const departments = await fetchDepartments();
+    const deptOptions = departments.map(d => 
+        `<option value="${d.DepartmentID}">${d.DepartmentName}</option>`
+    ).join('');
     
     mainContentArea.innerHTML = `
         <div class="space-y-6">
-            <!-- Filter Controls -->
-            <div class="bg-white p-4 rounded-lg shadow-md border border-[#F7E6CA]">
-                <div class="grid grid-cols-1 md:grid-cols-6 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Department</label>
-                        <select id="dashboard-dept-filter" class="w-full p-2 border border-gray-300 rounded-md">
+            <!-- Global Filters -->
+            <div class="bg-white rounded-lg shadow-md border border-gray-200 p-4">
+                <div class="flex flex-wrap items-end gap-4">
+                    <div class="flex-1 min-w-[200px]">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            <i class="fas fa-building mr-1"></i>Department
+                        </label>
+                        <select id="global-dept-filter" class="w-full p-2.5 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
                             <option value="">All Departments</option>
+                            ${deptOptions}
                         </select>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Branch</label>
-                        <select id="dashboard-branch-filter" class="w-full p-2 border border-gray-300 rounded-md">
-                            <option value="">All Branches</option>
+                    <div class="flex-1 min-w-[200px]">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            <i class="fas fa-calendar-alt mr-1"></i>Date Range
+                        </label>
+                        <select id="global-date-filter" class="w-full p-2.5 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                            <option value="1month">Last Month</option>
+                            <option value="3months">Last 3 Months</option>
+                            <option value="6months">Last 6 Months</option>
+                            <option value="12months" selected>Last 12 Months</option>
+                            <option value="ytd">Year to Date</option>
                         </select>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Time Period</label>
-                        <select id="dashboard-period-filter" class="w-full p-2 border border-gray-300 rounded-md">
-                            <option value="3">Last 3 Months</option>
-                            <option value="6">Last 6 Months</option>
-                            <option value="12" selected>Last 12 Months</option>
-                            <option value="24">Last 24 Months</option>
+                    <div class="flex-1 min-w-[200px]">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            <i class="fas fa-user-tag mr-1"></i>Employment Type
+                        </label>
+                        <select id="global-emptype-filter" class="w-full p-2.5 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">All Types</option>
+                            <option value="Regular">Regular</option>
+                            <option value="Contractual">Contractual</option>
+                            <option value="Part-time">Part-time</option>
                         </select>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Report Type</label>
-                        <select id="dashboard-report-type-filter" class="w-full p-2 border border-gray-300 rounded-md">
-                            <option value="">All Reports</option>
-                            <option value="executive-summary">Executive Summary</option>
-                            <option value="employee-demographics">Employee Demographics</option>
-                            <option value="recruitment-application">Recruitment & Application</option>
-                            <option value="payroll-compensation">Payroll & Compensation</option>
-                            <option value="attendance-leave">Attendance & Leave</option>
-                            <option value="benefits-hmo-utilization">Benefits & HMO</option>
-                            <option value="training-development">Training & Development</option>
-                            <option value="employee-relations-engagement">Employee Relations</option>
-                            <option value="turnover-retention">Turnover & Retention</option>
-                            <option value="compliance-document">Compliance & Document</option>
-                        </select>
-                    </div>
-                    <div class="flex items-end">
-                        <button id="apply-filters-btn" class="w-full px-4 py-2 bg-[#594423] text-white rounded-md hover:bg-[#4E3B2A]">
+                    <div class="flex gap-2">
+                        <button id="apply-filters-btn" class="px-6 py-2.5 bg-gray-800 text-white rounded-md hover:bg-gray-900 transition-colors font-medium">
                             <i class="fas fa-filter mr-2"></i>Apply Filters
                         </button>
-                    </div>
-                    <div class="flex items-end">
-                        <button id="refresh-dashboard-btn" class="w-full px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">
+                        <button id="refresh-dashboard-btn" class="px-6 py-2.5 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors font-medium">
                             <i class="fas fa-sync-alt mr-2"></i>Refresh
                         </button>
+                        <button id="export-dashboard-btn" class="px-6 py-2.5 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors font-medium">
+                            <i class="fas fa-download mr-2"></i>Export
+                        </button>
                     </div>
                 </div>
             </div>
 
-            <!-- Quick Actions -->
-            <!-- Quick Actions -->
-            <div class="bg-white p-4 rounded-lg shadow-md border border-[#F7E6CA]">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-lg font-semibold text-[#4E3B2A]">
-                        <i class="fas fa-bolt mr-2"></i>Quick Actions
-                    </h3>
-                </div>
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <button id="generate-executive-summary-btn" class="p-4 bg-gradient-to-br from-purple-500 to-purple-700 text-white rounded-lg hover:from-purple-600 hover:to-purple-800 transition-all">
-                        <i class="fas fa-chart-line fa-2x mb-2"></i>
-                        <div class="font-semibold">Executive Summary</div>
-                        <div class="text-sm opacity-90">Top-level KPIs</div>
-                    </button>
-                    <button id="generate-compliance-report-btn" class="p-4 bg-gradient-to-br from-red-500 to-red-700 text-white rounded-lg hover:from-red-600 hover:to-red-800 transition-all">
-                        <i class="fas fa-shield-alt fa-2x mb-2"></i>
-                        <div class="font-semibold">Compliance Report</div>
-                        <div class="text-sm opacity-90">Document status</div>
-                    </button>
-                    <button id="generate-payroll-report-btn" class="p-4 bg-gradient-to-br from-green-500 to-green-700 text-white rounded-lg hover:from-green-600 hover:to-green-800 transition-all">
-                        <i class="fas fa-money-bill-wave fa-2x mb-2"></i>
-                        <div class="font-semibold">Payroll Report</div>
-                        <div class="text-sm opacity-90">Cost analysis</div>
-                    </button>
-                    <button id="schedule-reports-btn" class="p-4 bg-gradient-to-br from-blue-500 to-blue-700 text-white rounded-lg hover:from-blue-600 hover:to-blue-800 transition-all">
-                        <i class="fas fa-clock fa-2x mb-2"></i>
-                        <div class="font-semibold">Schedule Reports</div>
-                        <div class="text-sm opacity-90">Automated delivery</div>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Enhanced KPI Cards -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div class="bg-gradient-to-br from-blue-400 to-blue-600 p-6 rounded-xl shadow-lg text-white">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm font-medium uppercase tracking-wider">Total Active Employees</p>
-                            <p class="text-3xl font-bold" id="kpi-total-employees">Loading...</p>
-                            <p class="text-xs opacity-75" id="kpi-new-hires">+0 this month</p>
-                        </div>
-                        <div class="bg-white/20 p-3 rounded-full">
-                            <i class="fas fa-users fa-lg text-white"></i>
-                        </div>
-                    </div>
-                </div>
-                <div class="bg-gradient-to-br from-green-400 to-green-600 p-6 rounded-xl shadow-lg text-white">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm font-medium uppercase tracking-wider">Annual Turnover Rate</p>
-                            <p class="text-3xl font-bold" id="kpi-turnover-rate">Loading...</p>
-                            <p class="text-xs opacity-75" id="kpi-separations">0 this month</p>
-                        </div>
-                        <div class="bg-white/20 p-3 rounded-full">
-                            <i class="fas fa-user-times fa-lg text-white"></i>
-                        </div>
-                    </div>
-                </div>
-                <div class="bg-gradient-to-br from-purple-400 to-purple-600 p-6 rounded-xl shadow-lg text-white">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm font-medium uppercase tracking-wider">Monthly Payroll Cost</p>
-                            <p class="text-3xl font-bold" id="kpi-total-payroll-cost">Loading...</p>
-                            <p class="text-xs opacity-75" id="kpi-avg-salary">Avg: ₱0</p>
-                        </div>
-                        <div class="bg-white/20 p-3 rounded-full">
-                            <i class="fas fa-money-bill-wave fa-lg text-white"></i>
-                        </div>
-                    </div>
-                </div>
-                <div class="bg-gradient-to-br from-yellow-400 to-yellow-600 p-6 rounded-xl shadow-lg text-white">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm font-medium uppercase tracking-wider">Avg. Employee Tenure</p>
-                            <p class="text-3xl font-bold" id="kpi-avg-tenure">Loading...</p>
-                            <p class="text-xs opacity-75" id="kpi-retention-rate">Retention: 0%</p>
-                        </div>
-                        <div class="bg-white/20 p-3 rounded-full">
-                            <i class="fas fa-user-clock fa-lg text-white"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Additional KPI Cards -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div class="bg-gradient-to-br from-red-400 to-red-600 p-6 rounded-xl shadow-lg text-white">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm font-medium uppercase tracking-wider">HMO Benefits Cost</p>
-                            <p class="text-3xl font-bold" id="kpi-hmo-cost">Loading...</p>
-                            <p class="text-xs opacity-75" id="kpi-hmo-enrollments">0 active</p>
-                        </div>
-                        <div class="bg-white/20 p-3 rounded-full">
-                            <i class="fas fa-briefcase-medical fa-lg text-white"></i>
-                        </div>
-                    </div>
-                </div>
-                <div class="bg-gradient-to-br from-indigo-400 to-indigo-600 p-6 rounded-xl shadow-lg text-white">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm font-medium uppercase tracking-wider">Attendance Rate</p>
-                            <p class="text-3xl font-bold" id="kpi-attendance-rate">Loading...</p>
-                            <p class="text-xs opacity-75" id="kpi-absenteeism">Absenteeism: 0%</p>
-                        </div>
-                        <div class="bg-white/20 p-3 rounded-full">
-                            <i class="fas fa-calendar-check fa-lg text-white"></i>
-                        </div>
-                    </div>
-                </div>
-                <div class="bg-gradient-to-br from-pink-400 to-pink-600 p-6 rounded-xl shadow-lg text-white">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm font-medium uppercase tracking-wider">Pending Leave Requests</p>
-                            <p class="text-3xl font-bold" id="kpi-pending-leaves">Loading...</p>
-                            <p class="text-xs opacity-75" id="kpi-leave-types">0 types</p>
-                        </div>
-                        <div class="bg-white/20 p-3 rounded-full">
-                            <i class="fas fa-calendar-alt fa-lg text-white"></i>
-                        </div>
-                    </div>
-                </div>
-                <div class="bg-gradient-to-br from-teal-400 to-teal-600 p-6 rounded-xl shadow-lg text-white">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm font-medium uppercase tracking-wider">Training Completion</p>
-                            <p class="text-3xl font-bold" id="kpi-training-rate">Loading...</p>
-                            <p class="text-xs opacity-75" id="kpi-trainings-count">0 this year</p>
-                        </div>
-                        <div class="bg-white/20 p-3 rounded-full">
-                            <i class="fas fa-graduation-cap fa-lg text-white"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Report Navigation Tabs -->
-            <div class="bg-white rounded-lg shadow-md border border-[#F7E6CA]">
+            <!-- Navigation Tabs -->
+            <div class="bg-white rounded-lg shadow-md border border-gray-200">
                 <div class="border-b border-gray-200">
-                    <nav class="-mb-px flex space-x-2 px-4 overflow-x-auto" id="reports-tabs">
-                        <button class="reports-tab active py-4 px-3 border-b-2 border-[#594423] font-medium text-sm text-[#594423] whitespace-nowrap" data-tab="executive-summary">
-                            <i class="fas fa-tachometer-alt mr-2"></i>Executive Summary
+                    <nav class="flex -mb-px" id="analytics-tabs">
+                        <button class="analytics-tab active px-6 py-4 text-sm font-medium border-b-2 border-blue-500 text-blue-600" data-tab="overview">
+                            <i class="fas fa-tachometer-alt mr-2"></i>Overview
                         </button>
-                        <button class="reports-tab py-4 px-3 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 whitespace-nowrap" data-tab="employee-demographics">
-                            <i class="fas fa-users mr-2"></i>Demographics
+                        <button class="analytics-tab px-6 py-4 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300" data-tab="workforce">
+                            <i class="fas fa-users mr-2"></i>Workforce Analytics
                         </button>
-                        <button class="reports-tab py-4 px-3 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 whitespace-nowrap" data-tab="recruitment-application">
-                            <i class="fas fa-user-plus mr-2"></i>Recruitment
+                        <button class="analytics-tab px-6 py-4 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300" data-tab="payroll">
+                            <i class="fas fa-money-bill-wave mr-2"></i>Payroll Insights
                         </button>
-                        <button class="reports-tab py-4 px-3 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 whitespace-nowrap" data-tab="payroll-compensation">
-                            <i class="fas fa-money-bill-wave mr-2"></i>Payroll
+                        <button class="analytics-tab px-6 py-4 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300" data-tab="benefits">
+                            <i class="fas fa-hand-holding-medical mr-2"></i>Benefits Utilization
                         </button>
-                        <button class="reports-tab py-4 px-3 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 whitespace-nowrap" data-tab="attendance-leave">
-                            <i class="fas fa-calendar-check mr-2"></i>Attendance
-                        </button>
-                        <button class="reports-tab py-4 px-3 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 whitespace-nowrap" data-tab="benefits-hmo-utilization">
-                            <i class="fas fa-briefcase-medical mr-2"></i>Benefits
-                        </button>
-                        <button class="reports-tab py-4 px-3 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 whitespace-nowrap" data-tab="training-development">
-                            <i class="fas fa-graduation-cap mr-2"></i>Training
-                        </button>
-                        <button class="reports-tab py-4 px-3 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 whitespace-nowrap" data-tab="employee-relations-engagement">
-                            <i class="fas fa-heart mr-2"></i>Engagement
-                        </button>
-                        <button class="reports-tab py-4 px-3 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 whitespace-nowrap" data-tab="turnover-retention">
-                            <i class="fas fa-exchange-alt mr-2"></i>Turnover
-                        </button>
-                        <button class="reports-tab py-4 px-3 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700 whitespace-nowrap" data-tab="compliance-document">
-                            <i class="fas fa-shield-alt mr-2"></i>Compliance
+                        <button class="analytics-tab px-6 py-4 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300" data-tab="training">
+                            <i class="fas fa-graduation-cap mr-2"></i>Training & Performance
                         </button>
                     </nav>
                 </div>
-                
+
                 <!-- Tab Content -->
-                <div id="reports-tab-content" class="p-6">
-                    <div class="flex items-center justify-center py-12">
-                        <div class="text-center">
-                            <i class="fas fa-spinner fa-spin fa-3x text-gray-400 mb-4"></i>
-                            <p class="text-gray-500">Loading reports data...</p>
-                        </div>
-                    </div>
+                <div id="tab-content-area" class="p-6">
+                    <!-- Content will be loaded dynamically -->
                 </div>
-            </div>
-
-            <!-- Enhanced Charts Section -->
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div class="bg-white p-6 rounded-lg shadow-md border border-[#F7E6CA]">
-                    <h3 class="text-lg font-semibold text-[#4E3B2A] mb-4 font-header">Headcount Trend (12 Months)</h3>
-                    <div class="h-72 md:h-80">
-                        <canvas id="headcountTrendChart"></canvas>
-                    </div>
-                </div>
-                <div class="bg-white p-6 rounded-lg shadow-md border border-[#F7E6CA]">
-                    <h3 class="text-lg font-semibold text-[#4E3B2A] mb-4 font-header">Staff Distribution by Department</h3>
-                    <div class="h-72 md:h-80">
-                        <canvas id="headcountByDepartmentChart"></canvas>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Additional Charts -->
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div class="bg-white p-6 rounded-lg shadow-md border border-[#F7E6CA]">
-                    <h3 class="text-lg font-semibold text-[#4E3B2A] mb-4 font-header">Payroll Cost Trend</h3>
-                    <div class="h-72 md:h-80">
-                        <canvas id="payrollTrendChart"></canvas>
-                    </div>
-                </div>
-                <div class="bg-white p-6 rounded-lg shadow-md border border-[#F7E6CA]">
-                    <h3 class="text-lg font-semibold text-[#4E3B2A] mb-4 font-header">Turnover by Department</h3>
-                    <div class="h-72 md:h-80">
-                        <canvas id="turnoverByDepartmentChart"></canvas>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Export and Actions -->
-            <div class="bg-white p-4 rounded-lg shadow-md border border-[#F7E6CA]">
-                <div class="flex items-center justify-between">
-                    <h3 class="text-lg font-semibold text-[#4E3B2A]">
-                        <i class="fas fa-download mr-2"></i>Export Dashboard
-                    </h3>
-                    <div class="flex gap-2">
-                        <button id="export-dashboard-pdf" class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700">
-                            <i class="fas fa-file-pdf mr-2"></i>PDF
-                        </button>
-                        <button id="export-dashboard-excel" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">
-                            <i class="fas fa-file-excel mr-2"></i>Excel
-                        </button>
-                        <button id="export-dashboard-csv" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-                            <i class="fas fa-file-csv mr-2"></i>CSV
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Audit Trail -->
-            <div class="bg-white p-4 rounded-lg shadow-md border border-[#F7E6CA]">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-lg font-semibold text-[#4E3B2A]">
-                        <i class="fas fa-history mr-2"></i>Recent Report Activity
-                    </h3>
-                    <button id="view-full-audit-btn" class="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200">
-                        View Full Audit Trail
-                    </button>
-                </div>
-                <div id="audit-trail-content" class="text-gray-500 text-center py-4">
-                    <i class="fas fa-spinner fa-spin mr-2"></i>Loading audit trail...
-                </div>
-            </div>
-        </div>`;
-    
-    // Initialize event listeners
-    initializeDashboardEventListeners();
-    
-    // Load initial data
-    await loadEnhancedAnalyticsData();
-    
-    // Load audit trail
-    await loadAuditTrail();
-}
-
-/**
- * Switch report tab
- */
-function switchReportTab(tabName) {
-    // Update active tab
-    document.querySelectorAll('.reports-tab').forEach(tab => {
-        tab.classList.remove('active', 'border-[#594423]', 'text-[#594423]');
-        tab.classList.add('border-transparent', 'text-gray-500');
-    });
-    
-    const activeTab = document.querySelector(`[data-tab="${tabName}"]`);
-    if (activeTab) {
-        activeTab.classList.add('active', 'border-[#594423]', 'text-[#594423]');
-        activeTab.classList.remove('border-transparent', 'text-gray-500');
-    }
-    
-    // Load tab content
-    loadReportTabContent(tabName);
-}
-
-/**
- * Load report tab content
- */
-async function loadReportTabContent(tabName) {
-    const contentArea = document.getElementById('reports-tab-content');
-    if (!contentArea) return;
-    
-    // Show loading state
-    contentArea.innerHTML = `
-        <div class="flex items-center justify-center py-12">
-            <div class="text-center">
-                <i class="fas fa-spinner fa-spin fa-3x text-gray-400 mb-4"></i>
-                <p class="text-gray-500">Loading ${tabName.replace('-', ' ')} data...</p>
             </div>
         </div>
     `;
     
-    try {
-        // Get current filters
-        const filters = {
-            department: document.getElementById('dashboard-dept-filter')?.value || '',
-            branch: document.getElementById('dashboard-branch-filter')?.value || '',
-            period: document.getElementById('dashboard-period-filter')?.value || '12',
-            reportType: tabName
-        };
-        
-        const queryString = new URLSearchParams(filters).toString();
-        
-        // Fetch report data
-        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/hr-reports/${tabName}?${queryString}`, {
-            credentials: 'include'
-        });
-
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        
-        const result = await response.json();
-        if (!result.success) throw new Error(result.message || 'Failed to load report data');
-
-        // Render tab content based on type
-        renderReportTabContent(tabName, result.data);
-        
-    } catch (error) {
-        console.error('Error loading report tab:', error);
-        contentArea.innerHTML = `
-            <div class="text-center py-12">
-                <i class="fas fa-exclamation-triangle fa-3x text-red-400 mb-4"></i>
-                <p class="text-red-600">Failed to load ${tabName.replace('-', ' ')} data</p>
-                <p class="text-gray-500 text-sm mt-2">${error.message}</p>
-            </div>
-        `;
-    }
+    // Setup tab navigation
+    setupTabNavigation();
+    
+    // Load default tab (Overview)
+    loadOverviewTab();
+    
+    // Setup event listeners
+    setupGlobalEventListeners();
 }
 
 /**
- * Render report tab content
+ * Setup tab navigation
  */
-function renderReportTabContent(tabName, data) {
-    const contentArea = document.getElementById('reports-tab-content');
-    if (!contentArea) return;
+function setupTabNavigation() {
+    const tabs = document.querySelectorAll('.analytics-tab');
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            // Update active state
+            tabs.forEach(t => {
+                t.classList.remove('active', 'border-blue-500', 'text-blue-600');
+                t.classList.add('border-transparent', 'text-gray-500');
+            });
+            tab.classList.add('active', 'border-blue-500', 'text-blue-600');
+            tab.classList.remove('border-transparent', 'text-gray-500');
+            
+            // Load tab content
+            const tabName = tab.dataset.tab;
+            currentTab = tabName;
+            loadTabContent(tabName);
+        });
+    });
+}
+
+/**
+ * Load tab content based on selected tab
+ */
+function loadTabContent(tabName) {
+    cleanupCharts();
     
     switch(tabName) {
-        case 'executive-summary':
-            contentArea.innerHTML = renderExecutiveSummaryContent(data);
+        case 'overview':
+            loadOverviewTab();
             break;
-        case 'employee-demographics':
-            contentArea.innerHTML = renderDemographicsContent(data);
+        case 'workforce':
+            loadWorkforceTab();
             break;
-        case 'payroll-compensation':
-            contentArea.innerHTML = renderPayrollContent(data);
+        case 'payroll':
+            loadPayrollTab();
             break;
-        case 'benefits-hmo-utilization':
-            contentArea.innerHTML = renderBenefitsContent(data);
+        case 'benefits':
+            loadBenefitsTab();
             break;
-        default:
-            contentArea.innerHTML = renderGenericReportContent(tabName, data);
+        case 'training':
+            loadTrainingTab();
+            break;
     }
 }
 
 /**
- * Render executive summary content
+ * Setup global event listeners
  */
-function renderExecutiveSummaryContent(data) {
-    return `
-        <div class="space-y-6">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div class="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                    <h4 class="font-semibold text-blue-800 mb-2">Key Metrics</h4>
-                    <div class="space-y-2">
-                        <div class="flex justify-between">
-                            <span class="text-sm text-gray-600">Total Employees:</span>
-                            <span class="font-semibold">${data.totalEmployees || 0}</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-sm text-gray-600">Active Employees:</span>
-                            <span class="font-semibold">${data.activeEmployees || 0}</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-sm text-gray-600">Turnover Rate:</span>
-                            <span class="font-semibold">${data.turnoverRate || '0%'}</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="bg-green-50 p-4 rounded-lg border border-green-200">
-                    <h4 class="font-semibold text-green-800 mb-2">Financial Overview</h4>
-                    <div class="space-y-2">
-                        <div class="flex justify-between">
-                            <span class="text-sm text-gray-600">Monthly Payroll:</span>
-                            <span class="font-semibold">₱${data.monthlyPayroll || '0'}</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-sm text-gray-600">Benefits Cost:</span>
-                            <span class="font-semibold">₱${data.benefitsCost || '0'}</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-sm text-gray-600">Avg Salary:</span>
-                            <span class="font-semibold">₱${data.avgSalary || '0'}</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="bg-purple-50 p-4 rounded-lg border border-purple-200">
-                    <h4 class="font-semibold text-purple-800 mb-2">Performance</h4>
-                    <div class="space-y-2">
-                        <div class="flex justify-between">
-                            <span class="text-sm text-gray-600">Attendance Rate:</span>
-                            <span class="font-semibold">${data.attendanceRate || '0%'}</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-sm text-gray-600">Training Completion:</span>
-                            <span class="font-semibold">${data.trainingCompletion || '0%'}</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span class="text-sm text-gray-600">Avg Tenure:</span>
-                            <span class="font-semibold">${data.avgTenure || '0'} years</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="bg-white p-4 rounded-lg border border-gray-200">
-                <h4 class="font-semibold text-gray-800 mb-4">Summary</h4>
-                <p class="text-gray-600">${data.summary || 'Executive summary data will be displayed here.'}</p>
-            </div>
-        </div>
-    `;
-}
-
-/**
- * Render demographics content
- */
-function renderDemographicsContent(data) {
-    return `
-        <div class="space-y-6">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="bg-white p-4 rounded-lg border border-gray-200">
-                    <h4 class="font-semibold text-gray-800 mb-4">Gender Distribution</h4>
-                    <div class="space-y-2">
-                        <div class="flex justify-between">
-                            <span>Male:</span>
-                            <span class="font-semibold">${data.genderDistribution?.male || 0}</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span>Female:</span>
-                            <span class="font-semibold">${data.genderDistribution?.female || 0}</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="bg-white p-4 rounded-lg border border-gray-200">
-                    <h4 class="font-semibold text-gray-800 mb-4">Age Groups</h4>
-                    <div class="space-y-2">
-                        <div class="flex justify-between">
-                            <span>18-25:</span>
-                            <span class="font-semibold">${data.ageGroups?.['18-25'] || 0}</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span>26-35:</span>
-                            <span class="font-semibold">${data.ageGroups?.['26-35'] || 0}</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span>36-45:</span>
-                            <span class="font-semibold">${data.ageGroups?.['36-45'] || 0}</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span>46+:</span>
-                            <span class="font-semibold">${data.ageGroups?.['46+'] || 0}</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-}
-
-/**
- * Render payroll content
- */
-function renderPayrollContent(data) {
-    return `
-        <div class="space-y-6">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="bg-white p-4 rounded-lg border border-gray-200">
-                    <h4 class="font-semibold text-gray-800 mb-4">Payroll Summary</h4>
-                    <div class="space-y-2">
-                        <div class="flex justify-between">
-                            <span>Total Monthly Cost:</span>
-                            <span class="font-semibold">₱${data.totalMonthlyCost || '0'}</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span>Average Salary:</span>
-                            <span class="font-semibold">₱${data.averageSalary || '0'}</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span>Total Deductions:</span>
-                            <span class="font-semibold">₱${data.totalDeductions || '0'}</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="bg-white p-4 rounded-lg border border-gray-200">
-                    <h4 class="font-semibold text-gray-800 mb-4">Cost by Department</h4>
-                    <div class="space-y-2">
-                        ${data.departmentCosts?.map(dept => `
-                            <div class="flex justify-between">
-                                <span>${dept.name}:</span>
-                                <span class="font-semibold">₱${dept.cost || '0'}</span>
-                            </div>
-                        `).join('') || '<p class="text-gray-500">No data available</p>'}
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-}
-
-/**
- * Render benefits content
- */
-function renderBenefitsContent(data) {
-    return `
-        <div class="space-y-6">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="bg-white p-4 rounded-lg border border-gray-200">
-                    <h4 class="font-semibold text-gray-800 mb-4">HMO Utilization</h4>
-                    <div class="space-y-2">
-                        <div class="flex justify-between">
-                            <span>Total Enrollments:</span>
-                            <span class="font-semibold">${data.totalEnrollments || 0}</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span>Active Claims:</span>
-                            <span class="font-semibold">${data.activeClaims || 0}</span>
-                        </div>
-                        <div class="flex justify-between">
-                            <span>Monthly Cost:</span>
-                            <span class="font-semibold">₱${data.monthlyCost || '0'}</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="bg-white p-4 rounded-lg border border-gray-200">
-                    <h4 class="font-semibold text-gray-800 mb-4">Provider Distribution</h4>
-                    <div class="space-y-2">
-                        ${data.providerDistribution?.map(provider => `
-                            <div class="flex justify-between">
-                                <span>${provider.name}:</span>
-                                <span class="font-semibold">${provider.count || 0}</span>
-                            </div>
-                        `).join('') || '<p class="text-gray-500">No data available</p>'}
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-}
-
-/**
- * Render generic report content
- */
-function renderGenericReportContent(tabName, data) {
-    return `
-        <div class="space-y-6">
-            <div class="bg-white p-4 rounded-lg border border-gray-200">
-                <h4 class="font-semibold text-gray-800 mb-4">${tabName.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())} Report</h4>
-                <div class="text-gray-600">
-                    <p>Report data for ${tabName.replace('-', ' ')} will be displayed here.</p>
-                    <p class="text-sm mt-2">Data: ${JSON.stringify(data, null, 2)}</p>
-                </div>
-            </div>
-        </div>
-    `;
-}
-
-/**
- * Load audit trail
- */
-async function loadAuditTrail() {
-    const auditContent = document.getElementById('audit-trail-content');
-    if (!auditContent) return;
-    
-    try {
-        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/hr-reports/audit-trail`, {
-            credentials: 'include'
+function setupGlobalEventListeners() {
+    // Apply Filters button
+    const applyBtn = document.getElementById('apply-filters-btn');
+    if (applyBtn) {
+        applyBtn.addEventListener('click', () => {
+            applyBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Loading...';
+            loadTabContent(currentTab);
+            setTimeout(() => {
+                applyBtn.innerHTML = '<i class="fas fa-filter mr-2"></i>Apply Filters';
+            }, 1000);
         });
-
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        
-        const result = await response.json();
-        if (!result.success) throw new Error(result.message || 'Failed to load audit trail');
-
-        // Normalize different possible shapes of returned data into an array
-        let activities = [];
-        if (Array.isArray(result.data)) {
-            activities = result.data;
-        } else if (result.data && Array.isArray(result.data.activities)) {
-            activities = result.data.activities;
-        } else if (result.data && typeof result.data === 'object') {
-            // If the API returned an object keyed by id, convert to array
-            activities = Object.values(result.data);
-        }
-
-        if (!Array.isArray(activities) || activities.length === 0) {
-            auditContent.innerHTML = '<p class="text-gray-500">No recent activity</p>';
-            return;
-        }
-
-        // Safely map activities into HTML
-        const itemsHtml = activities.map(activity => {
-            const icon = activity.icon || 'file';
-            const action = activity.action || activity.title || 'Activity';
-            const description = activity.description || activity.desc || '';
-            const timestamp = activity.timestamp || activity.time || '';
-            const user = activity.user || activity.username || '';
-
-            return `
-                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div class="flex items-center space-x-3">
-                        <i class="fas fa-${icon} text-gray-400"></i>
-                            <div>
-                            <p class="text-sm font-medium text-gray-800">${action}</p>
-                            <p class="text-xs text-gray-500">${description}</p>
-                            </div>
-                        </div>
-                        <div class="text-right">
-                        <p class="text-xs text-gray-500">${timestamp}</p>
-                        <p class="text-xs text-gray-400">${user}</p>
-                        </div>
-            </div>
-        `;
-        }).join('');
-
-        auditContent.innerHTML = `<div class="space-y-3">${itemsHtml}</div>`;
-        
-    } catch (error) {
-        console.error('Error loading audit trail:', error);
-        auditContent.innerHTML = '<p class="text-red-500">Failed to load audit trail</p>';
-    }
-}
-
-/**
- * Show schedule reports modal
- */
-function showScheduleReportsModal() {
-    // Create modal HTML
-    const modalHTML = `
-        <div id="schedule-reports-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div class="bg-white rounded-lg p-6 w-full max-w-md">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-lg font-semibold text-gray-800">Schedule Reports</h3>
-                    <button id="close-schedule-modal" class="text-gray-400 hover:text-gray-600">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-                <div class="space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Report Type</label>
-                        <select id="schedule-report-type" class="w-full p-2 border border-gray-300 rounded-md">
-                            <option value="executive-summary">Executive Summary</option>
-                            <option value="payroll-compensation">Payroll Report</option>
-                            <option value="compliance-document">Compliance Report</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
-                        <select id="schedule-frequency" class="w-full p-2 border border-gray-300 rounded-md">
-                            <option value="daily">Daily</option>
-                            <option value="weekly">Weekly</option>
-                            <option value="monthly">Monthly</option>
-                            <option value="quarterly">Quarterly</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Email Recipients</label>
-                        <input type="text" id="schedule-emails" placeholder="email1@company.com, email2@company.com" class="w-full p-2 border border-gray-300 rounded-md">
-                    </div>
-                </div>
-                <div class="flex justify-end space-x-2 mt-6">
-                    <button id="cancel-schedule" class="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50">Cancel</button>
-                    <button id="save-schedule" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Schedule</button>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    // Add modal to page
-    document.body.insertAdjacentHTML('beforeend', modalHTML);
-    
-    // Add event listeners
-    document.getElementById('close-schedule-modal')?.addEventListener('click', closeScheduleModal);
-    document.getElementById('cancel-schedule')?.addEventListener('click', closeScheduleModal);
-    document.getElementById('save-schedule')?.addEventListener('click', saveSchedule);
-}
-
-/**
- * Close schedule modal
- */
-function closeScheduleModal() {
-    const modal = document.getElementById('schedule-reports-modal');
-    if (modal) {
-        modal.remove();
-    }
-}
-
-/**
- * Save schedule
- */
-async function saveSchedule() {
-    const reportType = document.getElementById('schedule-report-type')?.value;
-    const frequency = document.getElementById('schedule-frequency')?.value;
-    const emails = document.getElementById('schedule-emails')?.value;
-    
-    if (!reportType || !frequency || !emails) {
-        alert('Please fill in all fields');
-        return;
     }
     
-    try {
-        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/hr-reports/schedule`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            credentials: 'include',
-            body: JSON.stringify({
-                reportType,
-                frequency,
-                emails: emails.split(',').map(email => email.trim())
-            })
-        });
-
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        
-        const result = await response.json();
-        if (!result.success) throw new Error(result.message || 'Failed to schedule report');
-
-        alert('Report scheduled successfully!');
-        closeScheduleModal();
-        
-    } catch (error) {
-        console.error('Error scheduling report:', error);
-        alert('Failed to schedule report: ' + error.message);
-    }
-}
-
-/**
- * Show audit trail modal
- */
-function showAuditTrailModal() {
-    // Create modal HTML
-    const modalHTML = `
-        <div id="audit-trail-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div class="bg-white rounded-lg p-6 w-full max-w-4xl max-h-96 overflow-y-auto">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-lg font-semibold text-gray-800">Full Audit Trail</h3>
-                    <button id="close-audit-modal" class="text-gray-400 hover:text-gray-600">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-                <div id="full-audit-content" class="space-y-3">
-                    <div class="text-center py-8">
-                        <i class="fas fa-spinner fa-spin fa-2x text-gray-400 mb-2"></i>
-                        <p class="text-gray-500">Loading full audit trail...</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    // Add modal to page
-    document.body.insertAdjacentHTML('beforeend', modalHTML);
-    
-    // Add event listeners
-    document.getElementById('close-audit-modal')?.addEventListener('click', closeAuditModal);
-    
-    // Load full audit trail
-    loadFullAuditTrail();
-}
-
-/**
- * Close audit modal
- */
-function closeAuditModal() {
-    const modal = document.getElementById('audit-trail-modal');
-    if (modal) {
-        modal.remove();
-    }
-}
-
-/**
- * Load full audit trail
- */
-async function loadFullAuditTrail() {
-    const auditContent = document.getElementById('full-audit-content');
-    if (!auditContent) return;
-    
-    try {
-        const response = await fetch(`${API_BASE_URL.replace('php/api/', 'api')}/hr-reports/audit-trail?full=true`, {
-            credentials: 'include'
-        });
-
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        
-        const result = await response.json();
-        if (!result.success) throw new Error(result.message || 'Failed to load audit trail');
-
-        // Normalize into array
-        let activities = [];
-        if (Array.isArray(result.data)) {
-            activities = result.data;
-        } else if (result.data && Array.isArray(result.data.activities)) {
-            activities = result.data.activities;
-        } else if (result.data && typeof result.data === 'object') {
-            activities = Object.values(result.data);
-        }
-
-        if (!Array.isArray(activities) || activities.length === 0) {
-            auditContent.innerHTML = '<p class="text-gray-500 text-center py-8">No audit trail data available</p>';
-            return;
-        }
-
-        const itemsHtml = activities.map(activity => {
-            const icon = activity.icon || 'file';
-            const action = activity.action || activity.title || 'Activity';
-            const description = activity.description || activity.desc || '';
-            const timestamp = activity.timestamp || activity.time || '';
-            const user = activity.user || activity.username || '';
-            const ip = activity.ip || 'N/A';
-            const status = activity.status || 'Success';
-
-            return `
-                    <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div class="flex items-center space-x-3">
-                        <i class="fas fa-${icon} text-gray-400"></i>
-                            <div>
-                            <p class="text-sm font-medium text-gray-800">${action}</p>
-                            <p class="text-xs text-gray-500">${description}</p>
-                            <p class="text-xs text-gray-400">IP: ${ip}</p>
-                            </div>
-                        </div>
-                        <div class="text-right">
-                        <p class="text-xs text-gray-500">${timestamp}</p>
-                        <p class="text-xs text-gray-400">${user}</p>
-                        <p class="text-xs text-gray-400">${status}</p>
-                        </div>
-            </div>
-        `;
-        }).join('');
-
-        auditContent.innerHTML = `<div class="space-y-3">${itemsHtml}</div>`;
-        
-    } catch (error) {
-        console.error('Error loading full audit trail:', error);
-        auditContent.innerHTML = '<p class="text-red-500 text-center py-8">Failed to load audit trail</p>';
-    }
-}
-
-/**
- * Initialize dashboard event listeners
- */
-function initializeDashboardEventListeners() {
     // Refresh button
     const refreshBtn = document.getElementById('refresh-dashboard-btn');
     if (refreshBtn) {
-        refreshBtn.addEventListener('click', async () => {
-            await loadEnhancedAnalyticsData();
+        refreshBtn.addEventListener('click', () => {
+            refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Refreshing...';
+            loadTabContent(currentTab);
+            setTimeout(() => {
+                refreshBtn.innerHTML = '<i class="fas fa-sync-alt mr-2"></i>Refresh';
+            }, 1000);
         });
     }
-
-    // Apply filters button
-    const applyFiltersBtn = document.getElementById('apply-filters-btn');
-    if (applyFiltersBtn) {
-        applyFiltersBtn.addEventListener('click', async () => {
-            await loadEnhancedAnalyticsData();
-        });
+    
+    // Export button
+    const exportBtn = document.getElementById('export-dashboard-btn');
+    if (exportBtn) {
+        exportBtn.addEventListener('click', () => exportDashboard());
     }
+}
 
-    // Filter change listeners
-    const deptFilter = document.getElementById('dashboard-dept-filter');
-    const periodFilter = document.getElementById('dashboard-period-filter');
-    const branchFilter = document.getElementById('dashboard-branch-filter');
-    const reportTypeFilter = document.getElementById('dashboard-report-type-filter');
+// ========================================================================
+// TAB 1: OVERVIEW - Summary KPIs and Key Charts
+// ========================================================================
 
-    [deptFilter, periodFilter, branchFilter, reportTypeFilter].forEach(filter => {
-        if (filter) {
-            filter.addEventListener('change', async () => {
-                await loadEnhancedAnalyticsData();
-            });
-        }
-    });
+async function loadOverviewTab() {
+    const tabContent = document.getElementById('tab-content-area');
+    if (!tabContent) return;
+    
+    tabContent.innerHTML = `
+        <!-- Top Summary Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <!-- Total Active Employees -->
+            <div class="bg-gradient-to-br from-blue-400 via-blue-500 to-blue-600 rounded-lg shadow-lg p-5 text-white relative overflow-hidden">
+                <div class="absolute top-0 right-0 opacity-10">
+                    <i class="fas fa-users" style="font-size: 80px;"></i>
+                </div>
+                <div class="relative z-10">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="bg-white/20 p-3 rounded-lg backdrop-blur-sm">
+                            <i class="fas fa-users text-2xl"></i>
+                        </div>
+                    </div>
+                    <div class="text-sm font-semibold uppercase tracking-wide opacity-90 mb-1">Total Active Employees</div>
+                    <div class="text-3xl font-bold mb-2" id="kpi-total-employees">
+                        <i class="fas fa-spinner fa-spin"></i>
+                    </div>
+                    <div class="text-sm opacity-80" id="kpi-employees-change">Loading...</div>
+                </div>
+            </div>
 
-    // Report tab switching
-    document.querySelectorAll('.reports-tab').forEach(tab => {
-        tab.addEventListener('click', function() {
-            const tabName = this.dataset.tab;
-            switchReportTab(tabName);
-        });
-    });
+            <!-- Monthly Headcount Change -->
+            <div class="bg-gradient-to-br from-emerald-400 via-emerald-500 to-emerald-600 rounded-lg shadow-lg p-5 text-white relative overflow-hidden">
+                <div class="absolute top-0 right-0 opacity-10">
+                    <i class="fas fa-user-plus" style="font-size: 80px;"></i>
+                </div>
+                <div class="relative z-10">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="bg-white/20 p-3 rounded-lg backdrop-blur-sm">
+                            <i class="fas fa-user-plus text-2xl"></i>
+                        </div>
+                    </div>
+                    <div class="text-sm font-semibold uppercase tracking-wide opacity-90 mb-1">Monthly Headcount Change</div>
+                    <div class="text-3xl font-bold mb-2" id="kpi-headcount-change">
+                        <i class="fas fa-spinner fa-spin"></i>
+                    </div>
+                    <div class="text-sm opacity-80" id="kpi-headcount-detail">Loading...</div>
+                </div>
+            </div>
 
-    // Quick action buttons
-    document.getElementById('generate-executive-summary-btn')?.addEventListener('click', () => {
-        switchReportTab('executive-summary');
-    });
+            <!-- Turnover Rate -->
+            <div class="bg-gradient-to-br from-red-400 via-red-500 to-red-600 rounded-lg shadow-lg p-5 text-white relative overflow-hidden">
+                <div class="absolute top-0 right-0 opacity-10">
+                    <i class="fas fa-exchange-alt" style="font-size: 80px;"></i>
+                </div>
+                <div class="relative z-10">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="bg-white/20 p-3 rounded-lg backdrop-blur-sm">
+                            <i class="fas fa-user-times text-2xl"></i>
+                        </div>
+                    </div>
+                    <div class="text-sm font-semibold uppercase tracking-wide opacity-90 mb-1">Turnover Rate</div>
+                    <div class="text-3xl font-bold mb-2" id="kpi-turnover-rate">
+                        <i class="fas fa-spinner fa-spin"></i>
+                    </div>
+                    <div class="text-sm opacity-80" id="kpi-turnover-detail">Loading...</div>
+                </div>
+            </div>
 
-    document.getElementById('generate-compliance-report-btn')?.addEventListener('click', () => {
-        switchReportTab('compliance-document');
-    });
+            <!-- Payroll Cost per Department -->
+            <div class="bg-gradient-to-br from-green-400 via-green-500 to-green-600 rounded-lg shadow-lg p-5 text-white relative overflow-hidden">
+                <div class="absolute top-0 right-0 opacity-10">
+                    <i class="fas fa-money-bill-wave" style="font-size: 80px;"></i>
+                </div>
+                <div class="relative z-10">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="bg-white/20 p-3 rounded-lg backdrop-blur-sm">
+                            <i class="fas fa-money-bill-wave text-2xl"></i>
+                        </div>
+                    </div>
+                    <div class="text-sm font-semibold uppercase tracking-wide opacity-90 mb-1">Monthly Payroll Cost</div>
+                    <div class="text-3xl font-bold mb-2" id="kpi-payroll-cost">
+                        <i class="fas fa-spinner fa-spin"></i>
+                    </div>
+                    <div class="text-sm opacity-80">This month</div>
+                </div>
+            </div>
 
-    document.getElementById('generate-payroll-report-btn')?.addEventListener('click', () => {
-        switchReportTab('payroll-compensation');
-    });
+            <!-- Benefit Utilization Rate -->
+            <div class="bg-gradient-to-br from-purple-400 via-purple-500 to-purple-600 rounded-lg shadow-lg p-5 text-white relative overflow-hidden">
+                <div class="absolute top-0 right-0 opacity-10">
+                    <i class="fas fa-hand-holding-medical" style="font-size: 80px;"></i>
+                </div>
+                <div class="relative z-10">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="bg-white/20 p-3 rounded-lg backdrop-blur-sm">
+                            <i class="fas fa-hand-holding-medical text-2xl"></i>
+                        </div>
+                    </div>
+                    <div class="text-sm font-semibold uppercase tracking-wide opacity-90 mb-1">Benefit Utilization Rate</div>
+                    <div class="text-3xl font-bold mb-2" id="kpi-benefit-utilization">
+                        <i class="fas fa-spinner fa-spin"></i>
+                    </div>
+                    <div class="text-sm opacity-80" id="kpi-benefit-detail">Loading...</div>
+                </div>
+            </div>
 
-    document.getElementById('schedule-reports-btn')?.addEventListener('click', () => {
-        showScheduleReportsModal();
-    });
+            <!-- Training & Competency Index -->
+            <div class="bg-gradient-to-br from-indigo-400 via-indigo-500 to-indigo-600 rounded-lg shadow-lg p-5 text-white relative overflow-hidden">
+                <div class="absolute top-0 right-0 opacity-10">
+                    <i class="fas fa-graduation-cap" style="font-size: 80px;"></i>
+                </div>
+                <div class="relative z-10">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="bg-white/20 p-3 rounded-lg backdrop-blur-sm">
+                            <i class="fas fa-graduation-cap text-2xl"></i>
+                        </div>
+                    </div>
+                    <div class="text-sm font-semibold uppercase tracking-wide opacity-90 mb-1">Training & Competency Index</div>
+                    <div class="text-3xl font-bold mb-2" id="kpi-training-index">
+                        <i class="fas fa-spinner fa-spin"></i>
+                    </div>
+                    <div class="text-sm opacity-80" id="kpi-training-detail">Loading...</div>
+                </div>
+            </div>
 
-    // Export buttons
-    document.getElementById('export-dashboard-pdf')?.addEventListener('click', () => exportDashboard('PDF'));
-    document.getElementById('export-dashboard-excel')?.addEventListener('click', () => exportDashboard('Excel'));
-    document.getElementById('export-dashboard-csv')?.addEventListener('click', () => exportDashboard('CSV'));
+            <!-- Attendance Rate -->
+            <div class="bg-gradient-to-br from-teal-400 via-teal-500 to-teal-600 rounded-lg shadow-lg p-5 text-white relative overflow-hidden">
+                <div class="absolute top-0 right-0 opacity-10">
+                    <i class="fas fa-calendar-check" style="font-size: 80px;"></i>
+                </div>
+                <div class="relative z-10">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="bg-white/20 p-3 rounded-lg backdrop-blur-sm">
+                            <i class="fas fa-calendar-check text-2xl"></i>
+                        </div>
+                    </div>
+                    <div class="text-sm font-semibold uppercase tracking-wide opacity-90 mb-1">Attendance Rate</div>
+                    <div class="text-3xl font-bold mb-2" id="kpi-attendance-rate">
+                        <i class="fas fa-spinner fa-spin"></i>
+                    </div>
+                    <div class="text-sm opacity-80">This month</div>
+                </div>
+            </div>
 
-    // Audit trail
-    document.getElementById('view-full-audit-btn')?.addEventListener('click', () => {
-        showAuditTrailModal();
-    });
+            <!-- Salary Equity & Pay Band Compliance -->
+            <div class="bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600 rounded-lg shadow-lg p-5 text-white relative overflow-hidden">
+                <div class="absolute top-0 right-0 opacity-10">
+                    <i class="fas fa-balance-scale" style="font-size: 80px;"></i>
+                </div>
+                <div class="relative z-10">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="bg-white/20 p-3 rounded-lg backdrop-blur-sm">
+                            <i class="fas fa-balance-scale text-2xl"></i>
+                        </div>
+                    </div>
+                    <div class="text-sm font-semibold uppercase tracking-wide opacity-90 mb-1">Pay Band Compliance</div>
+                    <div class="text-3xl font-bold mb-2" id="kpi-pay-compliance">
+                        <i class="fas fa-spinner fa-spin"></i>
+                    </div>
+                    <div class="text-sm opacity-80" id="kpi-pay-detail">Loading...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Key Charts -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Headcount Trend -->
+            <div class="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                    <i class="fas fa-chart-line text-blue-500 mr-2"></i>
+                    Headcount Trend (Last 12 Months)
+                </h3>
+                <canvas id="headcount-trend-chart"></canvas>
+            </div>
+
+            <!-- Turnover by Department -->
+            <div class="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                    <i class="fas fa-chart-bar text-red-500 mr-2"></i>
+                    Turnover by Department
+                </h3>
+                <canvas id="turnover-dept-chart"></canvas>
+            </div>
+
+            <!-- Payroll Cost Trend -->
+            <div class="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                    <i class="fas fa-chart-area text-green-500 mr-2"></i>
+                    Payroll Cost Trend
+                </h3>
+                <canvas id="payroll-trend-chart"></canvas>
+            </div>
+
+            <!-- Benefits Utilization -->
+            <div class="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                    <i class="fas fa-chart-pie text-purple-500 mr-2"></i>
+                    Benefits Utilization by Type
+                </h3>
+                <canvas id="benefits-utilization-chart"></canvas>
+            </div>
+        </div>
+    `;
+    
+    // Load all data
+    await Promise.all([
+        loadOverviewKPIs(),
+        loadOverviewCharts()
+    ]);
 }
 
 /**
- * Load enhanced analytics data
+ * Load Overview KPIs
+ * Uses hr-analytics/executive-summary for KPI data
  */
-async function loadEnhancedAnalyticsData() {
-    const elements = {
-        kpiTotalEmployees: document.getElementById('kpi-total-employees'),
-        kpiNewHires: document.getElementById('kpi-new-hires'),
-        kpiTurnoverRate: document.getElementById('kpi-turnover-rate'),
-        kpiSeparations: document.getElementById('kpi-separations'),
-        kpiTotalPayrollCost: document.getElementById('kpi-total-payroll-cost'),
-        kpiAvgSalary: document.getElementById('kpi-avg-salary'),
-        kpiAvgTenure: document.getElementById('kpi-avg-tenure'),
-        kpiRetentionRate: document.getElementById('kpi-retention-rate'),
-        kpiHmoCost: document.getElementById('kpi-hmo-cost'),
-        kpiHmoEnrollments: document.getElementById('kpi-hmo-enrollments'),
-        kpiAttendanceRate: document.getElementById('kpi-attendance-rate'),
-        kpiAbsenteeism: document.getElementById('kpi-absenteeism'),
-        kpiPendingLeaves: document.getElementById('kpi-pending-leaves'),
-        kpiLeaveTypes: document.getElementById('kpi-leave-types'),
-        kpiTrainingRate: document.getElementById('kpi-training-rate'),
-        kpiTrainingsCount: document.getElementById('kpi-trainings-count')
-    };
-
-    if (Object.values(elements).some(el => !el)) {
-        console.error("DOM elements missing for enhanced analytics dashboard.");
-        if(mainContentArea) mainContentArea.innerHTML = `<p class="text-red-500 p-4">Error rendering dashboard elements.</p>`;
-        return;
-    }
-
+async function loadOverviewKPIs() {
     try {
-        // Get current filters
-        const filters = getDashboardFilters();
-        const queryString = new URLSearchParams(filters).toString();
-
-        // Fetch enhanced analytics data (fall back to summary endpoint)
-        // NOTE: `get_enhanced_hr_analytics.php` was not present in `php/api/`.
-        // Use the existing `get_hr_analytics_summary.php` endpoint which provides compatible summary data.
-        const response = await fetch(`${API_BASE_URL}get_hr_analytics_summary.php?${queryString}`, { 
-            credentials: 'include' 
-        });
+        // Use the executive-summary endpoint which has the correct field structure
+        const response = await fetch(`${API_BASE_URL}hr-analytics/executive-summary`);
+        const result = await response.json();
         
-        if (!response.ok) throw new Error(`HTTP error ${response.status}`);
-        const data = await response.json();
-        if (data.error) throw new Error(data.error);
-
-        // Update KPI elements
-        updateKPIElements(elements, data);
+        console.log('[Analytics] Executive summary response:', result);
         
-        // Render charts
-        await renderEnhancedCharts(data);
-
+        if (result.success && result.data) {
+            // The executive-summary returns data in result.data.overview structure
+            const data = result.data.overview || result.data || {};
+            
+            // Total Active Employees
+            document.getElementById('kpi-total-employees').textContent = 
+                (data.total_active_employees || 0).toLocaleString();
+            const headcountChange = data.headcount_change || 0;
+            document.getElementById('kpi-employees-change').innerHTML = 
+                `<i class="fas fa-arrow-${headcountChange >= 0 ? 'up' : 'down'} mr-1"></i>${headcountChange > 0 ? '+' : ''}${headcountChange} this month`;
+            
+            // Monthly Headcount Change
+            document.getElementById('kpi-headcount-change').textContent = 
+                `${headcountChange > 0 ? '+' : ''}${headcountChange}`;
+            document.getElementById('kpi-headcount-detail').innerHTML = 
+                `Net change this month`;
+            
+            // Turnover Rate
+            const turnoverRate = parseFloat(data.annual_turnover_rate || 0);
+            document.getElementById('kpi-turnover-rate').textContent = 
+                `${turnoverRate.toFixed(1)}%`;
+            document.getElementById('kpi-turnover-detail').innerHTML = 
+                `<i class="fas fa-arrow-down mr-1"></i>Annual rate`;
+            
+            // Payroll Cost
+            const payrollCost = parseFloat(data.total_monthly_payroll || 0);
+            document.getElementById('kpi-payroll-cost').textContent = 
+                `₱${payrollCost.toLocaleString('en-PH', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            
+            // Benefit Utilization
+            const benefitUtil = parseFloat(data.benefit_utilization || 0);
+            document.getElementById('kpi-benefit-utilization').textContent = 
+                `${benefitUtil.toFixed(1)}%`;
+            document.getElementById('kpi-benefit-detail').textContent = 
+                `Utilization rate`;
+            
+            // Training Index
+            const trainingIndex = parseFloat(data.training_index || 0);
+            document.getElementById('kpi-training-index').textContent = 
+                `${trainingIndex.toFixed(1)}`;
+            document.getElementById('kpi-training-detail').textContent = 
+                `Competency score`;
+            
+            // Attendance Rate
+            const attendanceRate = parseFloat(data.attendance_rate || 0);
+            document.getElementById('kpi-attendance-rate').textContent = 
+                `${attendanceRate.toFixed(1)}%`;
+            
+            // Pay Compliance
+            const payCompliance = parseFloat(data.payband_compliance || 0);
+            document.getElementById('kpi-pay-compliance').textContent = 
+                `${payCompliance.toFixed(1)}%`;
+            document.getElementById('kpi-pay-detail').textContent = 
+                'Within pay bands';
+        }
     } catch (error) {
-        console.error('Error loading enhanced HR analytics data:', error);
-        // Fallback to basic analytics
-        await loadBasicAnalyticsData(elements);
+        console.error('Error loading Overview KPIs:', error);
     }
 }
 
 /**
- * Get dashboard filters
+ * Load Overview Charts
  */
-function getDashboardFilters() {
-    return {
-        department: document.getElementById('dashboard-dept-filter')?.value || '',
-        period: document.getElementById('dashboard-period-filter')?.value || 'quarter',
-        branch: document.getElementById('dashboard-branch-filter')?.value || ''
-    };
+async function loadOverviewCharts() {
+    await Promise.all([
+        loadHeadcountTrendChart(),
+        loadTurnoverByDeptChart(),
+        loadPayrollTrendChart(),
+        loadBenefitsUtilizationChart()
+    ]);
 }
 
 /**
- * Update KPI elements with data
+ * Load Headcount Trend Chart
  */
-function updateKPIElements(elements, data) {
-    // Workforce metrics
-    elements.kpiTotalEmployees.textContent = data.totalActiveEmployees || '0';
-    elements.kpiNewHires.textContent = `+${data.monthlyNewHires || 0} this month`;
-    elements.kpiTurnoverRate.textContent = `${data.annualTurnoverRate || '0.0'}%`;
-    elements.kpiSeparations.textContent = `${data.monthlySeparations || 0} this month`;
-    
-    // Payroll metrics
-    elements.kpiTotalPayrollCost.textContent = data.totalMonthlyPayrollCost ? 
-        `₱${parseFloat(data.totalMonthlyPayrollCost).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '₱0.00';
-    elements.kpiAvgSalary.textContent = `Avg: ₱${parseFloat(data.avgSalary || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
-    
-    // Tenure metrics
-    elements.kpiAvgTenure.textContent = data.avgEmployeeTenureYears ? `${data.avgEmployeeTenureYears} Years` : 'N/A';
-    elements.kpiRetentionRate.textContent = `Retention: ${data.retentionRate || '0'}%`;
-    
-    // Benefits metrics
-    elements.kpiHmoCost.textContent = data.totalMonthlyHmoCost ? 
-        `₱${parseFloat(data.totalMonthlyHmoCost).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '₱0.00';
-    elements.kpiHmoEnrollments.textContent = `${data.activeHmoEnrollments || 0} active`;
-    
-    // Attendance metrics
-    elements.kpiAttendanceRate.textContent = `${data.attendanceRate || '0'}%`;
-    elements.kpiAbsenteeism.textContent = `Absenteeism: ${data.absenteeismRate || '0'}%`;
-    
-    // Leave metrics
-    elements.kpiPendingLeaves.textContent = data.pendingLeaveRequests || '0';
-    elements.kpiLeaveTypes.textContent = `${data.totalLeaveTypes || 0} types`;
-    
-    // Training metrics
-    elements.kpiTrainingRate.textContent = `${data.trainingCompletionRate || '0'}%`;
-    elements.kpiTrainingsCount.textContent = `${data.trainingsThisYear || 0} this year`;
-}
-
-/**
- * Render enhanced charts
- */
-async function renderEnhancedCharts(data) {
-    // Headcount trend chart
-    if (data.headcountTrend?.length > 0) {
-        renderHeadcountTrendChart(data.headcountTrend);
-    }
-
-    // Department distribution chart
-    if (data.headcountByDepartment?.length > 0) {
-        renderHeadcountChart(data.headcountByDepartment.map(d => d.DepartmentName), data.headcountByDepartment.map(d => d.Headcount));
-    }
-
-    // Payroll trend chart
-    if (data.payrollTrend?.length > 0) {
-        renderPayrollTrendChart(data.payrollTrend);
-    }
-
-    // Turnover by department chart
-    if (data.turnoverByDepartment?.length > 0) {
-        renderTurnoverByDepartmentChart(data.turnoverByDepartment);
-    }
-}
-
-/**
- * Fallback to basic analytics data
- */
-async function loadBasicAnalyticsData(elements) {
+async function loadHeadcountTrendChart() {
     try {
-        const response = await fetch(`${API_BASE_URL}get_hr_analytics_summary.php`, { credentials: 'include' });
-        if (!response.ok) throw new Error(`HTTP error ${response.status}`);
-        const data = await response.json();
-        if (data.error) throw new Error(data.error);
-
-        // Update basic elements
-        elements.kpiTotalEmployees.textContent = data.totalActiveEmployees || '0';
-        elements.kpiTotalPayrollCost.textContent = data.totalPayrollCostLastRun ? 
-            `₱${parseFloat(data.totalPayrollCostLastRun).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '₱0.00';
-        elements.kpiAvgTenure.textContent = data.averageTenureYears ? `${data.averageTenureYears} Years` : 'N/A';
-
-        // Render basic charts
-        if (data.headcountByDepartment?.length > 0) {
-            renderHeadcountChart(data.headcountByDepartment.map(d => d.DepartmentName), data.headcountByDepartment.map(d => d.Headcount));
-        }
-
-    } catch (error) {
-        console.error('Error loading basic analytics data:', error);
-        Object.values(elements).forEach(el => { 
-            if(el && el.tagName !== 'CANVAS') el.textContent = 'Error'; 
-        });
-    }
-}
-
-async function loadAnalyticsData() {
-    const elements = {
-        kpiTotalEmployees: document.getElementById('kpi-total-employees'),
-        kpiTotalLeaveDays: document.getElementById('kpi-total-leave-days'),
-        kpiTotalPayrollCost: document.getElementById('kpi-total-payroll-cost'),
-        kpiPayrollRunId: document.getElementById('kpi-payroll-run-id'),
-        kpiAvgTenure: document.getElementById('kpi-avg-tenure'),
-        kpiTotalLeaveTypes: document.getElementById('kpi-total-leave-types'),
-        headcountChartContainer: document.getElementById('headcountByDepartmentChart'),
-        leaveTypeChartContainer: document.getElementById('leaveDaysByTypeChart')
-    };
-    if (Object.values(elements).some(el => !el)) {
-        console.error("DOM elements missing for analytics dashboard.");
-        if(mainContentArea) mainContentArea.innerHTML = `<p class="text-red-500 p-4">Error rendering dashboard elements.</p>`;
-        return;
-    }
-    try {
-        const response = await fetch(`${API_BASE_URL}get_hr_analytics_summary.php`, { credentials: 'include' });
-        if (!response.ok) throw new Error(`HTTP error ${response.status}`);
-        const data = await response.json();
-        if (data.error) throw new Error(data.error);
-
-        elements.kpiTotalEmployees.textContent = data.totalActiveEmployees || '0';
-        elements.kpiTotalLeaveDays.textContent = data.totalLeaveDaysRequestedThisYear || '0';
-        elements.kpiTotalPayrollCost.textContent = data.totalPayrollCostLastRun ? `₱${parseFloat(data.totalPayrollCostLastRun).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '₱0.00';
-        elements.kpiPayrollRunId.textContent = data.lastPayrollRunIdForCost ? `(Run ID: ${data.lastPayrollRunIdForCost})` : '(No completed run found)';
-        elements.kpiAvgTenure.textContent = data.averageTenureYears ? `${data.averageTenureYears} Years` : 'N/A';
-        elements.kpiTotalLeaveTypes.textContent = data.totalLeaveTypes || '0';
-
-        if (data.headcountByDepartment?.length > 0) {
-            renderHeadcountChart(data.headcountByDepartment.map(d => d.DepartmentName), data.headcountByDepartment.map(d => d.Headcount));
-        } else {
-            if(elements.headcountChartContainer?.getContext('2d')) elements.headcountChartContainer.parentElement.innerHTML = '<p class="text-center text-gray-500 py-4">No staff distribution data available.</p>';
-        }
-        if (data.leaveDaysByTypeThisYear?.length > 0) {
-            renderLeaveDaysByTypeChart(data.leaveDaysByTypeThisYear.map(l => l.TypeName), data.leaveDaysByTypeThisYear.map(l => l.TotalDays));
-        } else {
-             if(elements.leaveTypeChartContainer?.getContext('2d')) elements.leaveTypeChartContainer.parentElement.innerHTML = '<p class="text-center text-gray-500 py-4">No approved leave data this year.</p>';
-        }
-    } catch (error) {
-        console.error('Error loading HR analytics data:', error);
-        Object.values(elements).forEach(el => { if(el && el.tagName !== 'CANVAS') el.textContent = 'Error'; });
-        if(elements.headcountChartContainer?.parentElement) elements.headcountChartContainer.parentElement.innerHTML = `<p class="text-red-500">Error loading chart.</p>`;
-        if(elements.leaveTypeChartContainer?.parentElement) elements.leaveTypeChartContainer.parentElement.innerHTML = `<p class="text-red-500">Error loading chart.</p>`;
-    }
-}
-
-/**
- * Render headcount trend chart (line chart)
- */
-function renderHeadcountTrendChart(data) {
-    const ctx = document.getElementById('headcountTrendChart')?.getContext('2d');
-    if (!ctx) return;
-    
-    if (chartInstances.headcountTrend) chartInstances.headcountTrend.destroy();
-    
-    const labels = data.map(d => d.month_name || d.month);
-    const values = data.map(d => d.headcount || d.count);
-    
-    chartInstances.headcountTrend = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'Headcount',
-                data: values,
-                borderColor: 'rgb(59, 130, 246)',
-                backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                borderWidth: 2,
-                fill: true,
-                tension: 0.4
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        stepSize: Math.max(1, Math.ceil(Math.max(...values, 1) / 10))
-                    }
-                }
-            },
-            plugins: {
-                legend: { display: false },
-                title: { display: false }
-            }
-        }
-    });
-}
-
-/**
- * Render payroll trend chart
- */
-function renderPayrollTrendChart(data) {
-    const ctx = document.getElementById('payrollTrendChart')?.getContext('2d');
-    if (!ctx) return;
-    
-    if (chartInstances.payrollTrend) chartInstances.payrollTrend.destroy();
-    
-    const labels = data.map(d => d.month_name || d.month);
-    const values = data.map(d => d.total_gross || d.total_cost);
-    
-    chartInstances.payrollTrend = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'Payroll Cost (₱)',
-                data: values,
-                borderColor: 'rgb(168, 85, 247)',
-                backgroundColor: 'rgba(168, 85, 247, 0.1)',
-                borderWidth: 2,
-                fill: true,
-                tension: 0.4
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        callback: function(value) {
-                            return '₱' + value.toLocaleString();
+        const response = await fetch(`${API_BASE_URL}hr-analytics/headcount-trend`);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            const ctx = document.getElementById('headcount-trend-chart');
+            if (!ctx) return;
+            
+            const labels = result.data.map(d => d.month || '');
+            const headcount = result.data.map(d => parseInt(d.total_headcount || 0));
+            const hires = result.data.map(d => parseInt(d.new_hires || 0));
+            const exits = result.data.map(d => parseInt(d.separations || 0));
+            
+            if (chartInstances.headcountTrend) chartInstances.headcountTrend.destroy();
+            
+            chartInstances.headcountTrend = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Total Headcount',
+                            data: headcount,
+                            borderColor: '#3B82F6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            tension: 0.4,
+                            fill: true,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: 'New Hires',
+                            data: hires,
+                            borderColor: '#10B981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            tension: 0.4,
+                            fill: true,
+                            yAxisID: 'y1'
+                        },
+                        {
+                            label: 'Exits',
+                            data: exits,
+                            borderColor: '#EF4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            tension: 0.4,
+                            fill: true,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    plugins: {
+                        legend: { display: true, position: 'top' },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => `${context.dataset.label}: ${context.parsed.y}`
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: { display: true, text: 'Total Headcount' }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: { display: true, text: 'Hires / Exits' },
+                            grid: { drawOnChartArea: false }
                         }
                     }
                 }
-            },
-            plugins: {
-                legend: { display: false },
-                title: { display: false }
-            }
+            });
         }
-    });
+    } catch (error) {
+        console.error('Error loading headcount trend chart:', error);
+    }
 }
 
 /**
- * Render turnover by department chart
+ * Load Turnover by Department Chart
  */
-function renderTurnoverByDepartmentChart(data) {
-    const ctx = document.getElementById('turnoverByDepartmentChart')?.getContext('2d');
+async function loadTurnoverByDeptChart() {
+    try {
+        const response = await fetch(`${API_BASE_URL}hr-analytics/turnover-by-department`);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            const ctx = document.getElementById('turnover-dept-chart');
+            if (!ctx) return;
+            
+            const labels = result.data.map(d => d.department_name || 'Unknown');
+            const turnoverRates = result.data.map(d => parseFloat(d.turnover_rate || 0));
+            
+            if (chartInstances.turnoverDept) chartInstances.turnoverDept.destroy();
+            
+            chartInstances.turnoverDept = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Turnover Rate (%)',
+                        data: turnoverRates,
+                        backgroundColor: turnoverRates.map(rate => 
+                            rate > 15 ? '#EF4444' : rate > 10 ? '#F59E0B' : '#10B981'
+                        ),
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => `Turnover Rate: ${context.parsed.y.toFixed(1)}%`
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: 'Turnover Rate (%)' },
+                            ticks: {
+                                callback: (value) => `${value}%`
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    } catch (error) {
+        console.error('Error loading turnover by department chart:', error);
+    }
+}
+
+/**
+ * Load Payroll Trend Chart
+ */
+async function loadPayrollTrendChart() {
+    try {
+        const response = await fetch(`${API_BASE_URL}hr-analytics/payroll-trend`);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            const ctx = document.getElementById('payroll-trend-chart');
+            if (!ctx) return;
+            
+            const labels = result.data.map(d => d.month || '');
+            const totalPayroll = result.data.map(d => parseFloat(d.total_payroll || 0));
+            const basicPay = result.data.map(d => parseFloat(d.basic_pay || 0));
+            const overtime = result.data.map(d => parseFloat(d.overtime || 0));
+            const bonuses = result.data.map(d => parseFloat(d.bonuses || 0));
+            
+            if (chartInstances.payrollTrend) chartInstances.payrollTrend.destroy();
+            
+            chartInstances.payrollTrend = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Total Payroll',
+                            data: totalPayroll,
+                            borderColor: '#10B981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            tension: 0.4,
+                            fill: true,
+                            borderWidth: 3
+                        },
+                        {
+                            label: 'Basic Pay',
+                            data: basicPay,
+                            borderColor: '#3B82F6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.05)',
+                            tension: 0.4,
+                            fill: true,
+                            borderWidth: 2,
+                            borderDash: [5, 5]
+                        },
+                        {
+                            label: 'Overtime',
+                            data: overtime,
+                            borderColor: '#F59E0B',
+                            backgroundColor: 'rgba(245, 158, 11, 0.05)',
+                            tension: 0.4,
+                            fill: true,
+                            borderWidth: 2,
+                            borderDash: [5, 5]
+                        },
+                        {
+                            label: 'Bonuses',
+                            data: bonuses,
+                            borderColor: '#8B5CF6',
+                            backgroundColor: 'rgba(139, 92, 246, 0.05)',
+                            tension: 0.4,
+                            fill: true,
+                            borderWidth: 2,
+                            borderDash: [5, 5]
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    plugins: {
+                        legend: { display: true, position: 'top' },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => `${context.dataset.label}: ₱${context.parsed.y.toLocaleString('en-PH')}`
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: (value) => `₱${value.toLocaleString('en-PH')}`
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    } catch (error) {
+        console.error('Error loading payroll trend chart:', error);
+    }
+}
+
+/**
+ * Load Benefits Utilization Chart
+ */
+async function loadBenefitsUtilizationChart() {
+    try {
+        const response = await fetch(`${API_BASE_URL}hmo/analytics/benefit-types-summary`);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            const ctx = document.getElementById('benefits-utilization-chart');
+            if (!ctx) return;
+            
+            const labels = result.data.map(d => d.benefit_type || 'Unknown');
+            const amounts = result.data.map(d => parseFloat(d.total_amount || 0));
+            
+            if (chartInstances.benefitsUtil) chartInstances.benefitsUtil.destroy();
+            
+            chartInstances.benefitsUtil = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: amounts,
+                        backgroundColor: [
+                            '#8B5CF6',
+                            '#EC4899',
+                            '#F59E0B',
+                            '#10B981',
+                            '#3B82F6',
+                            '#EF4444',
+                            '#14B8A6',
+                            '#F97316'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: { display: true, position: 'right' },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => `${context.label}: ₱${context.parsed.toLocaleString('en-PH')}`
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    } catch (error) {
+        console.error('Error loading benefits utilization chart:', error);
+    }
+}
+
+// ========================================================================
+// TAB 2: WORKFORCE ANALYTICS
+// ========================================================================
+
+async function loadWorkforceTab() {
+    const tabContent = document.getElementById('tab-content-area');
+    if (!tabContent) return;
+    
+    tabContent.innerHTML = `
+        <div class="space-y-6">
+            <!-- Workforce Summary Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-5">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="text-sm text-blue-700 font-semibold">Total Workforce</div>
+                        <i class="fas fa-users text-3xl text-blue-500"></i>
+                    </div>
+                    <div class="text-3xl font-bold text-blue-900" id="wf-total">
+                        <i class="fas fa-spinner fa-spin"></i>
+                    </div>
+                    <div class="text-xs text-blue-600 mt-2">Active employees</div>
+                </div>
+                
+                <div class="bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-lg p-5">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="text-sm text-green-700 font-semibold">Average Age</div>
+                        <i class="fas fa-birthday-cake text-3xl text-green-500"></i>
+                    </div>
+                    <div class="text-3xl font-bold text-green-900" id="wf-avg-age">--</div>
+                    <div class="text-xs text-green-600 mt-2">Years</div>
+                </div>
+                
+                <div class="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-lg p-5">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="text-sm text-purple-700 font-semibold">Average Tenure</div>
+                        <i class="fas fa-clock text-3xl text-purple-500"></i>
+                    </div>
+                    <div class="text-3xl font-bold text-purple-900" id="wf-avg-tenure">--</div>
+                    <div class="text-xs text-purple-600 mt-2">Years of service</div>
+                </div>
+                
+                <div class="bg-gradient-to-br from-orange-50 to-orange-100 border border-orange-200 rounded-lg p-5">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="text-sm text-orange-700 font-semibold">Gender Diversity</div>
+                        <i class="fas fa-venus-mars text-3xl text-orange-500"></i>
+                    </div>
+                    <div class="text-2xl font-bold text-orange-900" id="wf-gender-ratio">--</div>
+                    <div class="text-xs text-orange-600 mt-2">Male / Female ratio</div>
+                </div>
+            </div>
+            
+            <!-- Charts Row 1 -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                        <i class="fas fa-building text-blue-500 mr-2"></i>Headcount by Department
+                    </h3>
+                    <canvas id="wf-dept-chart"></canvas>
+                </div>
+                
+                <div class="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                        <i class="fas fa-user-tag text-green-500 mr-2"></i>Employment Type Distribution
+                    </h3>
+                    <canvas id="wf-emptype-chart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Charts Row 2 -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                        <i class="fas fa-venus-mars text-purple-500 mr-2"></i>Gender Distribution
+                    </h3>
+                    <canvas id="wf-gender-chart"></canvas>
+                </div>
+                
+                <div class="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                        <i class="fas fa-graduation-cap text-indigo-500 mr-2"></i>Education Level Distribution
+                    </h3>
+                    <canvas id="wf-education-chart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Age Demographics -->
+            <div class="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                    <i class="fas fa-chart-bar text-teal-500 mr-2"></i>Age Demographics
+                </h3>
+                <canvas id="wf-age-chart"></canvas>
+            </div>
+            
+            <!-- Department Details Table -->
+            <div class="bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden">
+                <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-800">Department Workforce Details</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Headcount</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Avg Age</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Avg Tenure</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Male/Female</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Regular %</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200" id="wf-dept-table">
+                            <tr>
+                                <td colspan="6" class="px-6 py-4 text-center text-gray-500">
+                                    <i class="fas fa-spinner fa-spin mr-2"></i>Loading data...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Load workforce data
+    loadWorkforceData();
+}
+
+/**
+ * Load Workforce Analytics Data
+ */
+async function loadWorkforceData() {
+    try {
+        const response = await fetch(`${API_BASE_URL}hr-analytics/employee-demographics`);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            const data = result.data;
+            
+            // Update summary cards
+            document.getElementById('wf-total').textContent = (data.overview?.total_headcount || 0).toLocaleString();
+            document.getElementById('wf-avg-age').textContent = `${(data.overview?.avg_age || 0).toFixed(1)} yrs`;
+            document.getElementById('wf-avg-tenure').textContent = `${(data.overview?.avg_tenure_years || 0).toFixed(1)} yrs`;
+            document.getElementById('wf-gender-ratio').textContent = `${data.overview?.male_percentage || 50}/${data.overview?.female_percentage || 50}`;
+            
+            // Populate department table
+            populateWorkforceDeptTable(data.department_distribution || []);
+            
+            // Load charts
+            loadWorkforceCharts(data);
+        }
+    } catch (error) {
+        console.error('Error loading workforce data:', error);
+    }
+}
+
+/**
+ * Load Workforce Charts
+ */
+function loadWorkforceCharts(data) {
+    loadWfDeptChart(data.department_distribution || []);
+    loadWfEmpTypeChart(data.employment_type_distribution || []);
+    loadWfGenderChart(data.gender_distribution || {});
+    loadWfEducationChart(data.education_distribution || []);
+    loadWfAgeChart(data.age_distribution || []);
+}
+
+/**
+ * Headcount by Department Chart
+ */
+function loadWfDeptChart(departments) {
+    const ctx = document.getElementById('wf-dept-chart');
     if (!ctx) return;
     
-    if (chartInstances.turnoverByDepartment) chartInstances.turnoverByDepartment.destroy();
+    if (chartInstances['wfDept']) chartInstances['wfDept'].destroy();
     
-    const labels = data.map(d => d.department_name);
-    const values = data.map(d => d.turnover_rate);
-    
-    chartInstances.turnoverByDepartment = new Chart(ctx, {
+    chartInstances['wfDept'] = new Chart(ctx, {
         type: 'bar',
         data: {
-            labels: labels,
+            labels: departments.map(d => d.department),
             datasets: [{
-                label: 'Turnover Rate (%)',
-                data: values,
-                backgroundColor: values.map((_, i) => `hsl(${(i * 360 / (labels.length || 1) + 200) % 360}, 70%, 60%)`),
-                borderColor: values.map((_, i) => `hsl(${(i * 360 / (labels.length || 1) + 200) % 360}, 70%, 50%)`),
+                label: 'Headcount',
+                data: departments.map(d => d.headcount),
+                backgroundColor: 'rgba(59, 130, 246, 0.8)',
+                borderColor: 'rgba(59, 130, 246, 1)',
                 borderWidth: 1
             }]
         },
         options: {
             responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        callback: function(value) {
-                            return value + '%';
-                        }
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => `Employees: ${context.parsed.y}`
                     }
                 }
             },
-            plugins: {
-                legend: { display: false },
-                title: { display: false }
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { stepSize: 10 }
+                }
             }
         }
     });
 }
 
-function renderHeadcountChart(labels, data) {
-    const ctx = document.getElementById('headcountByDepartmentChart')?.getContext('2d');
+/**
+ * Employment Type Distribution Chart
+ */
+function loadWfEmpTypeChart(empTypes) {
+    const ctx = document.getElementById('wf-emptype-chart');
     if (!ctx) return;
-    if (headcountChartInstance) headcountChartInstance.destroy();
-    const bgColors = labels.map((_, i) => `hsl(${(i * 360 / (labels.length || 1))} , 70%, 60%)`);
-    const borderColors = labels.map((_, i) => `hsl(${(i * 360 / (labels.length || 1))}, 70%, 50%)`);
-    headcountChartInstance = new Chart(ctx, {
-        type: 'bar', data: { labels, datasets: [{ label: 'Employees', data, backgroundColor: bgColors, borderColor: borderColors, borderWidth: 1 }] },
-        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { stepSize: Math.max(1, Math.ceil(Math.max(...data, 1) / 10)) } } }, plugins: { legend: { display: false }, title: { display: false } } }
+    
+    if (chartInstances['wfEmpType']) chartInstances['wfEmpType'].destroy();
+    
+    chartInstances['wfEmpType'] = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: empTypes.map(e => e.employment_type),
+            datasets: [{
+                data: empTypes.map(e => e.count),
+                backgroundColor: [
+                    'rgba(34, 197, 94, 0.8)',
+                    'rgba(59, 130, 246, 0.8)',
+                    'rgba(249, 115, 22, 0.8)',
+                    'rgba(168, 85, 247, 0.8)'
+                ],
+                borderColor: '#fff',
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { position: 'bottom' },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => `${context.label}: ${context.parsed} (${((context.parsed / context.dataset.data.reduce((a, b) => a + b, 0)) * 100).toFixed(1)}%)`
+                    }
+                }
+            }
+        }
     });
 }
 
-function renderLeaveDaysByTypeChart(labels, data) {
-    const ctx = document.getElementById('leaveDaysByTypeChart')?.getContext('2d');
+/**
+ * Gender Distribution Chart
+ */
+function loadWfGenderChart(genderData) {
+    const ctx = document.getElementById('wf-gender-chart');
     if (!ctx) return;
-    if (leaveTypeChartInstance) leaveTypeChartInstance.destroy();
-    const bgColors = labels.map((_, i) => `hsl(${ (i * 360 / (labels.length || 1) + 45) % 360}, 75%, 65%)`);
-    const borderColors = bgColors.map(c => c.replace('65%)', '55%)'));
-    leaveTypeChartInstance = new Chart(ctx, {
-        type: 'pie', data: { labels, datasets: [{ label: 'Approved Leave Days', data, backgroundColor: bgColors, borderColor: borderColors, borderWidth: 1 }] },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top' }, title: { display: false }, tooltip: { callbacks: { label: c => `${c.label || ''}: ${c.parsed || 0} days` } } } }
+    
+    if (chartInstances['wfGender']) chartInstances['wfGender'].destroy();
+    
+    chartInstances['wfGender'] = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Male', 'Female', 'Other'],
+            datasets: [{
+                data: [
+                    genderData.male || 0,
+                    genderData.female || 0,
+                    genderData.other || 0
+                ],
+                backgroundColor: [
+                    'rgba(59, 130, 246, 0.8)',
+                    'rgba(236, 72, 153, 0.8)',
+                    'rgba(168, 85, 247, 0.8)'
+                ],
+                borderColor: '#fff',
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { position: 'right' },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => {
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = ((context.parsed / total) * 100).toFixed(1);
+                            return `${context.label}: ${context.parsed} (${percentage}%)`;
+                        }
+                    }
+                }
+            }
+        }
     });
 }
 
-export async function displayAnalyticsReportsSection() {
-    if (!initializeAnalyticsElements()) return;
-    pageTitleElement.textContent = 'Reports and Metrics';
+/**
+ * Education Level Distribution Chart
+ */
+function loadWfEducationChart(education) {
+    const ctx = document.getElementById('wf-education-chart');
+    if (!ctx) return;
+    
+    if (chartInstances['wfEducation']) chartInstances['wfEducation'].destroy();
+    
+    chartInstances['wfEducation'] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: education.map(e => e.education_level),
+            datasets: [{
+                label: 'Employees',
+                data: education.map(e => e.count),
+                backgroundColor: 'rgba(99, 102, 241, 0.8)',
+                borderColor: 'rgba(99, 102, 241, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            indexAxis: 'y',
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => `Count: ${context.parsed.x}`
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    ticks: { stepSize: 5 }
+                }
+            }
+        }
+    });
+}
 
-    // Generate automatic date ranges
-    const currentDate = new Date();
-    const currentYear = currentDate.getFullYear();
-    const currentMonth = currentDate.getMonth();
+/**
+ * Age Demographics Chart
+ */
+function loadWfAgeChart(ageGroups) {
+    const ctx = document.getElementById('wf-age-chart');
+    if (!ctx) return;
+    
+    if (chartInstances['wfAge']) chartInstances['wfAge'].destroy();
+    
+    chartInstances['wfAge'] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ageGroups.map(a => a.age_group),
+            datasets: [{
+                label: 'Employees',
+                data: ageGroups.map(a => a.count),
+                backgroundColor: 'rgba(20, 184, 166, 0.8)',
+                borderColor: 'rgba(20, 184, 166, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => `Employees: ${context.parsed.y}`
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { stepSize: 10 }
+                }
+            }
+        }
+    });
+}
 
-    // Current month range
-    const currentMonthStart = new Date(currentYear, currentMonth, 1);
-    const currentMonthEnd = new Date(currentYear, currentMonth + 1, 0);
+/**
+ * Populate Workforce Department Table
+ */
+function populateWorkforceDeptTable(departments) {
+    const tbody = document.getElementById('wf-dept-table');
+    if (!tbody) return;
+    
+    if (departments.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-4 text-center text-gray-500">No data available</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = departments.map(dept => `
+        <tr class="hover:bg-gray-50">
+            <td class="px-6 py-4 text-sm font-medium text-gray-900">${dept.department}</td>
+            <td class="px-6 py-4 text-sm text-blue-600 font-semibold">${dept.headcount}</td>
+            <td class="px-6 py-4 text-sm text-gray-700">${dept.avg_age} yrs</td>
+            <td class="px-6 py-4 text-sm text-gray-700">${dept.avg_tenure} yrs</td>
+            <td class="px-6 py-4 text-sm text-gray-700">${dept.male_count}/${dept.female_count}</td>
+            <td class="px-6 py-4 text-sm text-green-600">${dept.regular_percentage}%</td>
+        </tr>
+    `).join('');
+}
 
-    // Previous month range
-    const prevMonthStart = new Date(currentYear, currentMonth - 1, 1);
-    const prevMonthEnd = new Date(currentYear, currentMonth, 0);
+// ========================================================================
+// TAB 3: PAYROLL INSIGHTS
+// ========================================================================
 
-    // Current quarter range
-    const currentQuarter = Math.floor(currentMonth / 3);
-    const quarterStartMonth = currentQuarter * 3;
-    const quarterEndMonth = quarterStartMonth + 3;
-    const currentQuarterStart = new Date(currentYear, quarterStartMonth, 1);
-    const currentQuarterEnd = new Date(currentYear, quarterEndMonth, 0);
-
-    // Current year range
-    const currentYearStart = new Date(currentYear, 0, 1);
-    const currentYearEnd = new Date(currentYear, 11, 31);
-
-    const formatDate = (date) => date.toISOString().split('T')[0];
-
-    mainContentArea.innerHTML = `
+async function loadPayrollTab() {
+    const tabContent = document.getElementById('tab-content-area');
+    if (!tabContent) return;
+    
+    tabContent.innerHTML = `
         <div class="space-y-6">
-            <!-- Report Builder Tabs -->
-            <div class="bg-white rounded-lg shadow-md border border-[#F7E6CA]">
-                <div class="border-b border-gray-200">
-                    <nav class="-mb-px flex space-x-4 px-4" id="report-tabs">
-                        <button class="report-tab active py-4 px-3 border-b-2 border-[#594423] font-medium text-sm text-[#594423]" data-tab="standardized">
-                            <i class="fas fa-file-alt mr-2"></i>Standardized Reports
-                        </button>
-                        <button class="report-tab py-4 px-3 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700" data-tab="custom">
-                            <i class="fas fa-tools mr-2"></i>Custom Report Builder
-                        </button>
-                        <button class="report-tab py-4 px-3 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700" data-tab="scheduled">
-                            <i class="fas fa-clock mr-2"></i>Scheduled Reports
-                        </button>
-                        <button class="report-tab py-4 px-3 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700" data-tab="compliance">
-                            <i class="fas fa-shield-alt mr-2"></i>Compliance & Audit
-                        </button>
-                    </nav>
+            <!-- Payroll Summary Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-lg p-5">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="text-sm text-green-700 font-semibold">Total Monthly Payroll</div>
+                        <i class="fas fa-money-bill-wave text-3xl text-green-500"></i>
+                    </div>
+                    <div class="text-2xl font-bold text-green-900" id="pr-total-payroll">
+                        <i class="fas fa-spinner fa-spin"></i>
+                    </div>
+                    <div class="text-xs text-green-600 mt-2">Gross payroll cost</div>
                 </div>
                 
-                <!-- Tab Content -->
-                <div id="report-tab-content" class="p-6">
-                    <!-- Standardized Reports Tab -->
-                    <div id="standardized-reports" class="report-tab-panel">
-                        <h3 class="text-lg font-semibold text-[#4E3B2A] mb-4">Generate Standardized HR Reports</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6 pb-4 border-b border-gray-200 items-end">
-                            <div>
-                                <label for="report-type-filter" class="block text-sm font-medium text-gray-700 mb-1">Report Type:</label>
-                                <select id="report-type-filter" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#4E3B2A] focus:border-[#4E3B2A]">
-                                    <option value="">-- Select Report --</option>
-                                    <option value="headcount_by_department">Headcount by Department</option>
-                                    <option value="headcount_by_employment_type">Headcount by Employment Type</option>
-                                    <option value="turnover_retention_report">Turnover & Retention Report</option>
-                                    <option value="salary_distribution_report">Salary Distribution Report</option>
-                                    <option value="payroll_cost_summary">Payroll Cost Summary</option>
-                                    <option value="benefits_utilization_report">Benefits Utilization Report</option>
-                                    <option value="training_participation_report">Training Participation Report</option>
-                                    <option value="attendance_summary_report">Attendance Summary Report</option>
-                                    <option value="leave_utilization_report">Leave Utilization Report</option>
-                                    <option value="employee_master_list">Employee Master List</option>
-                                    <option value="payroll_summary_report">Payroll Summary Report</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label for="report-date-range-filter" class="block text-sm font-medium text-gray-700 mb-1">Date Range:</label>
-                                <select id="report-date-range-filter" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#4E3B2A] focus:border-[#4E3B2A]">
-                                    <option value="${formatDate(currentMonthStart)}_${formatDate(currentMonthEnd)}">Current Month (${formatDate(currentMonthStart)} - ${formatDate(currentMonthEnd)})</option>
-                                    <option value="${formatDate(prevMonthStart)}_${formatDate(prevMonthEnd)}">Previous Month (${formatDate(prevMonthStart)} - ${formatDate(prevMonthEnd)})</option>
-                                    <option value="${formatDate(currentQuarterStart)}_${formatDate(currentQuarterEnd)}">Current Quarter (${formatDate(currentQuarterStart)} - ${formatDate(currentQuarterEnd)})</option>
-                                    <option value="${formatDate(currentYearStart)}_${formatDate(currentYearEnd)}">Current Year (${currentYear})</option>
-                                    <option value="custom">Custom Range...</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label for="custom-date-range" class="block text-sm font-medium text-gray-700 mb-1">Custom Range:</label>
-                                <input type="text" id="custom-date-range" placeholder="YYYY-MM-DD_YYYY-MM-DD" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#4E3B2A] focus:border-[#4E3B2A]" style="display: none;">
-                            </div>
-                            <div>
-                                <button id="generate-report-btn" class="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-                                    <i class="fas fa-file-export mr-2"></i>Generate Report
-                                </button>
-                            </div>
-                        </div>
-                        <div id="reports-output-container" class="overflow-x-auto min-h-[200px] bg-gray-50 p-4 rounded-lg border">
-                            <p class="text-center py-4 text-gray-500">Select a report type and click "Generate Report".</p>
-                        </div>
+                <div class="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-5">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="text-sm text-blue-700 font-semibold">Average Salary</div>
+                        <i class="fas fa-user-circle text-3xl text-blue-500"></i>
                     </div>
-
-                    <!-- Custom Report Builder Tab -->
-                    <div id="custom-reports" class="report-tab-panel hidden">
-                        <h3 class="text-lg font-semibold text-[#4E3B2A] mb-4">Custom Report Builder</h3>
-                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                            <!-- Widget Library -->
-                            <div class="bg-gray-50 p-4 rounded-lg">
-                                <h4 class="font-semibold mb-3">Widget Library</h4>
-                                <div class="space-y-2">
-                                    <div class="widget-item p-2 bg-white rounded border cursor-pointer hover:bg-blue-50" data-widget="kpi-card">
-                                        <i class="fas fa-chart-line mr-2"></i>KPI Card
-                                    </div>
-                                    <div class="widget-item p-2 bg-white rounded border cursor-pointer hover:bg-blue-50" data-widget="bar-chart">
-                                        <i class="fas fa-chart-bar mr-2"></i>Bar Chart
-                                    </div>
-                                    <div class="widget-item p-2 bg-white rounded border cursor-pointer hover:bg-blue-50" data-widget="line-chart">
-                                        <i class="fas fa-chart-line mr-2"></i>Line Chart
-                                    </div>
-                                    <div class="widget-item p-2 bg-white rounded border cursor-pointer hover:bg-blue-50" data-widget="pie-chart">
-                                        <i class="fas fa-chart-pie mr-2"></i>Pie Chart
-                                    </div>
-                                    <div class="widget-item p-2 bg-white rounded border cursor-pointer hover:bg-blue-50" data-widget="data-table">
-                                        <i class="fas fa-table mr-2"></i>Data Table
-                                    </div>
-                                    <div class="widget-item p-2 bg-white rounded border cursor-pointer hover:bg-blue-50" data-widget="heatmap">
-                                        <i class="fas fa-th mr-2"></i>Heatmap
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Report Canvas -->
-                            <div class="lg:col-span-2">
-                                <div class="bg-white border-2 border-dashed border-gray-300 rounded-lg p-4 min-h-[400px]" id="report-canvas">
-                                    <p class="text-center text-gray-500 py-8">Drag widgets here to build your custom report</p>
-                                </div>
-                                <div class="mt-4 flex gap-2">
-                                    <button id="save-custom-report" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">
-                                        <i class="fas fa-save mr-2"></i>Save Report
-                                    </button>
-                                    <button id="preview-custom-report" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-                                        <i class="fas fa-eye mr-2"></i>Preview
-                                    </button>
-                                    <button id="export-custom-report" class="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700">
-                                        <i class="fas fa-download mr-2"></i>Export
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
+                    <div class="text-2xl font-bold text-blue-900" id="pr-avg-salary">--</div>
+                    <div class="text-xs text-blue-600 mt-2">Per employee</div>
+                </div>
+                
+                <div class="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-lg p-5">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="text-sm text-purple-700 font-semibold">Overtime Cost</div>
+                        <i class="fas fa-clock text-3xl text-purple-500"></i>
                     </div>
-
-                    <!-- Scheduled Reports Tab -->
-                    <div id="scheduled-reports" class="report-tab-panel hidden">
-                        <h3 class="text-lg font-semibold text-[#4E3B2A] mb-4">Scheduled Reports</h3>
-                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            <div>
-                                <h4 class="font-semibold mb-3">Create New Schedule</h4>
-                                <div class="space-y-4">
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-1">Report Type</label>
-                                        <select id="schedule-report-type" class="w-full p-2 border border-gray-300 rounded-md">
-                                            <option value="">Select Report Type</option>
-                                            <option value="headcount_by_department">Headcount by Department</option>
-                                            <option value="payroll_cost_summary">Payroll Cost Summary</option>
-                                            <option value="turnover_retention_report">Turnover & Retention Report</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
-                                        <select id="schedule-frequency" class="w-full p-2 border border-gray-300 rounded-md">
-                                            <option value="daily">Daily</option>
-                                            <option value="weekly">Weekly</option>
-                                            <option value="monthly" selected>Monthly</option>
-                                            <option value="quarterly">Quarterly</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-1">Recipients (Email)</label>
-                                        <input type="text" id="schedule-recipients" placeholder="email1@company.com, email2@company.com" class="w-full p-2 border border-gray-300 rounded-md">
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-1">Format</label>
-                                        <select id="schedule-format" class="w-full p-2 border border-gray-300 rounded-md">
-                                            <option value="PDF">PDF</option>
-                                            <option value="Excel">Excel</option>
-                                            <option value="CSV">CSV</option>
-                                        </select>
-                                    </div>
-                                    <button id="create-schedule-btn" class="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-                                        <i class="fas fa-plus mr-2"></i>Create Schedule
-                                    </button>
-                                </div>
-                            </div>
-                            <div>
-                                <h4 class="font-semibold mb-3">Active Schedules</h4>
-                                <div id="scheduled-reports-list" class="space-y-2">
-                                    <div class="p-3 bg-gray-50 rounded border">
-                                        <div class="flex justify-between items-center">
-                                            <div>
-                                                <p class="font-medium">Monthly Headcount Report</p>
-                                                <p class="text-sm text-gray-600">Next run: 2024-02-01 09:00</p>
-                                            </div>
-                                            <div class="flex gap-1">
-                                                <button class="px-2 py-1 bg-blue-500 text-white text-xs rounded">Edit</button>
-                                                <button class="px-2 py-1 bg-red-500 text-white text-xs rounded">Delete</button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                    <div class="text-2xl font-bold text-purple-900" id="pr-ot-cost">--</div>
+                    <div class="text-xs text-purple-600 mt-2" id="pr-ot-ratio">-- % of total</div>
+                </div>
+                
+                <div class="bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200 rounded-lg p-5">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="text-sm text-amber-700 font-semibold">Pay Band Compliance</div>
+                        <i class="fas fa-balance-scale text-3xl text-amber-500"></i>
                     </div>
-
-                    <!-- Compliance & Audit Tab -->
-                    <div id="compliance-reports" class="report-tab-panel hidden">
-                        <h3 class="text-lg font-semibold text-[#4E3B2A] mb-4">Compliance & Audit Reports</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            <div class="p-4 bg-white border rounded-lg hover:shadow-md cursor-pointer" data-report="dole-compliance">
-                                <div class="flex items-center mb-2">
-                                    <i class="fas fa-gavel text-blue-600 mr-2"></i>
-                                    <h4 class="font-semibold">DOLE Compliance Report</h4>
-                                </div>
-                                <p class="text-sm text-gray-600">Labor standards compliance, working hours, overtime records</p>
-                            </div>
-                            <div class="p-4 bg-white border rounded-lg hover:shadow-md cursor-pointer" data-report="civil-service">
-                                <div class="flex items-center mb-2">
-                                    <i class="fas fa-building text-green-600 mr-2"></i>
-                                    <h4 class="font-semibold">Civil Service Report</h4>
-                                </div>
-                                <p class="text-sm text-gray-600">Government employee records, service credits, leave balances</p>
-                            </div>
-                            <div class="p-4 bg-white border rounded-lg hover:shadow-md cursor-pointer" data-report="audit-trail">
-                                <div class="flex items-center mb-2">
-                                    <i class="fas fa-search text-purple-600 mr-2"></i>
-                                    <h4 class="font-semibold">Audit Trail Report</h4>
-                                </div>
-                                <p class="text-sm text-gray-600">System access logs, data changes, user activities</p>
-                            </div>
-                            <div class="p-4 bg-white border rounded-lg hover:shadow-md cursor-pointer" data-report="data-privacy">
-                                <div class="flex items-center mb-2">
-                                    <i class="fas fa-shield-alt text-red-600 mr-2"></i>
-                                    <h4 class="font-semibold">Data Privacy Report</h4>
-                                </div>
-                                <p class="text-sm text-gray-600">Personal data processing, consent records, data retention</p>
-                            </div>
-                            <div class="p-4 bg-white border rounded-lg hover:shadow-md cursor-pointer" data-report="payroll-audit">
-                                <div class="flex items-center mb-2">
-                                    <i class="fas fa-calculator text-yellow-600 mr-2"></i>
-                                    <h4 class="font-semibold">Payroll Audit Report</h4>
-                                </div>
-                                <p class="text-sm text-gray-600">Salary calculations, deductions, tax compliance</p>
-                            </div>
-                            <div class="p-4 bg-white border rounded-lg hover:shadow-md cursor-pointer" data-report="benefits-compliance">
-                                <div class="flex items-center mb-2">
-                                    <i class="fas fa-heart text-pink-600 mr-2"></i>
-                                    <h4 class="font-semibold">Benefits Compliance</h4>
-                                </div>
-                                <p class="text-sm text-gray-600">SSS, PhilHealth, Pag-IBIG contributions and benefits</p>
-                            </div>
-                        </div>
-                    </div>
+                    <div class="text-3xl font-bold text-amber-900" id="pr-compliance">--</div>
+                    <div class="text-xs text-amber-600 mt-2">Within ranges</div>
                 </div>
             </div>
-        </div>`;
-    
-    // Initialize report builder functionality
-    initializeReportBuilder();
-    
-    // Initialize event listeners
-    initializeReportsEventListeners();
-}
-
-/**
- * Initialize report builder functionality
- */
-function initializeReportBuilder() {
-    // Tab switching
-    document.querySelectorAll('.report-tab').forEach(tab => {
-        tab.addEventListener('click', function() {
-            const tabName = this.dataset.tab;
-            switchHRReportTab(tabName);
-        });
-    });
-
-    // Widget drag and drop
-    document.querySelectorAll('.widget-item').forEach(widget => {
-        widget.addEventListener('dragstart', function(e) {
-            e.dataTransfer.setData('text/plain', this.dataset.widget);
-        });
-        widget.draggable = true;
-    });
-
-    // Report canvas drop zone
-    const canvas = document.getElementById('report-canvas');
-    if (canvas) {
-        canvas.addEventListener('dragover', function(e) {
-            e.preventDefault();
-            this.classList.add('border-blue-400', 'bg-blue-50');
-        });
-
-        canvas.addEventListener('dragleave', function(e) {
-            this.classList.remove('border-blue-400', 'bg-blue-50');
-        });
-
-        canvas.addEventListener('drop', function(e) {
-            e.preventDefault();
-            this.classList.remove('border-blue-400', 'bg-blue-50');
             
-            const widgetType = e.dataTransfer.getData('text/plain');
-            addWidgetToCanvas(widgetType);
-        });
-    }
-}
-
-/**
- * Switch HR report tabs
- */
-function switchHRReportTab(tabName) {
-    // Update tab buttons
-    document.querySelectorAll('.report-tab').forEach(tab => {
-        tab.classList.remove('active', 'border-[#594423]', 'text-[#594423]');
-        tab.classList.add('border-transparent', 'text-gray-500');
-    });
-
-    const activeTab = document.querySelector(`[data-tab="${tabName}"]`);
-    if (activeTab) {
-        activeTab.classList.add('active', 'border-[#594423]', 'text-[#594423]');
-        activeTab.classList.remove('border-transparent', 'text-gray-500');
-    }
-
-    // Update tab panels
-    document.querySelectorAll('.report-tab-panel').forEach(panel => {
-        panel.classList.add('hidden');
-    });
-
-    const activePanel = document.getElementById(`${tabName}-reports`);
-    if (activePanel) {
-        activePanel.classList.remove('hidden');
-    }
-}
-
-/**
- * Add widget to canvas
- */
-function addWidgetToCanvas(widgetType) {
-    const canvas = document.getElementById('report-canvas');
-    if (!canvas) return;
-
-    const widgetId = `widget-${Date.now()}`;
-    let widgetHTML = '';
-
-    switch (widgetType) {
-        case 'kpi-card':
-            widgetHTML = `
-                <div class="widget kpi-card bg-white border rounded-lg p-4 mb-4" data-widget-id="${widgetId}">
-                    <div class="flex justify-between items-center mb-2">
-                        <h4 class="font-semibold">KPI Card</h4>
-                        <button class="remove-widget text-red-500 hover:text-red-700" data-widget-id="${widgetId}">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                    <div class="text-center">
-                        <p class="text-3xl font-bold text-blue-600">0</p>
-                        <p class="text-sm text-gray-600">Metric Value</p>
-                    </div>
+            <!-- Charts Row 1 -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                        <i class="fas fa-chart-line text-green-500 mr-2"></i>Payroll Cost Trend (12 Months)
+                    </h3>
+                    <canvas id="pr-trend-chart"></canvas>
                 </div>
-            `;
-            break;
-        case 'bar-chart':
-            widgetHTML = `
-                <div class="widget bar-chart bg-white border rounded-lg p-4 mb-4" data-widget-id="${widgetId}">
-                    <div class="flex justify-between items-center mb-2">
-                        <h4 class="font-semibold">Bar Chart</h4>
-                        <button class="remove-widget text-red-500 hover:text-red-700" data-widget-id="${widgetId}">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                    <div class="h-48">
-                        <canvas id="custom-chart-${widgetId}"></canvas>
-                    </div>
+                
+                <div class="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                        <i class="fas fa-chart-bar text-blue-500 mr-2"></i>Salary Grade Distribution
+                    </h3>
+                    <canvas id="pr-grade-chart"></canvas>
                 </div>
-            `;
-            break;
-        case 'data-table':
-            widgetHTML = `
-                <div class="widget data-table bg-white border rounded-lg p-4 mb-4" data-widget-id="${widgetId}">
-                    <div class="flex justify-between items-center mb-2">
-                        <h4 class="font-semibold">Data Table</h4>
-                        <button class="remove-widget text-red-500 hover:text-red-700" data-widget-id="${widgetId}">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                    <div class="overflow-x-auto">
-                        <table class="min-w-full">
-                            <thead class="bg-gray-50">
-                                <tr>
-                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Column 1</th>
-                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Column 2</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td class="px-3 py-2 text-sm">Sample Data</td>
-                                    <td class="px-3 py-2 text-sm">Sample Data</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            `;
-            break;
-        default:
-            widgetHTML = `
-                <div class="widget ${widgetType} bg-white border rounded-lg p-4 mb-4" data-widget-id="${widgetId}">
-                    <div class="flex justify-between items-center mb-2">
-                        <h4 class="font-semibold">${widgetType.replace('-', ' ').toUpperCase()}</h4>
-                        <button class="remove-widget text-red-500 hover:text-red-700" data-widget-id="${widgetId}">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                    <p class="text-gray-500">Widget placeholder</p>
-                </div>
-            `;
-    }
-
-    // Remove placeholder text if it exists
-    if (canvas.textContent.includes('Drag widgets here')) {
-        canvas.innerHTML = '';
-    }
-
-    canvas.insertAdjacentHTML('beforeend', widgetHTML);
-
-    // Add remove functionality
-    const removeBtn = canvas.querySelector(`[data-widget-id="${widgetId}"] .remove-widget`);
-    if (removeBtn) {
-        removeBtn.addEventListener('click', function() {
-            const widget = canvas.querySelector(`[data-widget-id="${widgetId}"]`);
-            if (widget) widget.remove();
-        });
-    }
-
-    // Add to report builder state
-    reportBuilderState.widgets.push({
-        id: widgetId,
-        type: widgetType,
-        position: reportBuilderState.widgets.length
-    });
-}
-
-/**
- * Initialize reports event listeners
- */
-function initializeReportsEventListeners() {
-    // Generate report button
-    const generateBtn = document.getElementById('generate-report-btn');
-    if (generateBtn && !generateBtn.hasAttribute('data-listener-attached')) {
-        generateBtn.addEventListener('click', handleGenerateReport);
-        generateBtn.setAttribute('data-listener-attached', 'true');
-    }
-
-    // Date range dropdown
-    const dateRangeSelect = document.getElementById('report-date-range-filter');
-    const customDateInput = document.getElementById('custom-date-range');
-    if (dateRangeSelect && customDateInput) {
-        dateRangeSelect.addEventListener('change', function() {
-            if (this.value === 'custom') {
-                customDateInput.style.display = 'block';
-                customDateInput.focus();
-            } else {
-                customDateInput.style.display = 'none';
-            }
-        });
-    }
-
-    // Custom report builder buttons
-    document.getElementById('save-custom-report')?.addEventListener('click', saveCustomReport);
-    document.getElementById('preview-custom-report')?.addEventListener('click', previewCustomReport);
-    document.getElementById('export-custom-report')?.addEventListener('click', exportCustomReport);
-
-    // Scheduled reports
-    document.getElementById('create-schedule-btn')?.addEventListener('click', createScheduledReport);
-
-    // Compliance reports
-    document.querySelectorAll('[data-report]').forEach(report => {
-        report.addEventListener('click', function() {
-            const reportType = this.dataset.report;
-            generateComplianceReport(reportType);
-        });
-    });
-}
-
-/**
- * Export dashboard functionality
- */
-function exportDashboard(format) {
-    const filters = getDashboardFilters();
-    const queryString = new URLSearchParams({
-        ...filters,
-        format: format.toLowerCase()
-    }).toString();
-
-    // Create download link
-    const link = document.createElement('a');
-    link.href = `${API_BASE_URL}export_dashboard.php?${queryString}`;
-    link.download = `hr_dashboard_${new Date().toISOString().slice(0,10)}.${format.toLowerCase()}`;
-    link.style.display = 'none';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-}
-
-/**
- * Save custom report
- */
-function saveCustomReport() {
-    const reportName = prompt('Enter report name:');
-    if (!reportName) return;
-
-    const reportData = {
-        name: reportName,
-        widgets: reportBuilderState.widgets,
-        filters: reportBuilderState.filters,
-        layout: reportBuilderState.layout,
-        created_at: new Date().toISOString()
-    };
-
-    // Save to localStorage for demo purposes
-    const savedReports = JSON.parse(localStorage.getItem('customReports') || '[]');
-    savedReports.push(reportData);
-    localStorage.setItem('customReports', JSON.stringify(savedReports));
-
-    alert('Custom report saved successfully!');
-}
-
-/**
- * Preview custom report
- */
-function previewCustomReport() {
-    const canvas = document.getElementById('report-canvas');
-    if (!canvas || canvas.children.length === 0) {
-        alert('No widgets added to preview');
-        return;
-    }
-
-    // Create preview window
-    const previewWindow = window.open('', '_blank', 'width=800,height=600');
-    previewWindow.document.write(`
-        <html>
-            <head>
-                <title>Report Preview</title>
-                <script src="https://cdn.tailwindcss.com"></script>
-                <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-            </head>
-            <body class="bg-gray-100 p-4">
-                <h1 class="text-2xl font-bold mb-4">Report Preview</h1>
-                <div class="bg-white p-4 rounded-lg shadow">
-                    ${canvas.innerHTML}
-                </div>
-            </body>
-        </html>
-    `);
-}
-
-/**
- * Export custom report
- */
-function exportCustomReport() {
-    const canvas = document.getElementById('report-canvas');
-    if (!canvas || canvas.children.length === 0) {
-        alert('No widgets added to export');
-        return;
-    }
-
-    // Convert to CSV for demo
-    const csvData = [];
-    canvas.querySelectorAll('.widget').forEach(widget => {
-        const title = widget.querySelector('h4')?.textContent || 'Widget';
-        csvData.push([title, 'Data', 'Value']);
-    });
-
-    const csvContent = csvData.map(row => row.join(',')).join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `custom_report_${new Date().toISOString().slice(0,10)}.csv`;
-    link.click();
-}
-
-/**
- * Create scheduled report
- */
-function createScheduledReport() {
-    const reportType = document.getElementById('schedule-report-type')?.value;
-    const frequency = document.getElementById('schedule-frequency')?.value;
-    const recipients = document.getElementById('schedule-recipients')?.value;
-    const format = document.getElementById('schedule-format')?.value;
-
-    if (!reportType || !recipients) {
-        alert('Please fill in all required fields');
-        return;
-    }
-
-    const scheduleData = {
-        reportType,
-        frequency,
-        recipients: recipients.split(',').map(email => email.trim()),
-        format,
-        created_at: new Date().toISOString(),
-        next_run: calculateNextRun(frequency)
-    };
-
-    // Add to scheduled reports list
-    const scheduledList = document.getElementById('scheduled-reports-list');
-    const scheduleItem = document.createElement('div');
-    scheduleItem.className = 'p-3 bg-gray-50 rounded border';
-    scheduleItem.innerHTML = `
-        <div class="flex justify-between items-center">
-            <div>
-                <p class="font-medium">${reportType.replace(/_/g, ' ').toUpperCase()}</p>
-                <p class="text-sm text-gray-600">Next run: ${scheduleData.next_run}</p>
             </div>
-            <div class="flex gap-1">
-                <button class="px-2 py-1 bg-blue-500 text-white text-xs rounded">Edit</button>
-                <button class="px-2 py-1 bg-red-500 text-white text-xs rounded">Delete</button>
+            
+            <!-- Charts Row 2 -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                        <i class="fas fa-building text-indigo-500 mr-2"></i>Department Payroll Cost
+                    </h3>
+                    <canvas id="pr-dept-chart"></canvas>
+                </div>
+                
+                <div class="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                        <i class="fas fa-chart-pie text-purple-500 mr-2"></i>Payroll Breakdown
+                    </h3>
+                    <canvas id="pr-breakdown-chart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Charts Row 3 -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                        <i class="fas fa-chart-area text-orange-500 mr-2"></i>Overtime Trend
+                    </h3>
+                    <canvas id="pr-ot-trend-chart"></canvas>
+                </div>
+                
+                <div class="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                        <i class="fas fa-chart-scatter text-teal-500 mr-2"></i>Salary vs Pay Band Range
+                    </h3>
+                    <canvas id="pr-paybands-chart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Department Payroll Table -->
+            <div class="bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden">
+                <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-800">Department Payroll Summary</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employees</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Gross Pay</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Overtime</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Deductions</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Net Pay</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Avg Salary</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200" id="pr-dept-table">
+                            <tr>
+                                <td colspan="7" class="px-6 py-4 text-center text-gray-500">
+                                    <i class="fas fa-spinner fa-spin mr-2"></i>Loading data...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     `;
-    scheduledList.appendChild(scheduleItem);
-
-    alert('Scheduled report created successfully!');
+    
+    // Load payroll data
+    loadPayrollData();
 }
 
 /**
- * Calculate next run time
+ * Load Payroll Data
  */
-function calculateNextRun(frequency) {
-    const now = new Date();
-    switch (frequency) {
-        case 'daily':
-            return new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString().slice(0, 16);
-        case 'weekly':
-            return new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16);
-        case 'monthly':
-            return new Date(now.getFullYear(), now.getMonth() + 1, 1, 9, 0).toISOString().slice(0, 16);
-        case 'quarterly':
-            return new Date(now.getFullYear(), now.getMonth() + 3, 1, 9, 0).toISOString().slice(0, 16);
-        default:
-            return new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString().slice(0, 16);
+async function loadPayrollData() {
+    try {
+        const response = await fetch(`${API_BASE_URL}hr-analytics/payroll-compensation`);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            const data = result.data;
+            
+            // Update summary cards
+            document.getElementById('pr-total-payroll').textContent = 
+                `₱${(data.overview?.total_payroll || 0).toLocaleString('en-PH')}`;
+            document.getElementById('pr-avg-salary').textContent = 
+                `₱${(data.overview?.avg_salary || 0).toLocaleString('en-PH')}`;
+            document.getElementById('pr-ot-cost').textContent = 
+                `₱${(data.overview?.total_overtime || 0).toLocaleString('en-PH')}`;
+            document.getElementById('pr-ot-ratio').textContent = 
+                `${(data.overview?.ot_percentage || 0).toFixed(1)}% of total`;
+            document.getElementById('pr-compliance').textContent = 
+                `${(data.overview?.pay_band_compliance || 0).toFixed(1)}%`;
+            
+            // Populate department table
+            populatePayrollDeptTable(data.department_data || []);
+            
+            // Load charts
+            loadPayrollCharts(data);
+        }
+    } catch (error) {
+        console.error('Error loading payroll data:', error);
     }
 }
 
 /**
- * Generate compliance report
+ * Populate Payroll Department Table
  */
-function generateComplianceReport(reportType) {
-    const output = document.getElementById('reports-output-container');
-    if (!output) return;
-
-    output.innerHTML = `<p class="text-blue-600">Generating ${reportType.replace(/_/g, ' ').toUpperCase()} report...</p>`;
-
-    // Simulate report generation
-    setTimeout(() => {
-        const reportData = {
-            reportName: `${reportType.replace(/_/g, ' ').toUpperCase()} Report`,
-            generatedAt: new Date().toISOString(),
-            columns: [
-                { key: 'employee_id', label: 'Employee ID' },
-                { key: 'name', label: 'Employee Name' },
-                { key: 'department', label: 'Department' },
-                { key: 'compliance_status', label: 'Compliance Status' }
-            ],
-            rows: [
-                {
-                    employee_id: 'EMP001',
-                    name: 'John Doe',
-                    department: 'HR',
-                    compliance_status: 'Compliant'
-                },
-                {
-                    employee_id: 'EMP002',
-                    name: 'Jane Smith',
-                    department: 'Finance',
-                    compliance_status: 'Pending Review'
-                }
-            ],
-            summary: [
-                { label: 'Total Employees', value: '2' },
-                { label: 'Compliant', value: '1' },
-                { label: 'Pending Review', value: '1' }
-            ]
-        };
-
-        renderReportTable(reportData, output);
-    }, 1000);
-}
-
-async function loadAvailableReportsDropdown() {
-    // This function is now handled by the enhanced report system
-    // The dropdown is populated directly in the HTML with predefined report types
-}
-
-async function handleGenerateReport() {
-    const typeSelect = document.getElementById('report-type-filter');
-    const type = typeSelect?.value;
-    const name = typeSelect?.options[typeSelect.selectedIndex]?.textContent || type;
-    const dateRangeSelect = document.getElementById('report-date-range-filter');
-    const customDateInput = document.getElementById('custom-date-range');
-    const output = document.getElementById('reports-output-container');
-
-    if (!output || !type) {
-        if(output) output.innerHTML = '<p class="text-red-500">Please select a report type.</p>';
+function populatePayrollDeptTable(departments) {
+    const tbody = document.getElementById('pr-dept-table');
+    if (!tbody) return;
+    
+    if (departments.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="px-6 py-4 text-center text-gray-500">No data available</td></tr>';
         return;
     }
-
-    // Get the actual date range value
-    let range = dateRangeSelect?.value;
-    if (range === 'custom' && customDateInput?.value) {
-        range = customDateInput.value;
-    }
-
-    let endpoint = '';
-    if (type === 'employee_master_list') endpoint = `${API_BASE_URL}generate_employee_master_report.php`;
-    else if (type === 'leave_summary_report') endpoint = `${API_BASE_URL}generate_leave_summary_report.php`;
-    else if (type === 'payroll_summary_report') endpoint = `${API_BASE_URL}generate_payroll_summary_report.php`;
-    else { output.innerHTML = `<p class="text-red-500">Report '${name}' not configured.</p>`; return; }
-
-    output.innerHTML = `<p class="text-blue-600">Generating <strong>${name}</strong>...</p>`;
-    try {
-        const params = new URLSearchParams();
-        if (range && /^\d{4}-\d{2}-\d{2}_\d{4}-\d{2}-\d{2}$/.test(range)) params.append('date_range', range);
-        else if (range) console.warn("Invalid date range format:", range);
-
-        const response = await fetch(`${endpoint}?${params.toString()}`, { credentials: 'include' });
-        if (!response.ok) throw new Error(`HTTP error ${response.status}`);
-        const reportData = await response.json();
-        if (reportData.error) throw new Error(reportData.error);
-        renderReportTable(reportData, output);
-    } catch (e) {
-        console.error(`Error generating report '${type}':`, e);
-        output.innerHTML = `<p class="text-red-500">Could not generate report: ${e.message}</p>`;
-    }
+    
+    tbody.innerHTML = departments.map(dept => `
+        <tr class="hover:bg-gray-50">
+            <td class="px-6 py-4 text-sm font-medium text-gray-900">${dept.department}</td>
+            <td class="px-6 py-4 text-sm text-blue-600 font-semibold">${dept.employees}</td>
+            <td class="px-6 py-4 text-sm text-green-600">₱${dept.gross_pay.toLocaleString()}</td>
+            <td class="px-6 py-4 text-sm text-purple-600">₱${dept.overtime.toLocaleString()}</td>
+            <td class="px-6 py-4 text-sm text-orange-600">₱${dept.deductions.toLocaleString()}</td>
+            <td class="px-6 py-4 text-sm text-green-700 font-bold">₱${dept.net_pay.toLocaleString()}</td>
+            <td class="px-6 py-4 text-sm text-gray-700">₱${dept.avg_salary.toLocaleString()}</td>
+        </tr>
+    `).join('');
 }
 
-function renderReportTable(reportData, container) {
-    if (!reportData || !reportData.columns || !reportData.rows) {
-        container.innerHTML = '<p class="text-gray-500">No data for this report.</p>'; return;
-    }
-    let html = `<div class="mb-2"><h4 class="font-semibold">${reportData.reportName}</h4><p class="text-xs text-gray-500">Generated: ${new Date(reportData.generatedAt).toLocaleString()}</p></div>
-        <table class="min-w-full divide-y divide-gray-200 border"><thead class="bg-gray-100"><tr>`;
-    reportData.columns.forEach(c => { html += `<th class="px-3 py-2 text-left text-xs font-medium uppercase">${c.label}</th>`; });
-    html += `</tr></thead><tbody class="bg-white divide-y divide-gray-200">`;
-    if (reportData.rows.length === 0) {
-        html += `<tr><td colspan="${reportData.columns.length}" class="px-3 py-3 text-center text-sm">No data.</td></tr>`;
-    } else {
-        reportData.rows.forEach(row => {
-            html += `<tr>`;
-            reportData.columns.forEach(c => {
-                const val = row[c.key] !== null && row[c.key] !== undefined ? String(row[c.key]) : '-';
-                html += `<td class="px-3 py-2 whitespace-nowrap text-sm">${val.replace(/</g, "&lt;")}</td>`;
-            });
-            html += `</tr>`;
-        });
-    }
-    html += `</tbody></table>`;
-    if(reportData.summary?.length > 0){
-        html += `<div class="mt-4 pt-2 border-t">`;
-        reportData.summary.forEach(item => { html += `<p class="text-sm"><strong>${item.label}:</strong> ${item.value}</p>`; });
-        html += `</div>`;
-    }
-    html += `<div class="mt-4 text-right"><button onclick="exportReportToCSV('${reportData.reportName.replace(/\s+/g, '_')}')" class="px-3 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600">Export CSV</button></div>`;
-    container.innerHTML = html;
+/**
+ * Load Payroll Charts
+ */
+function loadPayrollCharts(data) {
+    loadPrTrendChart(data.payroll_trend || []);
+    loadPrGradeChart(data.salary_grade_distribution || []);
+    loadPrDeptChart(data.department_payroll || []);
+    loadPrBreakdownChart(data.payroll_breakdown || {});
+    loadPrOtTrendChart(data.overtime_trend || []);
+    loadPrPaybandsChart(data.salary_bands || []);
 }
 
-window.exportReportToCSV = function(filenamePrefix) {
-    const table = document.querySelector('#reports-output-container table');
-    if (!table) { alert("No report table to export."); return; }
-    let csv = [];
-    table.querySelectorAll("tr").forEach(row => {
-        const rowData = [];
-        row.querySelectorAll("td, th").forEach(col => {
-            let data = col.innerText.replace(/"/g, '""');
-            if (/[",\n]/.test(data)) data = `"${data}"`;
-            rowData.push(data);
-        });
-        csv.push(rowData.join(","));
+/**
+ * Payroll Cost Trend Chart (12 Months)
+ */
+function loadPrTrendChart(trendData) {
+    const ctx = document.getElementById('pr-trend-chart');
+    if (!ctx) return;
+    
+    if (chartInstances['prTrend']) chartInstances['prTrend'].destroy();
+    
+    chartInstances['prTrend'] = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: trendData.map(t => t.month),
+            datasets: [{
+                label: 'Total Payroll',
+                data: trendData.map(t => t.total_payroll),
+                backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                borderColor: 'rgba(34, 197, 94, 1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => `₱${context.parsed.y.toLocaleString()}`
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: (value) => `₱${(value / 1000).toFixed(0)}K`
+                    }
+                }
+            }
+        }
     });
-    const blob = new Blob([csv.join("\n")], {type: "text/csv;charset=utf-8;"});
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `${filenamePrefix}_${new Date().toISOString().slice(0,10)}.csv`;
-    link.style.display = "none";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
 }
 
-export async function displayAnalyticsMetricsSection() {
-    if (!initializeAnalyticsElements()) return;
-    pageTitleElement.textContent = 'Key HR Metrics & Predictive Analytics';
+/**
+ * Salary Grade Distribution Chart
+ */
+function loadPrGradeChart(gradeData) {
+    const ctx = document.getElementById('pr-grade-chart');
+    if (!ctx) return;
+    
+    if (chartInstances['prGrade']) chartInstances['prGrade'].destroy();
+    
+    chartInstances['prGrade'] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: gradeData.map(g => g.grade),
+            datasets: [{
+                label: 'Employees',
+                data: gradeData.map(g => g.count),
+                backgroundColor: 'rgba(59, 130, 246, 0.8)',
+                borderColor: 'rgba(59, 130, 246, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => `Employees: ${context.parsed.y}`
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { stepSize: 5 }
+                }
+            }
+        }
+    });
+}
 
-    // Auto-select appropriate time periods based on current date
-    const currentDate = new Date();
-    const currentMonth = currentDate.getMonth();
-    const currentQuarter = Math.floor(currentMonth / 3);
+/**
+ * Department Payroll Cost Chart
+ */
+function loadPrDeptChart(deptData) {
+    const ctx = document.getElementById('pr-dept-chart');
+    if (!ctx) return;
+    
+    if (chartInstances['prDept']) chartInstances['prDept'].destroy();
+    
+    chartInstances['prDept'] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: deptData.map(d => d.department),
+            datasets: [{
+                label: 'Gross Payroll',
+                data: deptData.map(d => d.gross_pay),
+                backgroundColor: 'rgba(99, 102, 241, 0.8)',
+                borderColor: 'rgba(99, 102, 241, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            indexAxis: 'y',
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => `₱${context.parsed.x.toLocaleString()}`
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: (value) => `₱${(value / 1000).toFixed(0)}K`
+                    }
+                }
+            }
+        }
+    });
+}
 
-    // Determine best default period based on current date
-    let defaultPeriod = 'current';
-    if (currentMonth === 0) { // January - show annual trend
-        defaultPeriod = 'annual';
-    } else if (currentMonth === 2 || currentMonth === 5 || currentMonth === 8 || currentMonth === 11) { // End of quarter months
-        defaultPeriod = 'quarterly';
+/**
+ * Payroll Breakdown Chart (Pie)
+ */
+function loadPrBreakdownChart(breakdown) {
+    const ctx = document.getElementById('pr-breakdown-chart');
+    if (!ctx) return;
+    
+    if (chartInstances['prBreakdown']) chartInstances['prBreakdown'].destroy();
+    
+    chartInstances['prBreakdown'] = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: ['Basic Salary', 'Overtime', 'Bonuses', 'Allowances'],
+            datasets: [{
+                data: [
+                    breakdown.basic_salary || 0,
+                    breakdown.overtime || 0,
+                    breakdown.bonuses || 0,
+                    breakdown.allowances || 0
+                ],
+                backgroundColor: [
+                    'rgba(34, 197, 94, 0.8)',
+                    'rgba(168, 85, 247, 0.8)',
+                    'rgba(249, 115, 22, 0.8)',
+                    'rgba(59, 130, 246, 0.8)'
+                ],
+                borderColor: '#fff',
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { position: 'bottom' },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => {
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = ((context.parsed / total) * 100).toFixed(1);
+                            return `${context.label}: ₱${context.parsed.toLocaleString()} (${percentage}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+/**
+ * Overtime Trend Chart
+ */
+function loadPrOtTrendChart(otData) {
+    const ctx = document.getElementById('pr-ot-trend-chart');
+    if (!ctx) return;
+    
+    if (chartInstances['prOtTrend']) chartInstances['prOtTrend'].destroy();
+    
+    chartInstances['prOtTrend'] = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: otData.map(o => o.month),
+            datasets: [{
+                label: 'OT Hours',
+                data: otData.map(o => o.ot_hours),
+                backgroundColor: 'rgba(249, 115, 22, 0.1)',
+                borderColor: 'rgba(249, 115, 22, 1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.4,
+                yAxisID: 'y'
+            }, {
+                label: 'OT Cost',
+                data: otData.map(o => o.ot_cost),
+                backgroundColor: 'rgba(168, 85, 247, 0.1)',
+                borderColor: 'rgba(168, 85, 247, 1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.4,
+                yAxisID: 'y1'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            interaction: {
+                mode: 'index',
+                intersect: false
+            },
+            plugins: {
+                legend: { position: 'top' },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => {
+                            if (context.datasetIndex === 0) {
+                                return `${context.dataset.label}: ${context.parsed.y} hrs`;
+                            } else {
+                                return `${context.dataset.label}: ₱${context.parsed.y.toLocaleString()}`;
+                            }
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    title: { display: true, text: 'Hours' }
+                },
+                y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    title: { display: true, text: 'Cost (₱)' },
+                    grid: { drawOnChartArea: false }
+                }
+            }
+        }
+    });
+}
+
+/**
+ * Salary vs Pay Band Range Chart (Scatter)
+ */
+function loadPrPaybandsChart(bandData) {
+    const ctx = document.getElementById('pr-paybands-chart');
+    if (!ctx) return;
+    
+    if (chartInstances['prPaybands']) chartInstances['prPaybands'].destroy();
+    
+    const scatterData = bandData.map(emp => ({
+        x: emp.grade_midpoint || 0,
+        y: emp.actual_salary || 0,
+        label: emp.employee_name || 'Employee'
+    }));
+    
+    chartInstances['prPaybands'] = new Chart(ctx, {
+        type: 'scatter',
+        data: {
+            datasets: [{
+                label: 'Employee Salaries',
+                data: scatterData,
+                backgroundColor: 'rgba(20, 184, 166, 0.6)',
+                borderColor: 'rgba(20, 184, 166, 1)',
+                borderWidth: 1,
+                pointRadius: 5,
+                pointHoverRadius: 7
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => [
+                            `Grade Midpoint: ₱${context.parsed.x.toLocaleString()}`,
+                            `Actual Salary: ₱${context.parsed.y.toLocaleString()}`
+                        ]
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    title: { display: true, text: 'Pay Band Midpoint (₱)' },
+                    ticks: {
+                        callback: (value) => `₱${(value / 1000).toFixed(0)}K`
+                    }
+                },
+                y: {
+                    title: { display: true, text: 'Actual Salary (₱)' },
+                    ticks: {
+                        callback: (value) => `₱${(value / 1000).toFixed(0)}K`
+                    }
+                }
+            }
+        }
+    });
+}
+
+// ========================================================================
+// TAB 4: BENEFITS UTILIZATION
+// ========================================================================
+
+async function loadBenefitsTab() {
+    const tabContent = document.getElementById('tab-content-area');
+    if (!tabContent) return;
+    
+    tabContent.innerHTML = `
+        <div class="space-y-6">
+            <!-- Benefits Summary Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-lg p-5">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="text-sm text-purple-700 font-semibold">Total Benefits Cost</div>
+                        <i class="fas fa-hand-holding-usd text-3xl text-purple-500"></i>
+                    </div>
+                    <div class="text-2xl font-bold text-purple-900" id="bf-total-cost">
+                        <i class="fas fa-spinner fa-spin"></i>
+                    </div>
+                    <div class="text-xs text-purple-600 mt-2">Monthly expense</div>
+                </div>
+                
+                <div class="bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-lg p-5">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="text-sm text-green-700 font-semibold">HMO Utilization Rate</div>
+                        <i class="fas fa-heartbeat text-3xl text-green-500"></i>
+                    </div>
+                    <div class="text-3xl font-bold text-green-900" id="bf-utilization">--</div>
+                    <div class="text-xs text-green-600 mt-2">Of enrolled</div>
+                </div>
+                
+                <div class="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-5">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="text-sm text-blue-700 font-semibold">Total Claims</div>
+                        <i class="fas fa-file-medical text-3xl text-blue-500"></i>
+                    </div>
+                    <div class="text-3xl font-bold text-blue-900" id="bf-claims-count">--</div>
+                    <div class="text-xs text-blue-600 mt-2">This month</div>
+                </div>
+                
+                <div class="bg-gradient-to-br from-orange-50 to-orange-100 border border-orange-200 rounded-lg p-5">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="text-sm text-orange-700 font-semibold">Avg Processing Time</div>
+                        <i class="fas fa-hourglass-half text-3xl text-orange-500"></i>
+                    </div>
+                    <div class="text-3xl font-bold text-orange-900" id="bf-processing-time">--</div>
+                    <div class="text-xs text-orange-600 mt-2">Days</div>
+                </div>
+            </div>
+            
+            <!-- Charts Row 1 -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                        <i class="fas fa-chart-line text-purple-500 mr-2"></i>Benefits Cost Trend (12 Months)
+                    </h3>
+                    <canvas id="bf-trend-chart"></canvas>
+                </div>
+                
+                <div class="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                        <i class="fas fa-chart-doughnut text-green-500 mr-2"></i>Claims by HMO Provider
+                    </h3>
+                    <canvas id="bf-provider-chart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Charts Row 2 -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                        <i class="fas fa-chart-pie text-blue-500 mr-2"></i>Benefit Type Distribution
+                    </h3>
+                    <canvas id="bf-types-chart"></canvas>
+                </div>
+                
+                <div class="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                        <i class="fas fa-chart-bar text-indigo-500 mr-2"></i>Monthly Claims Volume
+                    </h3>
+                    <canvas id="bf-volume-chart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Charts Row 3 -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                        <i class="fas fa-percentage text-teal-500 mr-2"></i>Claims Approval Rate
+                    </h3>
+                    <canvas id="bf-approval-chart"></canvas>
+                </div>
+                
+                <div class="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                        <i class="fas fa-list-ol text-amber-500 mr-2"></i>Top 10 Claim Categories
+                    </h3>
+                    <canvas id="bf-categories-chart"></canvas>
+                </div>
+            </div>
+            
+            <!-- HMO Provider Performance Table -->
+            <div class="bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden">
+                <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-800">HMO Provider Performance</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Provider</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Enrolled</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Claims Filed</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Approved %</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Avg Cost</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Processing Time</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200" id="bf-provider-table">
+                            <tr>
+                                <td colspan="6" class="px-6 py-4 text-center text-gray-500">
+                                    <i class="fas fa-spinner fa-spin mr-2"></i>Loading data...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Load benefits data
+    loadBenefitsData();
+}
+
+/**
+ * Load Benefits Data
+ */
+async function loadBenefitsData() {
+    try {
+        const response = await fetch(`${API_BASE_URL}hr-analytics/benefits-hmo`);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            const data = result.data;
+            
+            // Update summary cards
+            document.getElementById('bf-total-cost').textContent = 
+                `₱${(data.overview?.total_benefits_cost || 0).toLocaleString('en-PH')}`;
+            document.getElementById('bf-utilization').textContent = 
+                `${(data.overview?.hmo_utilization || 0).toFixed(1)}%`;
+            document.getElementById('bf-claims-count').textContent = 
+                (data.overview?.total_claims || 0).toLocaleString();
+            document.getElementById('bf-processing-time').textContent = 
+                `${(data.overview?.avg_processing_time || 0).toFixed(1)}`;
+            
+            // Populate provider table
+            populateBenefitsProviderTable(data.provider_data || []);
+            
+            // Load charts
+            loadBenefitsCharts(data);
+        }
+    } catch (error) {
+        console.error('Error loading benefits data:', error);
     }
+}
 
+/**
+ * Populate Benefits Provider Table
+ */
+function populateBenefitsProviderTable(providers) {
+    const tbody = document.getElementById('bf-provider-table');
+    if (!tbody) return;
+    
+    if (providers.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-4 text-center text-gray-500">No data available</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = providers.map(provider => {
+        const approvalRate = (provider.approved / provider.claims_filed * 100) || 0;
+        const rateColor = approvalRate >= 90 ? 'text-green-600' : approvalRate >= 70 ? 'text-yellow-600' : 'text-red-600';
+        
+        return `
+        <tr class="hover:bg-gray-50">
+            <td class="px-6 py-4 text-sm font-medium text-gray-900">${provider.provider}</td>
+            <td class="px-6 py-4 text-sm text-blue-600">${provider.enrolled}</td>
+            <td class="px-6 py-4 text-sm text-gray-700">${provider.claims_filed}</td>
+            <td class="px-6 py-4 text-sm ${rateColor} font-semibold">${approvalRate.toFixed(1)}%</td>
+            <td class="px-6 py-4 text-sm text-purple-600">₱${provider.avg_cost.toLocaleString()}</td>
+            <td class="px-6 py-4 text-sm text-orange-600">${provider.processing_time} days</td>
+        </tr>
+    `}).join('');
+}
+
+/**
+ * Load Benefits Charts
+ */
+function loadBenefitsCharts(data) {
+    loadBfTrendChart(data.benefits_trend || []);
+    loadBfProviderChart(data.provider_claims || []);
+    loadBfTypesChart(data.benefit_types || []);
+    loadBfVolumeChart(data.monthly_volume || []);
+    loadBfApprovalChart(data.approval_stats || {});
+    loadBfCategoriesChart(data.claim_categories || []);
+}
+
+/**
+ * Benefits Cost Trend Chart
+ */
+function loadBfTrendChart(trendData) {
+    const ctx = document.getElementById('bf-trend-chart');
+    if (!ctx) return;
+    
+    if (chartInstances['bfTrend']) chartInstances['bfTrend'].destroy();
+    
+    chartInstances['bfTrend'] = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: trendData.map(t => t.month),
+            datasets: [{
+                label: 'Benefits Cost',
+                data: trendData.map(t => t.total_cost),
+                backgroundColor: 'rgba(168, 85, 247, 0.1)',
+                borderColor: 'rgba(168, 85, 247, 1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => `₱${context.parsed.y.toLocaleString()}`
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: (value) => `₱${(value / 1000).toFixed(0)}K`
+                    }
+                }
+            }
+        }
+    });
+}
+
+/**
+ * Claims by HMO Provider Chart
+ */
+function loadBfProviderChart(providers) {
+    const ctx = document.getElementById('bf-provider-chart');
+    if (!ctx) return;
+    
+    if (chartInstances['bfProvider']) chartInstances['bfProvider'].destroy();
+    
+    chartInstances['bfProvider'] = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: providers.map(p => p.provider),
+            datasets: [{
+                data: providers.map(p => p.claim_count),
+                backgroundColor: [
+                    'rgba(34, 197, 94, 0.8)',
+                    'rgba(59, 130, 246, 0.8)',
+                    'rgba(249, 115, 22, 0.8)',
+                    'rgba(168, 85, 247, 0.8)',
+                    'rgba(236, 72, 153, 0.8)'
+                ],
+                borderColor: '#fff',
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { position: 'right' },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => {
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = ((context.parsed / total) * 100).toFixed(1);
+                            return `${context.label}: ${context.parsed} claims (${percentage}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+/**
+ * Benefit Type Distribution Chart
+ */
+function loadBfTypesChart(types) {
+    const ctx = document.getElementById('bf-types-chart');
+    if (!ctx) return;
+    
+    if (chartInstances['bfTypes']) chartInstances['bfTypes'].destroy();
+    
+    chartInstances['bfTypes'] = new Chart(ctx, {
+        type: 'pie',
+        data: {
+            labels: types.map(t => t.benefit_type),
+            datasets: [{
+                data: types.map(t => t.utilization),
+                backgroundColor: [
+                    'rgba(59, 130, 246, 0.8)',
+                    'rgba(34, 197, 94, 0.8)',
+                    'rgba(249, 115, 22, 0.8)',
+                    'rgba(168, 85, 247, 0.8)',
+                    'rgba(20, 184, 166, 0.8)'
+                ],
+                borderColor: '#fff',
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { position: 'bottom' },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => {
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = ((context.parsed / total) * 100).toFixed(1);
+                            return `${context.label}: ${context.parsed}% utilization`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+/**
+ * Monthly Claims Volume Chart
+ */
+function loadBfVolumeChart(volumeData) {
+    const ctx = document.getElementById('bf-volume-chart');
+    if (!ctx) return;
+    
+    if (chartInstances['bfVolume']) chartInstances['bfVolume'].destroy();
+    
+    chartInstances['bfVolume'] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: volumeData.map(v => v.month),
+            datasets: [{
+                label: 'Claims Filed',
+                data: volumeData.map(v => v.filed),
+                backgroundColor: 'rgba(59, 130, 246, 0.8)',
+                borderColor: 'rgba(59, 130, 246, 1)',
+                borderWidth: 1
+            }, {
+                label: 'Claims Approved',
+                data: volumeData.map(v => v.approved),
+                backgroundColor: 'rgba(34, 197, 94, 0.8)',
+                borderColor: 'rgba(34, 197, 94, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { position: 'top' },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => `${context.dataset.label}: ${context.parsed.y}`
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { stepSize: 10 }
+                }
+            }
+        }
+    });
+}
+
+/**
+ * Claims Approval Rate Chart
+ */
+function loadBfApprovalChart(approvalData) {
+    const ctx = document.getElementById('bf-approval-chart');
+    if (!ctx) return;
+    
+    if (chartInstances['bfApproval']) chartInstances['bfApproval'].destroy();
+    
+    const approvalRate = approvalData.approval_rate || 0;
+    const pendingRate = approvalData.pending_rate || 0;
+    const rejectionRate = approvalData.rejection_rate || 0;
+    
+    chartInstances['bfApproval'] = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Approved', 'Pending', 'Rejected'],
+            datasets: [{
+                data: [approvalRate, pendingRate, rejectionRate],
+                backgroundColor: [
+                    'rgba(34, 197, 94, 0.8)',
+                    'rgba(251, 191, 36, 0.8)',
+                    'rgba(239, 68, 68, 0.8)'
+                ],
+                borderColor: '#fff',
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { position: 'bottom' },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => `${context.label}: ${context.parsed}%`
+                    }
+                }
+            }
+        }
+    });
+}
+
+/**
+ * Top 10 Claim Categories Chart
+ */
+function loadBfCategoriesChart(categories) {
+    const ctx = document.getElementById('bf-categories-chart');
+    if (!ctx) return;
+    
+    if (chartInstances['bfCategories']) chartInstances['bfCategories'].destroy();
+    
+    // Take top 10 categories
+    const top10 = categories.slice(0, 10);
+    
+    chartInstances['bfCategories'] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: top10.map(c => c.category),
+            datasets: [{
+                label: 'Claims',
+                data: top10.map(c => c.count),
+                backgroundColor: 'rgba(245, 158, 11, 0.8)',
+                borderColor: 'rgba(245, 158, 11, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            indexAxis: 'y',
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => `Claims: ${context.parsed.x}`
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    ticks: { stepSize: 5 }
+                }
+            }
+        }
+    });
+}
+
+// ========================================================================
+// TAB 5: TRAINING & PERFORMANCE
+// ========================================================================
+
+async function loadTrainingTab() {
+    const tabContent = document.getElementById('tab-content-area');
+    if (!tabContent) return;
+    
+    tabContent.innerHTML = `
+        <div class="space-y-6">
+            <!-- Training Summary Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="bg-gradient-to-br from-indigo-50 to-indigo-100 border border-indigo-200 rounded-lg p-5">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="text-sm text-indigo-700 font-semibold">Participation Rate</div>
+                        <i class="fas fa-user-graduate text-3xl text-indigo-500"></i>
+                    </div>
+                    <div class="text-3xl font-bold text-indigo-900" id="tr-participation">
+                        <i class="fas fa-spinner fa-spin"></i>
+                    </div>
+                    <div class="text-xs text-indigo-600 mt-2">Of all employees</div>
+                </div>
+                
+                <div class="bg-gradient-to-br from-teal-50 to-teal-100 border border-teal-200 rounded-lg p-5">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="text-sm text-teal-700 font-semibold">Avg Training Hours</div>
+                        <i class="fas fa-clock text-3xl text-teal-500"></i>
+                    </div>
+                    <div class="text-3xl font-bold text-teal-900" id="tr-avg-hours">--</div>
+                    <div class="text-xs text-teal-600 mt-2">Per employee</div>
+                </div>
+                
+                <div class="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-lg p-5">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="text-sm text-purple-700 font-semibold">Training Cost</div>
+                        <i class="fas fa-dollar-sign text-3xl text-purple-500"></i>
+                    </div>
+                    <div class="text-2xl font-bold text-purple-900" id="tr-cost">--</div>
+                    <div class="text-xs text-purple-600 mt-2">This month</div>
+                </div>
+                
+                <div class="bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200 rounded-lg p-5">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="text-sm text-amber-700 font-semibold">Competency Score</div>
+                        <i class="fas fa-chart-line text-3xl text-amber-500"></i>
+                    </div>
+                    <div class="text-3xl font-bold text-amber-900" id="tr-competency">--</div>
+                    <div class="text-xs text-amber-600 mt-2">Improvement index</div>
+                </div>
+            </div>
+            
+            <!-- Charts Row 1 -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                        <i class="fas fa-chart-line text-indigo-500 mr-2"></i>Training Attendance Trend
+                    </h3>
+                    <canvas id="tr-attendance-chart"></canvas>
+                </div>
+                
+                <div class="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                        <i class="fas fa-chart-doughnut text-teal-500 mr-2"></i>Training Type Distribution
+                    </h3>
+                    <canvas id="tr-types-chart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Charts Row 2 -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                        <i class="fas fa-chart-bar text-purple-500 mr-2"></i>Department Training Hours
+                    </h3>
+                    <canvas id="tr-dept-hours-chart"></canvas>
+                </div>
+                
+                <div class="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                        <i class="fas fa-chart-radar text-blue-500 mr-2"></i>Competency Score by Department
+                    </h3>
+                    <canvas id="tr-competency-chart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Charts Row 3 -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                        <i class="fas fa-chart-area text-green-500 mr-2"></i>Training Cost vs Budget
+                    </h3>
+                    <canvas id="tr-cost-budget-chart"></canvas>
+                </div>
+                
+                <div class="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                        <i class="fas fa-certificate text-orange-500 mr-2"></i>Certifications Earned (Monthly)
+                    </h3>
+                    <canvas id="tr-certs-chart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Training Programs Table -->
+            <div class="bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden">
+                <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-800">Training Programs Summary</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Program</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Attendees</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Completion %</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Avg Score</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cost</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200" id="tr-programs-table">
+                            <tr>
+                                <td colspan="6" class="px-6 py-4 text-center text-gray-500">
+                                    <i class="fas fa-spinner fa-spin mr-2"></i>Loading data...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Department Training Performance Table -->
+            <div class="bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden">
+                <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-800">Department Training Performance</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Participation %</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Avg Hours</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Competency Score</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Certifications</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200" id="tr-dept-table">
+                            <tr>
+                                <td colspan="5" class="px-6 py-4 text-center text-gray-500">
+                                    <i class="fas fa-spinner fa-spin mr-2"></i>Loading data...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Load training data
+    loadTrainingData();
+}
+
+/**
+ * Load Training Data
+ */
+async function loadTrainingData() {
+    try {
+        const response = await fetch(`${API_BASE_URL}hr-analytics/training-development`);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            const data = result.data;
+            
+            // Update summary cards
+            document.getElementById('tr-participation').textContent = 
+                `${(data.overview?.participation_rate || 0).toFixed(1)}%`;
+            document.getElementById('tr-avg-hours').textContent = 
+                `${(data.overview?.avg_training_hours || 0).toFixed(1)} hrs`;
+            document.getElementById('tr-cost').textContent = 
+                `₱${(data.overview?.total_cost || 0).toLocaleString('en-PH')}`;
+            document.getElementById('tr-competency').textContent = 
+                `${(data.overview?.competency_score || 0).toFixed(1)}`;
+            
+            // Populate tables
+            populateTrainingProgramsTable(data.training_data || []);
+            populateTrainingDeptTable(data.department_performance || []);
+            
+            // Load charts
+            loadTrainingCharts(data);
+        }
+    } catch (error) {
+        console.error('Error loading training data:', error);
+    }
+}
+
+/**
+ * Populate Training Programs Table
+ */
+function populateTrainingProgramsTable(programs) {
+    const tbody = document.getElementById('tr-programs-table');
+    if (!tbody) return;
+    
+    if (programs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="px-6 py-4 text-center text-gray-500">No data available</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = programs.map(program => {
+        const completionColor = program.completion >= 80 ? 'text-green-600' : program.completion >= 60 ? 'text-yellow-600' : 'text-red-600';
+        const statusClass = program.status === 'Completed' ? 'bg-green-100 text-green-800' : program.status === 'Ongoing' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800';
+        
+        return `
+        <tr class="hover:bg-gray-50">
+            <td class="px-6 py-4 text-sm font-medium text-gray-900">${program.program}</td>
+            <td class="px-6 py-4 text-sm text-blue-600">${program.attended}/${program.invited}</td>
+            <td class="px-6 py-4 text-sm ${completionColor} font-semibold">${program.completion}%</td>
+            <td class="px-6 py-4 text-sm text-purple-600">${program.avg_score}/100</td>
+            <td class="px-6 py-4 text-sm text-orange-600">₱${program.cost.toLocaleString()}</td>
+            <td class="px-6 py-4 text-sm">
+                <span class="px-2 py-1 text-xs rounded-full ${statusClass}">${program.status}</span>
+            </td>
+        </tr>
+    `}).join('');
+}
+
+/**
+ * Populate Training Department Table
+ */
+function populateTrainingDeptTable(departments) {
+    const tbody = document.getElementById('tr-dept-table');
+    if (!tbody) return;
+    
+    if (departments.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-4 text-center text-gray-500">No data available</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = departments.map(dept => {
+        const participationColor = dept.participation >= 75 ? 'text-green-600' : dept.participation >= 50 ? 'text-yellow-600' : 'text-red-600';
+        
+        return `
+        <tr class="hover:bg-gray-50">
+            <td class="px-6 py-4 text-sm font-medium text-gray-900">${dept.department}</td>
+            <td class="px-6 py-4 text-sm ${participationColor} font-semibold">${dept.participation}%</td>
+            <td class="px-6 py-4 text-sm text-teal-600">${dept.avg_hours} hrs</td>
+            <td class="px-6 py-4 text-sm text-amber-600 font-semibold">${dept.competency_score}</td>
+            <td class="px-6 py-4 text-sm text-indigo-600">${dept.certifications}</td>
+        </tr>
+    `}).join('');
+}
+
+/**
+ * Load Training Charts
+ */
+function loadTrainingCharts(data) {
+    loadTrAttendanceChart(data.attendance_trend || []);
+    loadTrTypesChart(data.training_types || []);
+    loadTrDeptHoursChart(data.department_hours || []);
+    loadTrCompetencyChart(data.department_competency || []);
+    loadTrCostBudgetChart(data.cost_vs_budget || []);
+    loadTrCertsChart(data.certifications_trend || []);
+}
+
+/**
+ * Training Attendance Trend Chart
+ */
+function loadTrAttendanceChart(attendanceData) {
+    const ctx = document.getElementById('tr-attendance-chart');
+    if (!ctx) return;
+    
+    if (chartInstances['trAttendance']) chartInstances['trAttendance'].destroy();
+    
+    chartInstances['trAttendance'] = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: attendanceData.map(a => a.month),
+            datasets: [{
+                label: 'Participants',
+                data: attendanceData.map(a => a.participants),
+                backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                borderColor: 'rgba(99, 102, 241, 1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.4
+            }, {
+                label: 'Completions',
+                data: attendanceData.map(a => a.completions),
+                backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                borderColor: 'rgba(34, 197, 94, 1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { position: 'top' },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => `${context.dataset.label}: ${context.parsed.y}`
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { stepSize: 10 }
+                }
+            }
+        }
+    });
+}
+
+/**
+ * Training Type Distribution Chart
+ */
+function loadTrTypesChart(types) {
+    const ctx = document.getElementById('tr-types-chart');
+    if (!ctx) return;
+    
+    if (chartInstances['trTypes']) chartInstances['trTypes'].destroy();
+    
+    chartInstances['trTypes'] = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: types.map(t => t.training_type),
+            datasets: [{
+                data: types.map(t => t.count),
+                backgroundColor: [
+                    'rgba(20, 184, 166, 0.8)',
+                    'rgba(99, 102, 241, 0.8)',
+                    'rgba(249, 115, 22, 0.8)',
+                    'rgba(168, 85, 247, 0.8)',
+                    'rgba(236, 72, 153, 0.8)'
+                ],
+                borderColor: '#fff',
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { position: 'right' },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => {
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = ((context.parsed / total) * 100).toFixed(1);
+                            return `${context.label}: ${context.parsed} (${percentage}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+/**
+ * Department Training Hours Chart
+ */
+function loadTrDeptHoursChart(deptData) {
+    const ctx = document.getElementById('tr-dept-hours-chart');
+    if (!ctx) return;
+    
+    if (chartInstances['trDeptHours']) chartInstances['trDeptHours'].destroy();
+    
+    chartInstances['trDeptHours'] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: deptData.map(d => d.department),
+            datasets: [{
+                label: 'Total Hours',
+                data: deptData.map(d => d.total_hours),
+                backgroundColor: 'rgba(168, 85, 247, 0.8)',
+                borderColor: 'rgba(168, 85, 247, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => `${context.parsed.y} hours`
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { stepSize: 50 }
+                }
+            }
+        }
+    });
+}
+
+/**
+ * Competency Score by Department Chart (Radar)
+ */
+function loadTrCompetencyChart(competencyData) {
+    const ctx = document.getElementById('tr-competency-chart');
+    if (!ctx) return;
+    
+    if (chartInstances['trCompetency']) chartInstances['trCompetency'].destroy();
+    
+    chartInstances['trCompetency'] = new Chart(ctx, {
+        type: 'radar',
+        data: {
+            labels: competencyData.map(c => c.department),
+            datasets: [{
+                label: 'Pre-Training Score',
+                data: competencyData.map(c => c.pre_score),
+                backgroundColor: 'rgba(249, 115, 22, 0.2)',
+                borderColor: 'rgba(249, 115, 22, 1)',
+                borderWidth: 2,
+                pointBackgroundColor: 'rgba(249, 115, 22, 1)',
+                pointBorderColor: '#fff',
+                pointRadius: 4
+            }, {
+                label: 'Post-Training Score',
+                data: competencyData.map(c => c.post_score),
+                backgroundColor: 'rgba(34, 197, 94, 0.2)',
+                borderColor: 'rgba(34, 197, 94, 1)',
+                borderWidth: 2,
+                pointBackgroundColor: 'rgba(34, 197, 94, 1)',
+                pointBorderColor: '#fff',
+                pointRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { position: 'top' }
+            },
+            scales: {
+                r: {
+                    beginAtZero: true,
+                    max: 100,
+                    ticks: { stepSize: 20 }
+                }
+            }
+        }
+    });
+}
+
+/**
+ * Training Cost vs Budget Chart
+ */
+function loadTrCostBudgetChart(costData) {
+    const ctx = document.getElementById('tr-cost-budget-chart');
+    if (!ctx) return;
+    
+    if (chartInstances['trCostBudget']) chartInstances['trCostBudget'].destroy();
+    
+    chartInstances['trCostBudget'] = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: costData.map(c => c.month),
+            datasets: [{
+                label: 'Budget',
+                data: costData.map(c => c.budget),
+                borderColor: 'rgba(168, 85, 247, 1)',
+                backgroundColor: 'rgba(168, 85, 247, 0.1)',
+                borderWidth: 2,
+                borderDash: [5, 5],
+                fill: false,
+                tension: 0.4
+            }, {
+                label: 'Actual Cost',
+                data: costData.map(c => c.actual_cost),
+                borderColor: 'rgba(34, 197, 94, 1)',
+                backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { position: 'top' },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => `${context.dataset.label}: ₱${context.parsed.y.toLocaleString()}`
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: (value) => `₱${(value / 1000).toFixed(0)}K`
+                    }
+                }
+            }
+        }
+    });
+}
+
+/**
+ * Certifications Earned Chart (Monthly)
+ */
+function loadTrCertsChart(certsData) {
+    const ctx = document.getElementById('tr-certs-chart');
+    if (!ctx) return;
+    
+    if (chartInstances['trCerts']) chartInstances['trCerts'].destroy();
+    
+    chartInstances['trCerts'] = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: certsData.map(c => c.month),
+            datasets: [{
+                label: 'Certifications',
+                data: certsData.map(c => c.cert_count),
+                backgroundColor: 'rgba(249, 115, 22, 0.2)',
+                borderColor: 'rgba(249, 115, 22, 1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (context) => `Certifications: ${context.parsed.y}`
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { stepSize: 5 }
+                }
+            }
+        }
+    });
+}
+
+// ========================================================================
+// EXPORT FUNCTIONALITY
+// ========================================================================
+
+function exportDashboard() {
+    const exportMenu = document.createElement('div');
+    exportMenu.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+    exportMenu.innerHTML = `
+        <div class="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">Export Dashboard</h3>
+            <div class="space-y-3">
+                <button onclick="window.exportToPDF()" class="w-full px-4 py-3 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors flex items-center justify-center">
+                    <i class="fas fa-file-pdf mr-2"></i>Export as PDF
+                </button>
+                <button onclick="window.exportToExcel()" class="w-full px-4 py-3 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors flex items-center justify-center">
+                    <i class="fas fa-file-excel mr-2"></i>Export as Excel
+                </button>
+                <button onclick="window.exportToCSV()" class="w-full px-4 py-3 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors flex items-center justify-center">
+                    <i class="fas fa-file-csv mr-2"></i>Export as CSV
+                </button>
+                <button onclick="this.closest('.fixed').remove()" class="w-full px-4 py-3 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition-colors">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(exportMenu);
+}
+
+// Global export functions
+window.exportToPDF = function() {
+    alert('PDF export functionality will be implemented with jsPDF library');
+    document.querySelector('.fixed.inset-0').remove();
+};
+
+window.exportToExcel = function() {
+    alert('Excel export functionality will be implemented with SheetJS library');
+    document.querySelector('.fixed.inset-0').remove();
+};
+
+window.exportToCSV = function() {
+    alert('CSV export functionality will be implemented');
+    document.querySelector('.fixed.inset-0').remove();
+};
+
+// ========================================================================
+// REPORTS AND METRICS VIEWS (Unchanged from previous version)
+// ========================================================================
+
+// ========================================================================
+// REPORTS MODULE - Comprehensive HR Analytics Reports
+// ========================================================================
+
+export async function displayAnalyticsReportsSection() {
+    console.log('[Analytics] Loading Reports Module...');
+    
+    if (!initializeElements()) return;
+    
+    pageTitleElement.textContent = 'HR Analytics Reports';
+    cleanupCharts();
+    
+    // Get departments for filters
+    const departments = await fetchDepartments();
+    const deptOptions = departments.map(d => 
+        `<option value="${d.DepartmentID}">${d.DepartmentName}</option>`
+    ).join('');
+    
     mainContentArea.innerHTML = `
         <div class="space-y-6">
+            <!-- Report Selection and Filters -->
+            <div class="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+                <h2 class="text-xl font-bold text-gray-800 mb-4">
+                    <i class="fas fa-chart-bar mr-2"></i>Generate HR Report
+                </h2>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+                    <!-- Report Type -->
+                    <div class="lg:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            <i class="fas fa-file-alt mr-1"></i>Report Type
+                        </label>
+                        <select id="report-type-select" class="w-full p-2.5 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">-- Select Report Type --</option>
+                            <option value="demographics">📋 Employee Demographics Report</option>
+                            <option value="recruitment">🧾 Recruitment & Application Report</option>
+                            <option value="payroll">💰 Payroll & Compensation Report</option>
+                            <option value="attendance">⏰ Attendance & Leave Report</option>
+                            <option value="benefits">🩺 Benefits & HMO Utilization Report</option>
+                            <option value="training">🎓 Training & Development Report</option>
+                            <option value="relations">❤️ Employee Relations & Engagement Report</option>
+                            <option value="turnover">🚪 Turnover & Retention Report</option>
+                            <option value="compliance">🧾 Compliance & Document Report</option>
+                            <option value="executive">📊 Executive / Management Summary</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Department Filter -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            <i class="fas fa-building mr-1"></i>Department
+                        </label>
+                        <select id="report-dept-filter" class="w-full p-2.5 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">All Departments</option>
+                            ${deptOptions}
+                        </select>
+                    </div>
+                    
+                    <!-- Date Range -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            <i class="fas fa-calendar-alt mr-1"></i>Date Range
+                        </label>
+                        <select id="report-date-range" class="w-full p-2.5 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                            <option value="1month">Last Month</option>
+                            <option value="3months">Last 3 Months</option>
+                            <option value="6months">Last 6 Months</option>
+                            <option value="12months" selected>Last 12 Months</option>
+                            <option value="ytd">Year to Date</option>
+                            <option value="custom">Custom Range</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Custom Date Range (Hidden by default) -->
+                <div id="custom-date-range" class="grid grid-cols-2 gap-4 mb-4 hidden">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">From Date</label>
+                        <input type="date" id="report-from-date" class="w-full p-2.5 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">To Date</label>
+                        <input type="date" id="report-to-date" class="w-full p-2.5 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                </div>
+                
+                <!-- Action Buttons -->
+                <div class="flex flex-wrap gap-3">
+                    <button id="generate-report-btn" class="px-6 py-2.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium">
+                        <i class="fas fa-play mr-2"></i>Generate Report
+                    </button>
+                    <button id="export-pdf-btn" class="px-6 py-2.5 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors font-medium" disabled>
+                        <i class="fas fa-file-pdf mr-2"></i>Export PDF
+                    </button>
+                    <button id="export-excel-btn" class="px-6 py-2.5 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors font-medium" disabled>
+                        <i class="fas fa-file-excel mr-2"></i>Export Excel
+                    </button>
+                    <button id="export-csv-btn" class="px-6 py-2.5 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors font-medium" disabled>
+                        <i class="fas fa-file-csv mr-2"></i>Export CSV
+                    </button>
+                    <button id="schedule-report-btn" class="px-6 py-2.5 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors font-medium">
+                        <i class="fas fa-clock mr-2"></i>Schedule Report
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Report Content Area -->
+            <div id="report-content-area" class="bg-white rounded-lg shadow-md border border-gray-200 p-6 hidden">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-800" id="report-title">Report Preview</h3>
+                    <div class="text-sm text-gray-500" id="report-metadata">
+                        Generated: <span id="report-timestamp"></span>
+                    </div>
+                </div>
+                <div id="report-visualization"></div>
+            </div>
+            
+            <!-- Recent Reports -->
+            <div class="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-gray-800">
+                        <i class="fas fa-history mr-2"></i>Recent Reports
+                    </h3>
+                    <button id="clear-history-btn" class="text-sm text-red-600 hover:text-red-700">
+                        <i class="fas fa-trash mr-1"></i>Clear History
+                    </button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Report Type</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Parameters</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Generated By</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Generated At</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200" id="recent-reports-tbody">
+                            <tr>
+                                <td colspan="5" class="px-6 py-4 text-center text-gray-500">
+                                    No reports generated yet
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Scheduled Reports -->
+            <div class="bg-white rounded-lg shadow-md border border-gray-200 p-6">
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">
+                    <i class="fas fa-calendar-alt mr-2"></i>Scheduled Reports
+                </h3>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Report Type</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Frequency</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Recipients</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Next Run</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200" id="scheduled-reports-tbody">
+                            <tr>
+                                <td colspan="6" class="px-6 py-4 text-center text-gray-500">
+                                    No scheduled reports
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Setup event listeners
+    setupReportsEventListeners();
+    
+    // Load scheduled reports
+    loadScheduledReports();
+}
+
+/**
+ * Setup Reports event listeners
+ */
+function setupReportsEventListeners() {
+    // Date range selector
+    const dateRangeSelect = document.getElementById('report-date-range');
+    const customDateRange = document.getElementById('custom-date-range');
+    if (dateRangeSelect && customDateRange) {
+        dateRangeSelect.addEventListener('change', (e) => {
+            if (e.target.value === 'custom') {
+                customDateRange.classList.remove('hidden');
+            } else {
+                customDateRange.classList.add('hidden');
+            }
+        });
+    }
+    
+    // Generate Report button
+    const generateBtn = document.getElementById('generate-report-btn');
+    if (generateBtn) {
+        generateBtn.addEventListener('click', async () => {
+            const reportType = document.getElementById('report-type-select').value;
+            if (!reportType) {
+                alert('Please select a report type');
+                return;
+            }
+            
+            generateBtn.disabled = true;
+            generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Generating...';
+            
+            await generateReport(reportType);
+            
+            generateBtn.disabled = false;
+            generateBtn.innerHTML = '<i class="fas fa-play mr-2"></i>Generate Report';
+            
+            // Enable export buttons
+            document.getElementById('export-pdf-btn').disabled = false;
+            document.getElementById('export-excel-btn').disabled = false;
+            document.getElementById('export-csv-btn').disabled = false;
+        });
+    }
+    
+    // Export buttons
+    document.getElementById('export-pdf-btn')?.addEventListener('click', () => exportReport('pdf'));
+    document.getElementById('export-excel-btn')?.addEventListener('click', () => exportReport('excel'));
+    document.getElementById('export-csv-btn')?.addEventListener('click', () => exportReport('csv'));
+    
+    // Schedule Report button
+    document.getElementById('schedule-report-btn')?.addEventListener('click', () => showScheduleModal());
+    
+    // Clear History button
+    document.getElementById('clear-history-btn')?.addEventListener('click', () => clearReportHistory());
+}
+
+/**
+ * Generate Report based on selected type
+ */
+async function generateReport(reportType) {
+    const deptId = document.getElementById('report-dept-filter').value;
+    const dateRange = document.getElementById('report-date-range').value;
+    
+    // Show report content area
+    const reportArea = document.getElementById('report-content-area');
+    const reportTitle = document.getElementById('report-title');
+    const reportTimestamp = document.getElementById('report-timestamp');
+    const reportVisualization = document.getElementById('report-visualization');
+    
+    if (reportArea) reportArea.classList.remove('hidden');
+    if (reportTimestamp) reportTimestamp.textContent = new Date().toLocaleString();
+    
+    // Set report title
+    const reportTitles = {
+        'demographics': 'Employee Demographics Report',
+        'recruitment': 'Recruitment & Application Report',
+        'payroll': 'Payroll & Compensation Report',
+        'attendance': 'Attendance & Leave Report',
+        'benefits': 'Benefits & HMO Utilization Report',
+        'training': 'Training & Development Report',
+        'relations': 'Employee Relations & Engagement Report',
+        'turnover': 'Turnover & Retention Report',
+        'compliance': 'Compliance & Document Report',
+        'executive': 'Executive / Management Summary'
+    };
+    
+    if (reportTitle) reportTitle.textContent = reportTitles[reportType] || 'Report';
+    
+    // Generate appropriate report
+    try {
+        let reportHTML = '';
+        
+        switch(reportType) {
+            case 'demographics':
+                reportHTML = await generateDemographicsReport(deptId, dateRange);
+                break;
+            case 'recruitment':
+                reportHTML = await generateRecruitmentReport(deptId, dateRange);
+                break;
+            case 'payroll':
+                reportHTML = await generatePayrollReport(deptId, dateRange);
+                break;
+            case 'attendance':
+                reportHTML = await generateAttendanceReport(deptId, dateRange);
+                break;
+            case 'benefits':
+                reportHTML = await generateBenefitsReport(deptId, dateRange);
+                break;
+            case 'training':
+                reportHTML = await generateTrainingReport(deptId, dateRange);
+                break;
+            case 'relations':
+                reportHTML = await generateRelationsReport(deptId, dateRange);
+                break;
+            case 'turnover':
+                reportHTML = await generateTurnoverReport(deptId, dateRange);
+                break;
+            case 'compliance':
+                reportHTML = await generateComplianceReport(deptId, dateRange);
+                break;
+            case 'executive':
+                reportHTML = await generateExecutiveReport(deptId, dateRange);
+                break;
+        }
+        
+        if (reportVisualization) {
+            reportVisualization.innerHTML = reportHTML;
+        }
+        
+        // Add to recent reports
+        addToRecentReports(reportTitles[reportType], deptId, dateRange);
+        
+        // Log report generation for audit trail
+        logReportGeneration(reportType, deptId, dateRange);
+        
+    } catch (error) {
+        console.error('Error generating report:', error);
+        if (reportVisualization) {
+            reportVisualization.innerHTML = `
+                <div class="text-center py-8">
+                    <i class="fas fa-exclamation-triangle text-red-500 text-4xl mb-3"></i>
+                    <p class="text-red-600">Error generating report. Please try again.</p>
+                </div>
+            `;
+        }
+    }
+}
+
+/**
+ * Generate Demographics Report - Using Existing Reports API
+ */
+async function generateDemographicsReport(deptId, dateRange) {
+    try {
+        // Use existing Reports API for comprehensive report with export capability
+        const params = new URLSearchParams({ 
+            department_id: deptId || '', 
+            date_range: dateRange,
+            from_date: getDateFromRange(dateRange, 'from'),
+            to_date: getDateFromRange(dateRange, 'to')
+        });
+        
+        const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.reports.demographics}?${params}`);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            const data = result.data;
+            
+            return `
+                <div class="space-y-6">
+                    <!-- Summary Stats -->
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <div class="text-sm text-blue-600 font-medium">Total Headcount</div>
+                            <div class="text-2xl font-bold text-blue-700">${(data.overview?.total_headcount || 0).toLocaleString()}</div>
+                        </div>
+                        <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                            <div class="text-sm text-green-600 font-medium">Average Age</div>
+                            <div class="text-2xl font-bold text-green-700">${(data.overview?.avg_age || 0).toFixed(1)} yrs</div>
+                        </div>
+                        <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                            <div class="text-sm text-purple-600 font-medium">Average Tenure</div>
+                            <div class="text-2xl font-bold text-purple-700">${(data.overview?.avg_tenure_years || 0).toFixed(1)} yrs</div>
+                        </div>
+                        <div class="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                            <div class="text-sm text-orange-600 font-medium">Departments</div>
+                            <div class="text-2xl font-bold text-orange-700">${(data.department_distribution?.length || 0)}</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Charts -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="bg-gray-50 border rounded-lg p-4">
+                            <h4 class="font-semibold text-gray-700 mb-3">Gender Distribution</h4>
+                            <canvas id="gender-chart"></canvas>
+                        </div>
+                        <div class="bg-gray-50 border rounded-lg p-4">
+                            <h4 class="font-semibold text-gray-700 mb-3">Employment Type</h4>
+                            <canvas id="emptype-chart"></canvas>
+                        </div>
+                        <div class="bg-gray-50 border rounded-lg p-4">
+                            <h4 class="font-semibold text-gray-700 mb-3">Age Distribution</h4>
+                            <canvas id="age-chart"></canvas>
+                        </div>
+                        <div class="bg-gray-50 border rounded-lg p-4">
+                            <h4 class="font-semibold text-gray-700 mb-3">Department Headcount</h4>
+                            <canvas id="dept-headcount-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error generating demographics report:', error);
+        return '<p class="text-red-600">Error loading demographics data</p>';
+    }
+}
+
+/**
+ * Generate Recruitment & Application Report
+ */
+async function generateRecruitmentReport(deptId, dateRange) {
+    try {
+        const params = new URLSearchParams({ department_id: deptId || '', date_range: dateRange });
+        const response = await fetch(`${API_BASE_URL}hr-analytics/recruitment-application?${params}`);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            const data = result.data;
+            
+            return `
+                <div class="space-y-6">
+                    <!-- Summary Stats -->
+                    <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <div class="text-sm text-blue-600 font-medium">Applications Received</div>
+                            <div class="text-2xl font-bold text-blue-700">${(data.overview?.total_applications || 0).toLocaleString()}</div>
+                            <div class="text-xs text-blue-500 mt-1">Total applicants</div>
+                        </div>
+                        <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                            <div class="text-sm text-green-600 font-medium">Hired</div>
+                            <div class="text-2xl font-bold text-green-700">${(data.overview?.total_hired || 0).toLocaleString()}</div>
+                            <div class="text-xs text-green-500 mt-1">Successful hires</div>
+                        </div>
+                        <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                            <div class="text-sm text-purple-600 font-medium">Time-to-Hire</div>
+                            <div class="text-2xl font-bold text-purple-700">${(data.overview?.avg_time_to_hire || 0).toFixed(1)} days</div>
+                            <div class="text-xs text-purple-500 mt-1">Average duration</div>
+                        </div>
+                        <div class="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                            <div class="text-sm text-orange-600 font-medium">Acceptance Rate</div>
+                            <div class="text-2xl font-bold text-orange-700">${(data.overview?.acceptance_rate || 0).toFixed(1)}%</div>
+                            <div class="text-xs text-orange-500 mt-1">Offer success</div>
+                        </div>
+                        <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                            <div class="text-sm text-red-600 font-medium">Vacancy Rate</div>
+                            <div class="text-2xl font-bold text-red-700">${(data.overview?.vacancy_rate || 0).toFixed(1)}%</div>
+                            <div class="text-xs text-red-500 mt-1">Open positions</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Charts -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="bg-gray-50 border rounded-lg p-4">
+                            <h4 class="font-semibold text-gray-700 mb-3">Recruitment Funnel</h4>
+                            <canvas id="recruitment-funnel-chart"></canvas>
+                        </div>
+                        <div class="bg-gray-50 border rounded-lg p-4">
+                            <h4 class="font-semibold text-gray-700 mb-3">Time-to-Hire by Department</h4>
+                            <canvas id="time-to-hire-chart"></canvas>
+                        </div>
+                        <div class="bg-gray-50 border rounded-lg p-4">
+                            <h4 class="font-semibold text-gray-700 mb-3">Recruitment Trend</h4>
+                            <canvas id="recruitment-trend-chart"></canvas>
+                        </div>
+                        <div class="bg-gray-50 border rounded-lg p-4">
+                            <h4 class="font-semibold text-gray-700 mb-3">Source of Hire</h4>
+                            <canvas id="source-of-hire-chart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <!-- Recruitment Data Table -->
+                    <div class="bg-white border rounded-lg overflow-hidden">
+                        <div class="bg-gray-50 px-4 py-3 border-b">
+                            <h4 class="font-semibold text-gray-800">Recent Applications by Position</h4>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Position</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Applications</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Screened</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Interviewed</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Offered</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Hired</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Avg. Time</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    ${(data.position_data || []).map(pos => `
+                                        <tr class="hover:bg-gray-50">
+                                            <td class="px-4 py-3 text-sm font-medium text-gray-900">${pos.position}</td>
+                                            <td class="px-4 py-3 text-sm text-gray-700">${pos.applications}</td>
+                                            <td class="px-4 py-3 text-sm text-gray-700">${pos.screened}</td>
+                                            <td class="px-4 py-3 text-sm text-gray-700">${pos.interviewed}</td>
+                                            <td class="px-4 py-3 text-sm text-gray-700">${pos.offered}</td>
+                                            <td class="px-4 py-3 text-sm text-green-600 font-semibold">${pos.hired}</td>
+                                            <td class="px-4 py-3 text-sm text-gray-700">${pos.avg_time} days</td>
+                                        </tr>
+                                    `).join('') || '<tr><td colspan="7" class="px-4 py-3 text-center text-gray-500">No data available</td></tr>'}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error generating recruitment report:', error);
+        return '<p class="text-red-600">Error loading recruitment data</p>';
+    }
+}
+
+/**
+ * Generate Payroll & Compensation Report
+ */
+async function generatePayrollReport(deptId, dateRange) {
+    try {
+        const params = new URLSearchParams({ department_id: deptId || '', date_range: dateRange });
+        const response = await fetch(`${API_BASE_URL}hr-analytics/payroll-compensation?${params}`);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            const data = result.data;
+            
+            return `
+                <div class="space-y-6">
+                    <!-- Summary Stats -->
+                    <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                        <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                            <div class="text-sm text-green-600 font-medium">Total Payroll Cost</div>
+                            <div class="text-2xl font-bold text-green-700">₱${(data.overview?.total_payroll || 0).toLocaleString('en-PH')}</div>
+                            <div class="text-xs text-green-500 mt-1">Gross payroll</div>
+                        </div>
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <div class="text-sm text-blue-600 font-medium">Average Salary</div>
+                            <div class="text-2xl font-bold text-blue-700">₱${(data.overview?.avg_salary || 0).toLocaleString('en-PH')}</div>
+                            <div class="text-xs text-blue-500 mt-1">Per employee</div>
+                        </div>
+                        <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                            <div class="text-sm text-purple-600 font-medium">Overtime Pay</div>
+                            <div class="text-2xl font-bold text-purple-700">₱${(data.overview?.total_overtime || 0).toLocaleString('en-PH')}</div>
+                            <div class="text-xs text-purple-500 mt-1">${(data.overview?.ot_percentage || 0).toFixed(1)}% of total</div>
+                        </div>
+                        <div class="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                            <div class="text-sm text-orange-600 font-medium">Total Deductions</div>
+                            <div class="text-2xl font-bold text-orange-700">₱${(data.overview?.total_deductions || 0).toLocaleString('en-PH')}</div>
+                            <div class="text-xs text-orange-500 mt-1">${(data.overview?.deduction_rate || 0).toFixed(1)}% rate</div>
+                        </div>
+                        <div class="bg-teal-50 border border-teal-200 rounded-lg p-4">
+                            <div class="text-sm text-teal-600 font-medium">Net Pay</div>
+                            <div class="text-2xl font-bold text-teal-700">₱${(data.overview?.total_net_pay || 0).toLocaleString('en-PH')}</div>
+                            <div class="text-xs text-teal-500 mt-1">Take-home pay</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Charts -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="bg-gray-50 border rounded-lg p-4">
+                            <h4 class="font-semibold text-gray-700 mb-3">Payroll Cost Trend</h4>
+                            <canvas id="payroll-trend-chart"></canvas>
+                        </div>
+                        <div class="bg-gray-50 border rounded-lg p-4">
+                            <h4 class="font-semibold text-gray-700 mb-3">Salary Grade Distribution</h4>
+                            <canvas id="salary-grade-chart"></canvas>
+                        </div>
+                        <div class="bg-gray-50 border rounded-lg p-4">
+                            <h4 class="font-semibold text-gray-700 mb-3">Payroll Breakdown</h4>
+                            <canvas id="payroll-breakdown-chart"></canvas>
+                        </div>
+                        <div class="bg-gray-50 border rounded-lg p-4">
+                            <h4 class="font-semibold text-gray-700 mb-3">Payroll by Department</h4>
+                            <canvas id="dept-payroll-chart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <!-- Payroll Summary Table -->
+                    <div class="bg-white border rounded-lg overflow-hidden">
+                        <div class="bg-gray-50 px-4 py-3 border-b">
+                            <h4 class="font-semibold text-gray-800">Department Payroll Summary</h4>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employees</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Gross Pay</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Overtime</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Deductions</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Net Pay</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Avg Salary</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    ${(data.department_data || []).map(dept => `
+                                        <tr class="hover:bg-gray-50">
+                                            <td class="px-4 py-3 text-sm font-medium text-gray-900">${dept.department}</td>
+                                            <td class="px-4 py-3 text-sm text-gray-700">${dept.employees}</td>
+                                            <td class="px-4 py-3 text-sm text-gray-700">₱${dept.gross_pay.toLocaleString()}</td>
+                                            <td class="px-4 py-3 text-sm text-purple-600">₱${dept.overtime.toLocaleString()}</td>
+                                            <td class="px-4 py-3 text-sm text-orange-600">₱${dept.deductions.toLocaleString()}</td>
+                                            <td class="px-4 py-3 text-sm text-green-600 font-semibold">₱${dept.net_pay.toLocaleString()}</td>
+                                            <td class="px-4 py-3 text-sm text-blue-600">₱${dept.avg_salary.toLocaleString()}</td>
+                                        </tr>
+                                    `).join('') || '<tr><td colspan="7" class="px-4 py-3 text-center text-gray-500">No data available</td></tr>'}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error generating payroll report:', error);
+        return '<p class="text-red-600">Error loading payroll data</p>';
+    }
+}
+
+/**
+ * Generate Attendance & Leave Report
+ */
+async function generateAttendanceReport(deptId, dateRange) {
+    try {
+        const params = new URLSearchParams({ department_id: deptId || '', date_range: dateRange });
+        const response = await fetch(`${API_BASE_URL}hr-analytics/attendance-leave?${params}`);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            const data = result.data;
+            
+            return `
+                <div class="space-y-6">
+                    <!-- Summary Stats -->
+                    <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                        <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                            <div class="text-sm text-green-600 font-medium">Attendance Rate</div>
+                            <div class="text-2xl font-bold text-green-700">${(data.overview?.attendance_rate || 0).toFixed(1)}%</div>
+                            <div class="text-xs text-green-500 mt-1">Present days</div>
+                        </div>
+                        <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                            <div class="text-sm text-red-600 font-medium">Absenteeism Rate</div>
+                            <div class="text-2xl font-bold text-red-700">${(data.overview?.absenteeism_rate || 0).toFixed(1)}%</div>
+                            <div class="text-xs text-red-500 mt-1">Absent days</div>
+                        </div>
+                        <div class="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                            <div class="text-sm text-orange-600 font-medium">Late Arrivals</div>
+                            <div class="text-2xl font-bold text-orange-700">${(data.overview?.late_count || 0).toLocaleString()}</div>
+                            <div class="text-xs text-orange-500 mt-1">${(data.overview?.late_rate || 0).toFixed(1)}% of employees</div>
+                        </div>
+                        <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                            <div class="text-sm text-purple-600 font-medium">Overtime Hours</div>
+                            <div class="text-2xl font-bold text-purple-700">${(data.overview?.total_overtime_hours || 0).toLocaleString()}</div>
+                            <div class="text-xs text-purple-500 mt-1">Total OT hours</div>
+                        </div>
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <div class="text-sm text-blue-600 font-medium">Leave Utilization</div>
+                            <div class="text-2xl font-bold text-blue-700">${(data.overview?.leave_utilization || 0).toFixed(1)}%</div>
+                            <div class="text-xs text-blue-500 mt-1">Of entitlement</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Charts -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="bg-gray-50 border rounded-lg p-4">
+                            <h4 class="font-semibold text-gray-700 mb-3">Daily Attendance Heatmap</h4>
+                            <canvas id="attendance-heatmap-chart"></canvas>
+                        </div>
+                        <div class="bg-gray-50 border rounded-lg p-4">
+                            <h4 class="font-semibold text-gray-700 mb-3">Leave Type Usage</h4>
+                            <canvas id="leave-type-chart"></canvas>
+                        </div>
+                        <div class="bg-gray-50 border rounded-lg p-4">
+                            <h4 class="font-semibold text-gray-700 mb-3">Absenteeism Trend</h4>
+                            <canvas id="absenteeism-trend-chart"></canvas>
+                        </div>
+                        <div class="bg-gray-50 border rounded-lg p-4">
+                            <h4 class="font-semibold text-gray-700 mb-3">Overtime by Department</h4>
+                            <canvas id="overtime-dept-chart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <!-- Attendance Summary Table -->
+                    <div class="bg-white border rounded-lg overflow-hidden">
+                        <div class="bg-gray-50 px-4 py-3 border-b">
+                            <h4 class="font-semibold text-gray-800">Department Attendance Summary</h4>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employees</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Attendance %</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Absent Days</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Late Count</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">OT Hours</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Leaves Taken</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    ${(data.department_data || []).map(dept => `
+                                        <tr class="hover:bg-gray-50">
+                                            <td class="px-4 py-3 text-sm font-medium text-gray-900">${dept.department}</td>
+                                            <td class="px-4 py-3 text-sm text-gray-700">${dept.employees}</td>
+                                            <td class="px-4 py-3 text-sm text-green-600 font-semibold">${dept.attendance_rate}%</td>
+                                            <td class="px-4 py-3 text-sm text-red-600">${dept.absent_days}</td>
+                                            <td class="px-4 py-3 text-sm text-orange-600">${dept.late_count}</td>
+                                            <td class="px-4 py-3 text-sm text-purple-600">${dept.ot_hours}</td>
+                                            <td class="px-4 py-3 text-sm text-blue-600">${dept.leaves_taken}</td>
+                                        </tr>
+                                    `).join('') || '<tr><td colspan="7" class="px-4 py-3 text-center text-gray-500">No data available</td></tr>'}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error generating attendance report:', error);
+        return '<p class="text-red-600">Error loading attendance data</p>';
+    }
+}
+
+/**
+ * Generate Benefits & HMO Utilization Report
+ */
+async function generateBenefitsReport(deptId, dateRange) {
+    try {
+        const params = new URLSearchParams({ department_id: deptId || '', date_range: dateRange });
+        const response = await fetch(`${API_BASE_URL}hr-analytics/benefits-hmo?${params}`);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            const data = result.data;
+            
+            return `
+                <div class="space-y-6">
+                    <!-- Summary Stats -->
+                    <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <div class="text-sm text-blue-600 font-medium">Total Benefits Cost</div>
+                            <div class="text-2xl font-bold text-blue-700">₱${(data.overview?.total_benefits_cost || 0).toLocaleString('en-PH')}</div>
+                            <div class="text-xs text-blue-500 mt-1">All benefits</div>
+                        </div>
+                        <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                            <div class="text-sm text-green-600 font-medium">HMO Utilization</div>
+                            <div class="text-2xl font-bold text-green-700">${(data.overview?.hmo_utilization || 0).toFixed(1)}%</div>
+                            <div class="text-xs text-green-500 mt-1">Enrolled employees</div>
+                        </div>
+                        <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                            <div class="text-sm text-purple-600 font-medium">Total Claims</div>
+                            <div class="text-2xl font-bold text-purple-700">${(data.overview?.total_claims || 0).toLocaleString()}</div>
+                            <div class="text-xs text-purple-500 mt-1">Filed claims</div>
+                        </div>
+                        <div class="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                            <div class="text-sm text-orange-600 font-medium">Avg Claim Cost</div>
+                            <div class="text-2xl font-bold text-orange-700">₱${(data.overview?.avg_claim_cost || 0).toLocaleString('en-PH')}</div>
+                            <div class="text-xs text-orange-500 mt-1">Per claim</div>
+                        </div>
+                        <div class="bg-teal-50 border border-teal-200 rounded-lg p-4">
+                            <div class="text-sm text-teal-600 font-medium">Processing Time</div>
+                            <div class="text-2xl font-bold text-teal-700">${(data.overview?.avg_processing_time || 0).toFixed(1)} days</div>
+                            <div class="text-xs text-teal-500 mt-1">Average</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Charts -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="bg-gray-50 border rounded-lg p-4">
+                            <h4 class="font-semibold text-gray-700 mb-3">Benefits Cost Distribution</h4>
+                            <canvas id="benefits-cost-chart"></canvas>
+                        </div>
+                        <div class="bg-gray-50 border rounded-lg p-4">
+                            <h4 class="font-semibold text-gray-700 mb-3">Claims per HMO Provider</h4>
+                            <canvas id="claims-provider-chart"></canvas>
+                        </div>
+                        <div class="bg-gray-50 border rounded-lg p-4">
+                            <h4 class="font-semibold text-gray-700 mb-3">Monthly Claims Trend</h4>
+                            <canvas id="claims-trend-chart"></canvas>
+                        </div>
+                        <div class="bg-gray-50 border rounded-lg p-4">
+                            <h4 class="font-semibold text-gray-700 mb-3">Benefit Type Utilization</h4>
+                            <canvas id="benefit-type-chart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <!-- Benefits Utilization Table -->
+                    <div class="bg-white border rounded-lg overflow-hidden">
+                        <div class="bg-gray-50 px-4 py-3 border-b">
+                            <h4 class="font-semibold text-gray-800">HMO Provider Summary</h4>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Provider</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Enrolled</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Claims Filed</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Approved</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Cost</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Avg Cost</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Processing Time</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    ${(data.provider_data || []).map(provider => `
+                                        <tr class="hover:bg-gray-50">
+                                            <td class="px-4 py-3 text-sm font-medium text-gray-900">${provider.provider}</td>
+                                            <td class="px-4 py-3 text-sm text-gray-700">${provider.enrolled}</td>
+                                            <td class="px-4 py-3 text-sm text-blue-600">${provider.claims_filed}</td>
+                                            <td class="px-4 py-3 text-sm text-green-600">${provider.approved}</td>
+                                            <td class="px-4 py-3 text-sm text-purple-600">₱${provider.total_cost.toLocaleString()}</td>
+                                            <td class="px-4 py-3 text-sm text-orange-600">₱${provider.avg_cost.toLocaleString()}</td>
+                                            <td class="px-4 py-3 text-sm text-gray-700">${provider.processing_time} days</td>
+                                        </tr>
+                                    `).join('') || '<tr><td colspan="7" class="px-4 py-3 text-center text-gray-500">No data available</td></tr>'}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error generating benefits report:', error);
+        return '<p class="text-red-600">Error loading benefits data</p>';
+    }
+}
+
+/**
+ * Generate Training & Development Report
+ */
+async function generateTrainingReport(deptId, dateRange) {
+    try {
+        const params = new URLSearchParams({ department_id: deptId || '', date_range: dateRange });
+        const response = await fetch(`${API_BASE_URL}hr-analytics/training-development?${params}`);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            const data = result.data;
+            
+            return `
+                <div class="space-y-6">
+                    <!-- Summary Stats -->
+                    <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <div class="text-sm text-blue-600 font-medium">Training Sessions</div>
+                            <div class="text-2xl font-bold text-blue-700">${(data.overview?.total_sessions || 0).toLocaleString()}</div>
+                            <div class="text-xs text-blue-500 mt-1">Conducted</div>
+                        </div>
+                        <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                            <div class="text-sm text-green-600 font-medium">Participation Rate</div>
+                            <div class="text-2xl font-bold text-green-700">${(data.overview?.participation_rate || 0).toFixed(1)}%</div>
+                            <div class="text-xs text-green-500 mt-1">Employee engagement</div>
+                        </div>
+                        <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                            <div class="text-sm text-purple-600 font-medium">Total Cost</div>
+                            <div class="text-2xl font-bold text-purple-700">₱${(data.overview?.total_cost || 0).toLocaleString('en-PH')}</div>
+                            <div class="text-xs text-purple-500 mt-1">Training budget</div>
+                        </div>
+                        <div class="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                            <div class="text-sm text-orange-600 font-medium">Cost per Employee</div>
+                            <div class="text-2xl font-bold text-orange-700">₱${(data.overview?.cost_per_employee || 0).toLocaleString('en-PH')}</div>
+                            <div class="text-xs text-orange-500 mt-1">Average</div>
+                        </div>
+                        <div class="bg-teal-50 border border-teal-200 rounded-lg p-4">
+                            <div class="text-sm text-teal-600 font-medium">Certifications</div>
+                            <div class="text-2xl font-bold text-teal-700">${(data.overview?.certifications_earned || 0).toLocaleString()}</div>
+                            <div class="text-xs text-teal-500 mt-1">Earned</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Charts -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="bg-gray-50 border rounded-lg p-4">
+                            <h4 class="font-semibold text-gray-700 mb-3">Training Cost per Department</h4>
+                            <canvas id="training-cost-chart"></canvas>
+                        </div>
+                        <div class="bg-gray-50 border rounded-lg p-4">
+                            <h4 class="font-semibold text-gray-700 mb-3">Competency Improvement Score</h4>
+                            <canvas id="competency-chart"></canvas>
+                        </div>
+                        <div class="bg-gray-50 border rounded-lg p-4">
+                            <h4 class="font-semibold text-gray-700 mb-3">Training Participation Trend</h4>
+                            <canvas id="training-trend-chart"></canvas>
+                        </div>
+                        <div class="bg-gray-50 border rounded-lg p-4">
+                            <h4 class="font-semibold text-gray-700 mb-3">Training Type Distribution</h4>
+                            <canvas id="training-type-chart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <!-- Training Summary Table -->
+                    <div class="bg-white border rounded-lg overflow-hidden">
+                        <div class="bg-gray-50 px-4 py-3 border-b">
+                            <h4 class="font-semibold text-gray-800">Training Attendance by Department</h4>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Training Program</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invited</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Attended</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Completion %</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Avg Score</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cost</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    ${(data.training_data || []).map(training => `
+                                        <tr class="hover:bg-gray-50">
+                                            <td class="px-4 py-3 text-sm font-medium text-gray-900">${training.program}</td>
+                                            <td class="px-4 py-3 text-sm text-gray-700">${training.department}</td>
+                                            <td class="px-4 py-3 text-sm text-gray-700">${training.invited}</td>
+                                            <td class="px-4 py-3 text-sm text-blue-600">${training.attended}</td>
+                                            <td class="px-4 py-3 text-sm text-green-600 font-semibold">${training.completion}%</td>
+                                            <td class="px-4 py-3 text-sm text-purple-600">${training.avg_score}</td>
+                                            <td class="px-4 py-3 text-sm text-orange-600">₱${training.cost.toLocaleString()}</td>
+                                        </tr>
+                                    `).join('') || '<tr><td colspan="7" class="px-4 py-3 text-center text-gray-500">No data available</td></tr>'}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error generating training report:', error);
+        return '<p class="text-red-600">Error loading training data</p>';
+    }
+}
+
+/**
+ * Generate Employee Relations & Engagement Report
+ */
+async function generateRelationsReport(deptId, dateRange) {
+    try {
+        const params = new URLSearchParams({ department_id: deptId || '', date_range: dateRange });
+        const response = await fetch(`${API_BASE_URL}hr-analytics/employee-relations?${params}`);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            const data = result.data;
+            
+            return `
+                <div class="space-y-6">
+                    <!-- Summary Stats -->
+                    <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                        <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                            <div class="text-sm text-purple-600 font-medium">Engagement Index</div>
+                            <div class="text-2xl font-bold text-purple-700">${(data.overview?.engagement_index || 0).toFixed(1)}/5.0</div>
+                            <div class="text-xs text-purple-500 mt-1">Overall score</div>
+                        </div>
+                        <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                            <div class="text-sm text-green-600 font-medium">Participation Rate</div>
+                            <div class="text-2xl font-bold text-green-700">${(data.overview?.participation_rate || 0).toFixed(1)}%</div>
+                            <div class="text-xs text-green-500 mt-1">Activity engagement</div>
+                        </div>
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <div class="text-sm text-blue-600 font-medium">Recognition Events</div>
+                            <div class="text-2xl font-bold text-blue-700">${(data.overview?.recognition_events || 0).toLocaleString()}</div>
+                            <div class="text-xs text-blue-500 mt-1">This period</div>
+                        </div>
+                        <div class="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                            <div class="text-sm text-orange-600 font-medium">Disciplinary Cases</div>
+                            <div class="text-2xl font-bold text-orange-700">${(data.overview?.disciplinary_cases || 0).toLocaleString()}</div>
+                            <div class="text-xs text-orange-500 mt-1">${(data.overview?.case_rate || 0).toFixed(2)}% rate</div>
+                        </div>
+                        <div class="bg-teal-50 border border-teal-200 rounded-lg p-4">
+                            <div class="text-sm text-teal-600 font-medium">Avg Resolution Time</div>
+                            <div class="text-2xl font-bold text-teal-700">${(data.overview?.avg_resolution_time || 0).toFixed(1)} days</div>
+                            <div class="text-xs text-teal-500 mt-1">Case closure</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Charts -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="bg-gray-50 border rounded-lg p-4">
+                            <h4 class="font-semibold text-gray-700 mb-3">Engagement Index Gauge</h4>
+                            <canvas id="engagement-gauge-chart"></canvas>
+                        </div>
+                        <div class="bg-gray-50 border rounded-lg p-4">
+                            <h4 class="font-semibold text-gray-700 mb-3">Case Frequency Trend</h4>
+                            <canvas id="case-frequency-chart"></canvas>
+                        </div>
+                        <div class="bg-gray-50 border rounded-lg p-4">
+                            <h4 class="font-semibold text-gray-700 mb-3">Recognition Events per Month</h4>
+                            <canvas id="recognition-chart"></canvas>
+                        </div>
+                        <div class="bg-gray-50 border rounded-lg p-4">
+                            <h4 class="font-semibold text-gray-700 mb-3">Employee Feedback Themes</h4>
+                            <canvas id="feedback-themes-chart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <!-- Survey Results Table -->
+                    <div class="bg-white border rounded-lg overflow-hidden">
+                        <div class="bg-gray-50 px-4 py-3 border-b">
+                            <h4 class="font-semibold text-gray-800">Engagement Survey Results by Department</h4>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Responses</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Engagement Score</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Participation %</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cases</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Recognitions</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    ${(data.department_data || []).map(dept => {
+                                        const statusColor = dept.engagement_score >= 4 ? 'text-green-600' : dept.engagement_score >= 3 ? 'text-yellow-600' : 'text-red-600';
+                                        const statusIcon = dept.engagement_score >= 4 ? 'fa-smile' : dept.engagement_score >= 3 ? 'fa-meh' : 'fa-frown';
+                                        return `
+                                        <tr class="hover:bg-gray-50">
+                                            <td class="px-4 py-3 text-sm font-medium text-gray-900">${dept.department}</td>
+                                            <td class="px-4 py-3 text-sm text-gray-700">${dept.responses}</td>
+                                            <td class="px-4 py-3 text-sm text-purple-600 font-semibold">${dept.engagement_score}/5.0</td>
+                                            <td class="px-4 py-3 text-sm text-green-600">${dept.participation}%</td>
+                                            <td class="px-4 py-3 text-sm text-orange-600">${dept.cases}</td>
+                                            <td class="px-4 py-3 text-sm text-blue-600">${dept.recognitions}</td>
+                                            <td class="px-4 py-3 text-sm ${statusColor}">
+                                                <i class="fas ${statusIcon} mr-1"></i>${dept.status}
+                                            </td>
+                                        </tr>
+                                    `}).join('') || '<tr><td colspan="7" class="px-4 py-3 text-center text-gray-500">No data available</td></tr>'}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error generating relations report:', error);
+        return '<p class="text-red-600">Error loading employee relations data</p>';
+    }
+}
+
+/**
+ * Generate Turnover & Retention Report
+ */
+async function generateTurnoverReport(deptId, dateRange) {
+    try {
+        const params = new URLSearchParams({ department_id: deptId || '', date_range: dateRange });
+        const response = await fetch(`${API_BASE_URL}hr-analytics/turnover-retention?${params}`);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            const data = result.data;
+            
+            return `
+                <div class="space-y-6">
+                    <!-- Summary Stats -->
+                    <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                        <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                            <div class="text-sm text-red-600 font-medium">Turnover Rate</div>
+                            <div class="text-2xl font-bold text-red-700">${(data.overview?.turnover_rate || 0).toFixed(1)}%</div>
+                            <div class="text-xs text-red-500 mt-1">Annual rate</div>
+                        </div>
+                        <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                            <div class="text-sm text-green-600 font-medium">Retention Rate</div>
+                            <div class="text-2xl font-bold text-green-700">${(data.overview?.retention_rate || 0).toFixed(1)}%</div>
+                            <div class="text-xs text-green-500 mt-1">Staying employees</div>
+                        </div>
+                        <div class="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                            <div class="text-sm text-orange-600 font-medium">Total Exits</div>
+                            <div class="text-2xl font-bold text-orange-700">${(data.overview?.total_exits || 0).toLocaleString()}</div>
+                            <div class="text-xs text-orange-500 mt-1">This period</div>
+                        </div>
+                        <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                            <div class="text-sm text-purple-600 font-medium">Voluntary Exits</div>
+                            <div class="text-2xl font-bold text-purple-700">${(data.overview?.voluntary_exits || 0).toLocaleString()}</div>
+                            <div class="text-xs text-purple-500 mt-1">${(data.overview?.voluntary_percentage || 0).toFixed(1)}% of total</div>
+                        </div>
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <div class="text-sm text-blue-600 font-medium">Avg Exit Tenure</div>
+                            <div class="text-2xl font-bold text-blue-700">${(data.overview?.avg_exit_tenure || 0).toFixed(1)} yrs</div>
+                            <div class="text-xs text-blue-500 mt-1">Years of service</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Charts -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="bg-gray-50 border rounded-lg p-4">
+                            <h4 class="font-semibold text-gray-700 mb-3">Turnover Rate Trend</h4>
+                            <canvas id="turnover-trend-chart"></canvas>
+                        </div>
+                        <div class="bg-gray-50 border rounded-lg p-4">
+                            <h4 class="font-semibold text-gray-700 mb-3">Voluntary vs Involuntary</h4>
+                            <canvas id="exit-type-chart"></canvas>
+                        </div>
+                        <div class="bg-gray-50 border rounded-lg p-4">
+                            <h4 class="font-semibold text-gray-700 mb-3">Top Reasons for Exit</h4>
+                            <canvas id="exit-reasons-chart"></canvas>
+                        </div>
+                        <div class="bg-gray-50 border rounded-lg p-4">
+                            <h4 class="font-semibold text-gray-700 mb-3">Retention by Department</h4>
+                            <canvas id="dept-retention-chart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <!-- Turnover Summary Table -->
+                    <div class="bg-white border rounded-lg overflow-hidden">
+                        <div class="bg-gray-50 px-4 py-3 border-b">
+                            <h4 class="font-semibold text-gray-800">Turnover by Department</h4>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Headcount</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Resignations</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Terminations</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Turnover %</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Retention %</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Avg Tenure</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    ${(data.department_data || []).map(dept => {
+                                        const turnoverColor = dept.turnover < 10 ? 'text-green-600' : dept.turnover < 20 ? 'text-yellow-600' : 'text-red-600';
+                                        return `
+                                        <tr class="hover:bg-gray-50">
+                                            <td class="px-4 py-3 text-sm font-medium text-gray-900">${dept.department}</td>
+                                            <td class="px-4 py-3 text-sm text-gray-700">${dept.headcount}</td>
+                                            <td class="px-4 py-3 text-sm text-orange-600">${dept.resignations}</td>
+                                            <td class="px-4 py-3 text-sm text-red-600">${dept.terminations}</td>
+                                            <td class="px-4 py-3 text-sm ${turnoverColor} font-semibold">${dept.turnover}%</td>
+                                            <td class="px-4 py-3 text-sm text-green-600">${dept.retention}%</td>
+                                            <td class="px-4 py-3 text-sm text-blue-600">${dept.avg_tenure} yrs</td>
+                                        </tr>
+                                    `}).join('') || '<tr><td colspan="7" class="px-4 py-3 text-center text-gray-500">No data available</td></tr>'}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error generating turnover report:', error);
+        return '<p class="text-red-600">Error loading turnover data</p>';
+    }
+}
+
+/**
+ * Generate Compliance & Document Report
+ */
+async function generateComplianceReport(deptId, dateRange) {
+    try {
+        const params = new URLSearchParams({ department_id: deptId || '', date_range: dateRange });
+        const response = await fetch(`${API_BASE_URL}hr-analytics/compliance-documents?${params}`);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            const data = result.data;
+            
+            return `
+                <div class="space-y-6">
+                    <!-- Summary Stats -->
+                    <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                        <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                            <div class="text-sm text-green-600 font-medium">License Compliance</div>
+                            <div class="text-2xl font-bold text-green-700">${(data.overview?.license_compliance || 0).toFixed(1)}%</div>
+                            <div class="text-xs text-green-500 mt-1">Valid licenses</div>
+                        </div>
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <div class="text-sm text-blue-600 font-medium">Document Completion</div>
+                            <div class="text-2xl font-bold text-blue-700">${(data.overview?.doc_completion || 0).toFixed(1)}%</div>
+                            <div class="text-xs text-blue-500 mt-1">Complete files</div>
+                        </div>
+                        <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                            <div class="text-sm text-red-600 font-medium">Expiring Soon</div>
+                            <div class="text-2xl font-bold text-red-700">${(data.overview?.expiring_count || 0).toLocaleString()}</div>
+                            <div class="text-xs text-red-500 mt-1">Within 30 days</div>
+                        </div>
+                        <div class="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                            <div class="text-sm text-orange-600 font-medium">Contract Renewals</div>
+                            <div class="text-2xl font-bold text-orange-700">${(data.overview?.renewal_count || 0).toLocaleString()}</div>
+                            <div class="text-xs text-orange-500 mt-1">Due this month</div>
+                        </div>
+                        <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                            <div class="text-sm text-purple-600 font-medium">Audit Compliance</div>
+                            <div class="text-2xl font-bold text-purple-700">${(data.overview?.audit_compliance || 0).toFixed(1)}%</div>
+                            <div class="text-xs text-purple-500 mt-1">Overall score</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Expiring Documents Alert -->
+                    <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                        <div class="flex items-start">
+                            <i class="fas fa-exclamation-triangle text-red-600 text-2xl mr-3 mt-1"></i>
+                            <div>
+                                <h4 class="font-semibold text-red-800 mb-2">Critical: Documents Expiring Soon</h4>
+                                <p class="text-sm text-red-700 mb-3">${data.overview?.expiring_count || 0} documents require immediate attention for renewal.</p>
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                    <div class="bg-white rounded p-2">
+                                        <div class="text-xs text-gray-600">Professional Licenses</div>
+                                        <div class="text-lg font-bold text-red-600">${data.expiring_breakdown?.licenses || 0}</div>
+                                    </div>
+                                    <div class="bg-white rounded p-2">
+                                        <div class="text-xs text-gray-600">Employment Contracts</div>
+                                        <div class="text-lg font-bold text-orange-600">${data.expiring_breakdown?.contracts || 0}</div>
+                                    </div>
+                                    <div class="bg-white rounded p-2">
+                                        <div class="text-xs text-gray-600">Clearances</div>
+                                        <div class="text-lg font-bold text-yellow-600">${data.expiring_breakdown?.clearances || 0}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Charts -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="bg-gray-50 border rounded-lg p-4">
+                            <h4 class="font-semibold text-gray-700 mb-3">Compliance Rate by Type</h4>
+                            <canvas id="compliance-rate-chart"></canvas>
+                        </div>
+                        <div class="bg-gray-50 border rounded-lg p-4">
+                            <h4 class="font-semibold text-gray-700 mb-3">Document Status Distribution</h4>
+                            <canvas id="doc-status-chart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <!-- Expiring Documents Table -->
+                    <div class="bg-white border rounded-lg overflow-hidden">
+                        <div class="bg-gray-50 px-4 py-3 border-b">
+                            <h4 class="font-semibold text-gray-800">Expiring Documents - Action Required</h4>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Document Type</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Expiry Date</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Days Left</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    ${(data.expiring_documents || []).map(doc => {
+                                        const urgency = doc.days_left <= 7 ? 'bg-red-100 text-red-800' : doc.days_left <= 14 ? 'bg-orange-100 text-orange-800' : 'bg-yellow-100 text-yellow-800';
+                                        return `
+                                        <tr class="hover:bg-gray-50">
+                                            <td class="px-4 py-3 text-sm font-medium text-gray-900">${doc.employee_name}</td>
+                                            <td class="px-4 py-3 text-sm text-gray-700">${doc.department}</td>
+                                            <td class="px-4 py-3 text-sm text-gray-700">${doc.document_type}</td>
+                                            <td class="px-4 py-3 text-sm text-gray-700">${doc.expiry_date}</td>
+                                            <td class="px-4 py-3 text-sm">
+                                                <span class="px-2 py-1 text-xs rounded-full ${urgency}">${doc.days_left} days</span>
+                                            </td>
+                                            <td class="px-4 py-3 text-sm">
+                                                <span class="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800">${doc.status}</span>
+                                            </td>
+                                            <td class="px-4 py-3 text-sm">
+                                                <button class="text-blue-600 hover:text-blue-800">
+                                                    <i class="fas fa-bell mr-1"></i>Notify
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    `}).join('') || '<tr><td colspan="7" class="px-4 py-3 text-center text-gray-500">No expiring documents</td></tr>'}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <!-- Department Compliance Summary -->
+                    <div class="bg-white border rounded-lg overflow-hidden">
+                        <div class="bg-gray-50 px-4 py-3 border-b">
+                            <h4 class="font-semibold text-gray-800">Compliance Summary by Department</h4>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Employees</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Complete Files</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Completion %</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Expiring Docs</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Compliance Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    ${(data.department_compliance || []).map(dept => {
+                                        const statusColor = dept.completion >= 90 ? 'text-green-600' : dept.completion >= 70 ? 'text-yellow-600' : 'text-red-600';
+                                        const statusIcon = dept.completion >= 90 ? 'fa-check-circle' : dept.completion >= 70 ? 'fa-exclamation-circle' : 'fa-times-circle';
+                                        return `
+                                        <tr class="hover:bg-gray-50">
+                                            <td class="px-4 py-3 text-sm font-medium text-gray-900">${dept.department}</td>
+                                            <td class="px-4 py-3 text-sm text-gray-700">${dept.total_employees}</td>
+                                            <td class="px-4 py-3 text-sm text-blue-600">${dept.complete_files}</td>
+                                            <td class="px-4 py-3 text-sm ${statusColor} font-semibold">${dept.completion}%</td>
+                                            <td class="px-4 py-3 text-sm text-red-600">${dept.expiring}</td>
+                                            <td class="px-4 py-3 text-sm ${statusColor}">
+                                                <i class="fas ${statusIcon} mr-1"></i>${dept.status}
+                                            </td>
+                                        </tr>
+                                    `}).join('') || '<tr><td colspan="6" class="px-4 py-3 text-center text-gray-500">No data available</td></tr>'}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error generating compliance report:', error);
+        return '<p class="text-red-600">Error loading compliance data</p>';
+    }
+}
+
+/**
+ * Generate Executive / Management Summary Report
+ */
+async function generateExecutiveReport(deptId, dateRange) {
+    try {
+        const params = new URLSearchParams({ department_id: deptId || '', date_range: dateRange });
+        const response = await fetch(`${API_BASE_URL}hr-analytics/executive-summary?${params}`);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            const data = result.data;
+            
+            return `
+                <div class="space-y-6">
+                    <!-- Executive Summary Header -->
+                    <div class="bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-lg p-6">
+                        <h3 class="text-2xl font-bold mb-2">Executive HR Summary</h3>
+                        <p class="text-blue-100">Comprehensive overview of HR performance metrics</p>
+                        <div class="mt-4 text-sm text-blue-100">
+                            <i class="fas fa-calendar-alt mr-2"></i>Period: ${dateRange} | 
+                            <i class="fas fa-clock ml-3 mr-2"></i>Generated: ${new Date().toLocaleString()}
+                        </div>
+                    </div>
+                    
+                    <!-- Key Performance Indicators -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <!-- Headcount -->
+                        <div class="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="text-sm text-blue-700 font-semibold">Total Headcount</div>
+                                <i class="fas fa-users text-2xl text-blue-500"></i>
+                            </div>
+                            <div class="text-3xl font-bold text-blue-900">${(data.kpi_metrics?.total_active_employees || 0).toLocaleString()}</div>
+                            <div class="text-xs text-blue-600 mt-1">
+                                <i class="fas fa-arrow-up mr-1"></i>${data.kpi_metrics?.monthly_new_hires || 0} new hires
+                            </div>
+                        </div>
+                        
+                        <!-- Turnover -->
+                        <div class="bg-gradient-to-br from-red-50 to-red-100 border border-red-200 rounded-lg p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="text-sm text-red-700 font-semibold">Turnover Rate</div>
+                                <i class="fas fa-exchange-alt text-2xl text-red-500"></i>
+                            </div>
+                            <div class="text-3xl font-bold text-red-900">${(data.kpi_metrics?.turnover_rate || 0).toFixed(1)}%</div>
+                            <div class="text-xs text-red-600 mt-1">
+                                ${data.kpi_metrics?.monthly_exits || 0} exits this month
+                            </div>
+                        </div>
+                        
+                        <!-- Payroll Cost -->
+                        <div class="bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-lg p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="text-sm text-green-700 font-semibold">Monthly Payroll</div>
+                                <i class="fas fa-money-bill-wave text-2xl text-green-500"></i>
+                            </div>
+                            <div class="text-2xl font-bold text-green-900">₱${(data.kpi_metrics?.monthly_payroll_cost || 0).toLocaleString('en-PH')}</div>
+                            <div class="text-xs text-green-600 mt-1">
+                                Budget variance: ${(data.kpi_metrics?.budget_variance || 0).toFixed(1)}%
+                            </div>
+                        </div>
+                        
+                        <!-- Engagement -->
+                        <div class="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-lg p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="text-sm text-purple-700 font-semibold">Engagement Score</div>
+                                <i class="fas fa-heart text-2xl text-purple-500"></i>
+                            </div>
+                            <div class="text-3xl font-bold text-purple-900">${(data.kpi_metrics?.engagement_score || 0).toFixed(1)}/5.0</div>
+                            <div class="text-xs text-purple-600 mt-1">
+                                ${(data.kpi_metrics?.survey_participation || 0).toFixed(1)}% participation
+                            </div>
+                        </div>
+                        
+                        <!-- Attendance -->
+                        <div class="bg-gradient-to-br from-teal-50 to-teal-100 border border-teal-200 rounded-lg p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="text-sm text-teal-700 font-semibold">Attendance Rate</div>
+                                <i class="fas fa-calendar-check text-2xl text-teal-500"></i>
+                            </div>
+                            <div class="text-3xl font-bold text-teal-900">${(data.kpi_metrics?.attendance_rate || 0).toFixed(1)}%</div>
+                            <div class="text-xs text-teal-600 mt-1">
+                                ${(data.kpi_metrics?.overtime_hours || 0).toLocaleString()} OT hours
+                            </div>
+                        </div>
+                        
+                        <!-- Benefits -->
+                        <div class="bg-gradient-to-br from-indigo-50 to-indigo-100 border border-indigo-200 rounded-lg p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="text-sm text-indigo-700 font-semibold">Benefits Cost</div>
+                                <i class="fas fa-hand-holding-medical text-2xl text-indigo-500"></i>
+                            </div>
+                            <div class="text-2xl font-bold text-indigo-900">₱${(data.kpi_metrics?.monthly_benefits_cost || 0).toLocaleString('en-PH')}</div>
+                            <div class="text-xs text-indigo-600 mt-1">
+                                ${data.kpi_metrics?.claims_count || 0} claims processed
+                            </div>
+                        </div>
+                        
+                        <!-- Training -->
+                        <div class="bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200 rounded-lg p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="text-sm text-amber-700 font-semibold">Training Hours</div>
+                                <i class="fas fa-graduation-cap text-2xl text-amber-500"></i>
+                            </div>
+                            <div class="text-3xl font-bold text-amber-900">${(data.kpi_metrics?.avg_training_hours || 0).toFixed(1)}</div>
+                            <div class="text-xs text-amber-600 mt-1">
+                                Hours per employee
+                            </div>
+                        </div>
+                        
+                        <!-- Compliance -->
+                        <div class="bg-gradient-to-br from-rose-50 to-rose-100 border border-rose-200 rounded-lg p-4">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="text-sm text-rose-700 font-semibold">Compliance Index</div>
+                                <i class="fas fa-clipboard-check text-2xl text-rose-500"></i>
+                            </div>
+                            <div class="text-3xl font-bold text-rose-900">${(data.kpi_metrics?.compliance_index || 0).toFixed(1)}%</div>
+                            <div class="text-xs text-rose-600 mt-1">
+                                ${data.kpi_metrics?.expiring_docs || 0} docs expiring soon
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Key Trends Section -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="bg-white border rounded-lg p-6">
+                            <h4 class="font-semibold text-gray-800 mb-4">Workforce Trend (12 Months)</h4>
+                            <canvas id="exec-workforce-chart"></canvas>
+                        </div>
+                        <div class="bg-white border rounded-lg p-6">
+                            <h4 class="font-semibold text-gray-800 mb-4">Turnover Rate Trend</h4>
+                            <canvas id="exec-turnover-chart"></canvas>
+                        </div>
+                        <div class="bg-white border rounded-lg p-6">
+                            <h4 class="font-semibold text-gray-800 mb-4">Payroll vs Budget</h4>
+                            <canvas id="exec-payroll-chart"></canvas>
+                        </div>
+                        <div class="bg-white border rounded-lg p-6">
+                            <h4 class="font-semibold text-gray-800 mb-4">Department Headcount</h4>
+                            <canvas id="exec-dept-chart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <!-- Alerts and Recommendations -->
+                    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                        <h4 class="font-semibold text-yellow-800 mb-3">
+                            <i class="fas fa-exclamation-triangle mr-2"></i>Key Alerts & Recommendations
+                        </h4>
+                        <ul class="space-y-2">
+                            ${(data.alerts || []).map(alert => `
+                                <li class="flex items-start text-sm text-yellow-800">
+                                    <i class="fas fa-chevron-right mr-2 mt-1"></i>
+                                    <span>${alert}</span>
+                                </li>
+                            `).join('') || '<li class="text-sm text-gray-600">No critical alerts at this time.</li>'}
+                        </ul>
+                    </div>
+                    
+                    <!-- Action Items -->
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <h4 class="font-semibold text-blue-800 mb-3">
+                            <i class="fas fa-tasks mr-2"></i>Recommended Actions
+                        </h4>
+                        <ul class="space-y-2">
+                            ${(data.recommendations || []).map(rec => `
+                                <li class="flex items-start text-sm text-blue-800">
+                                    <i class="fas fa-check-circle mr-2 mt-1"></i>
+                                    <span>${rec}</span>
+                                </li>
+                            `).join('') || '<li class="text-sm text-gray-600">All metrics are within acceptable ranges.</li>'}
+                        </ul>
+                    </div>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error generating executive report:', error);
+        return '<p class="text-red-600">Error loading executive summary data</p>';
+    }
+}
+
+/**
+ * Export Report
+ */
+/**
+ * Export Report - Using Existing Reports API Export
+ */
+async function exportReport(format) {
+    const reportType = document.getElementById('report-type-select').value;
+    if (!reportType) {
+        alert('Please generate a report first');
+        return;
+    }
+    
+    const deptId = document.getElementById('report-dept-filter').value;
+    const dateRange = document.getElementById('report-date-range').value;
+    
+    try {
+        // Show loading indicator
+        const exportBtn = event ? event.target : null;
+        if (exportBtn) {
+            exportBtn.disabled = true;
+            exportBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Exporting...';
+        }
+        
+        // Prepare export data using Existing Reports API
+        const exportData = {
+            report_type: reportType,
+            format: format.toUpperCase(), // 'PDF', 'Excel', 'CSV'
+            filters: {
+                department_id: deptId || '',
+                date_range: dateRange,
+                from_date: getDateFromRange(dateRange, 'from'),
+                to_date: getDateFromRange(dateRange, 'to')
+            },
+            include_charts: true,
+            include_summary: true
+        };
+        
+        const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.reports.export}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(exportData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // If download URL is provided, open it
+            if (result.data && result.data.download_url) {
+                window.open(result.data.download_url, '_blank');
+            } else if (result.data && result.data.html_content && format.toLowerCase() === 'pdf') {
+                // For PDF, create a temporary window with HTML content
+                const printWindow = window.open('', '_blank');
+                printWindow.document.write(result.data.html_content);
+                printWindow.document.close();
+                printWindow.print();
+            } else if (result.data && result.data.csv_data && format.toLowerCase() === 'csv') {
+                // For CSV, trigger download
+                downloadCSV(result.data.csv_data, `${reportType}_report_${new Date().toISOString().split('T')[0]}.csv`);
+            } else {
+                alert('Export successful! Check your downloads folder.');
+            }
+        } else {
+            throw new Error(result.message || 'Export failed');
+        }
+        
+    } catch (error) {
+        console.error('Error exporting report:', error);
+        alert('Failed to export report. Please try again.');
+    } finally {
+        // Restore button
+        if (exportBtn) {
+            exportBtn.disabled = false;
+            exportBtn.innerHTML = `<i class="fas fa-file-${format === 'pdf' ? 'pdf' : format === 'excel' ? 'excel' : 'csv'} mr-2"></i>Export ${format.toUpperCase()}`;
+        }
+    }
+}
+
+/**
+ * Download CSV helper function
+ */
+function downloadCSV(csvContent, filename) {
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    if (link.download !== undefined) {
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', filename);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+}
+
+/**
+ * Show Schedule Modal - Using Existing Reports API
+ */
+function showScheduleModal() {
+    const reportType = document.getElementById('report-type-select').value;
+    if (!reportType) {
+        alert('Please select a report type first');
+        return;
+    }
+    
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+    modal.innerHTML = `
+        <div class="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">Schedule Report</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Frequency</label>
+                    <select id="schedule-frequency" class="w-full p-2 border rounded-md">
+                        <option value="daily">Daily</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="monthly" selected>Monthly</option>
+                        <option value="quarterly">Quarterly</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Format</label>
+                    <select id="schedule-format" class="w-full p-2 border rounded-md">
+                        <option value="PDF">PDF</option>
+                        <option value="Excel">Excel</option>
+                        <option value="CSV">CSV</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Email Recipients</label>
+                    <input type="text" id="schedule-recipients" placeholder="email@example.com, email2@example.com" class="w-full p-2 border rounded-md">
+                    <p class="text-xs text-gray-500 mt-1">Separate multiple emails with commas</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Send Time</label>
+                    <input type="time" id="schedule-time" value="08:00" class="w-full p-2 border rounded-md">
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="this.closest('.fixed').remove()" class="flex-1 px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400">Cancel</button>
+                    <button id="confirm-schedule-btn" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Schedule</button>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    
+    // Add event listener for schedule button
+    document.getElementById('confirm-schedule-btn').addEventListener('click', async () => {
+        const frequency = document.getElementById('schedule-frequency').value;
+        const format = document.getElementById('schedule-format').value;
+        const recipients = document.getElementById('schedule-recipients').value;
+        const sendTime = document.getElementById('schedule-time').value;
+        
+        if (!recipients) {
+            alert('Please enter at least one email recipient');
+            return;
+        }
+        
+        await scheduleReport(reportType, frequency, format, recipients, sendTime);
+        modal.remove();
+    });
+}
+
+/**
+ * Schedule Report - Using Existing Reports API
+ */
+async function scheduleReport(reportType, frequency, format, recipients, sendTime) {
+    try {
+        const deptId = document.getElementById('report-dept-filter').value;
+        const dateRange = document.getElementById('report-date-range').value;
+        
+        const scheduleData = {
+            report_type: reportType,
+            frequency: frequency,
+            format: format,
+            recipients: recipients.split(',').map(email => email.trim()),
+            send_time: sendTime,
+            filters: {
+                department_id: deptId || '',
+                date_range: dateRange,
+                from_date: getDateFromRange(dateRange, 'from'),
+                to_date: getDateFromRange(dateRange, 'to')
+            },
+            created_by: window.currentUser?.id || 'system',
+            created_at: new Date().toISOString()
+        };
+        
+        const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.reports.schedule}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(scheduleData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('Report scheduled successfully!');
+            // Reload scheduled reports list
+            loadScheduledReports();
+        } else {
+            throw new Error(result.message || 'Failed to schedule report');
+        }
+        
+    } catch (error) {
+        console.error('Error scheduling report:', error);
+        alert('Failed to schedule report. Please try again.');
+    }
+}
+
+/**
+ * Add to recent reports
+ */
+function addToRecentReports(reportName, deptId, dateRange) {
+    const tbody = document.getElementById('recent-reports-tbody');
+    if (!tbody) return;
+    
+    // Remove "no reports" message
+    if (tbody.children.length === 1 && tbody.children[0].children.length === 1) {
+        tbody.innerHTML = '';
+    }
+    
+    const row = document.createElement('tr');
+    row.innerHTML = `
+        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${reportName}</td>
+        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">Dept: ${deptId || 'All'}, Range: ${dateRange}</td>
+        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${window.currentUser?.name || 'Admin'}</td>
+        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date().toLocaleString()}</td>
+        <td class="px-6 py-4 whitespace-nowrap text-sm text-blue-600 hover:text-blue-800 cursor-pointer">
+            <i class="fas fa-download mr-2"></i>Download
+        </td>
+    `;
+    tbody.insertBefore(row, tbody.firstChild);
+    
+    // Keep only last 10 reports
+    while (tbody.children.length > 10) {
+        tbody.removeChild(tbody.lastChild);
+    }
+}
+
+/**
+ * Load scheduled reports - Using Existing Reports API
+ */
+async function loadScheduledReports() {
+    try {
+        const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.reports.scheduled}`);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            populateScheduledReportsTable(result.data);
+        }
+    } catch (error) {
+        console.error('Error loading scheduled reports:', error);
+    }
+}
+
+/**
+ * Populate Scheduled Reports Table
+ */
+function populateScheduledReportsTable(scheduledReports) {
+    const tbody = document.getElementById('scheduled-reports-tbody');
+    if (!tbody) return;
+    
+    if (!scheduledReports || scheduledReports.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-4 text-center text-gray-500">No scheduled reports</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = scheduledReports.map(schedule => `
+        <tr class="hover:bg-gray-50">
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${schedule.report_name || schedule.report_type}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${schedule.frequency}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${schedule.format}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${schedule.next_run || 'N/A'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                <button onclick="deleteScheduledReport(${schedule.id})" class="text-red-600 hover:text-red-800">
+                    <i class="fas fa-trash mr-1"></i>Delete
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+/**
+ * Delete Scheduled Report
+ */
+async function deleteScheduledReport(scheduleId) {
+    if (!confirm('Are you sure you want to delete this scheduled report?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE_URL}${API_ENDPOINTS.reports.scheduled}/${scheduleId}`, {
+            method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            alert('Scheduled report deleted successfully');
+            loadScheduledReports(); // Reload list
+        } else {
+            throw new Error(result.message || 'Failed to delete scheduled report');
+        }
+    } catch (error) {
+        console.error('Error deleting scheduled report:', error);
+        alert('Failed to delete scheduled report');
+    }
+}
+
+/**
+ * Clear report history
+ */
+function clearReportHistory() {
+    if (confirm('Are you sure you want to clear all report history?')) {
+        const tbody = document.getElementById('recent-reports-tbody');
+        if (tbody) {
+            tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-4 text-center text-gray-500">No reports generated yet</td></tr>';
+        }
+    }
+}
+
+/**
+ * Log report generation for audit trail
+ */
+async function logReportGeneration(reportType, deptId, dateRange) {
+    try {
+        await fetch(`${API_BASE_URL}hr-analytics/log-report`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                report_type: reportType,
+                department_id: deptId,
+                date_range: dateRange,
+                generated_by: window.currentUser?.id || 'system',
+                generated_at: new Date().toISOString()
+            })
+        });
+    } catch (error) {
+        console.error('Error logging report generation:', error);
+    }
+}
+
+// ========================================================================
+// METRICS MODULE - HR Analytics Metrics Framework
+// ========================================================================
+
+export async function displayAnalyticsMetricsSection() {
+    console.log('[Analytics] Loading Metrics Framework...');
+    
+    if (!initializeElements()) return;
+    
+    pageTitleElement.textContent = 'HR Analytics Metrics Framework';
+    cleanupCharts();
+    
+    // Get departments for filters
+    const departments = await fetchDepartments();
+    const deptOptions = departments.map(d => 
+        `<option value="${d.DepartmentID}">${d.DepartmentName}</option>`
+    ).join('');
+    
+    mainContentArea.innerHTML = `
+        <div class="space-y-6">
+            <!-- Global Filters -->
+            <div class="bg-white rounded-lg shadow-md border border-gray-200 p-4">
+                <div class="flex flex-wrap items-end gap-4">
+                    <div class="flex-1 min-w-[200px]">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            <i class="fas fa-building mr-1"></i>Department
+                        </label>
+                        <select id="metrics-dept-filter" class="w-full p-2.5 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                            <option value="">All Departments</option>
+                            ${deptOptions}
+                        </select>
+                    </div>
+                    <div class="flex-1 min-w-[200px]">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            <i class="fas fa-calendar-alt mr-1"></i>Time Period
+                        </label>
+                        <select id="metrics-period-filter" class="w-full p-2.5 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                            <option value="current">Current Month</option>
+                            <option value="quarter" selected>Current Quarter</option>
+                            <option value="ytd">Year to Date</option>
+                            <option value="12months">Last 12 Months</option>
+                        </select>
+                    </div>
+                    <div class="flex-1 min-w-[200px]">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
+                            <i class="fas fa-layer-group mr-1"></i>Metric Category
+                        </label>
+                        <select id="metrics-category-filter" class="w-full p-2.5 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                            <option value="all">All Categories</option>
+                            <option value="demographics">1️⃣ Demographics</option>
+                            <option value="recruitment">2️⃣ Recruitment</option>
+                            <option value="payroll">3️⃣ Payroll & Compensation</option>
+                            <option value="attendance">4️⃣ Attendance & Leave</option>
+                            <option value="benefits">5️⃣ Benefits & HMO</option>
+                            <option value="training">6️⃣ Training & Development</option>
+                            <option value="relations">7️⃣ Employee Relations</option>
+                            <option value="turnover">8️⃣ Turnover & Retention</option>
+                            <option value="compliance">9️⃣ Compliance & Audit</option>
+                            <option value="executive">🔟 Executive KPIs</option>
+                        </select>
+                    </div>
+                    <div class="flex gap-2">
+                        <button id="apply-metrics-filter-btn" class="px-6 py-2.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium">
+                            <i class="fas fa-filter mr-2"></i>Apply
+                        </button>
+                        <button id="refresh-metrics-btn" class="px-6 py-2.5 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors font-medium">
+                            <i class="fas fa-sync-alt mr-2"></i>Refresh
+                        </button>
+                        <button id="export-metrics-btn" class="px-6 py-2.5 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors font-medium">
+                            <i class="fas fa-download mr-2"></i>Export
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
             <!-- Metrics Navigation Tabs -->
-            <div class="bg-white rounded-lg shadow-md border border-[#F7E6CA]">
-                <div class="border-b border-gray-200">
-                    <nav class="-mb-px flex space-x-4 px-4" id="metrics-tabs">
-                        <button class="metrics-tab active py-4 px-3 border-b-2 border-[#594423] font-medium text-sm text-[#594423]" data-tab="kpi">
-                            <i class="fas fa-chart-line mr-2"></i>KPI Dashboard
+            <div class="bg-white rounded-lg shadow-md border border-gray-200">
+                <div class="border-b border-gray-200 overflow-x-auto">
+                    <nav class="flex -mb-px" id="metrics-tabs">
+                        <button class="metrics-tab active px-4 py-3 text-sm font-medium border-b-2 border-blue-500 text-blue-600 whitespace-nowrap" data-category="overview">
+                            <i class="fas fa-th-large mr-1"></i>Overview
                         </button>
-                        <button class="metrics-tab py-4 px-3 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700" data-tab="predictive">
-                            <i class="fas fa-crystal-ball mr-2"></i>Predictive Analytics
+                        <button class="metrics-tab px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap" data-category="demographics">
+                            <i class="fas fa-users mr-1"></i>Demographics
                         </button>
-                        <button class="metrics-tab py-4 px-3 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700" data-tab="comparative">
-                            <i class="fas fa-balance-scale mr-2"></i>Comparative Analysis
+                        <button class="metrics-tab px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap" data-category="recruitment">
+                            <i class="fas fa-user-plus mr-1"></i>Recruitment
                         </button>
-                        <button class="metrics-tab py-4 px-3 border-b-2 border-transparent font-medium text-sm text-gray-500 hover:text-gray-700" data-tab="anomaly">
-                            <i class="fas fa-exclamation-triangle mr-2"></i>Anomaly Detection
+                        <button class="metrics-tab px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap" data-category="payroll">
+                            <i class="fas fa-money-bill mr-1"></i>Payroll
+                        </button>
+                        <button class="metrics-tab px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap" data-category="attendance">
+                            <i class="fas fa-calendar-check mr-1"></i>Attendance
+                        </button>
+                        <button class="metrics-tab px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap" data-category="benefits">
+                            <i class="fas fa-hand-holding-medical mr-1"></i>Benefits
+                        </button>
+                        <button class="metrics-tab px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap" data-category="training">
+                            <i class="fas fa-graduation-cap mr-1"></i>Training
+                        </button>
+                        <button class="metrics-tab px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap" data-category="relations">
+                            <i class="fas fa-heart mr-1"></i>Relations
+                        </button>
+                        <button class="metrics-tab px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap" data-category="turnover">
+                            <i class="fas fa-door-open mr-1"></i>Turnover
+                        </button>
+                        <button class="metrics-tab px-4 py-3 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap" data-category="compliance">
+                            <i class="fas fa-clipboard-check mr-1"></i>Compliance
                         </button>
                     </nav>
                 </div>
                 
                 <!-- Tab Content -->
                 <div id="metrics-tab-content" class="p-6">
-                    <!-- KPI Dashboard Tab -->
-                    <div id="kpi-dashboard" class="metrics-tab-panel">
-                        <h3 class="text-lg font-semibold text-[#4E3B2A] mb-4">Track Key Performance Indicators</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6 pb-4 border-b border-gray-200 items-end">
-                            <div>
-                                <label for="metric-name-filter" class="block text-sm font-medium text-gray-700 mb-1">Metric:</label>
-                                <select id="metric-name-filter" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#4E3B2A] focus:border-[#4E3B2A]">
-                                    <option value="">-- Select Metric --</option>
-                                    <option value="headcount_by_department">Staff Distribution by Role</option>
-                                    <option value="turnover_rate">Staff Turnover Rate</option>
-                                    <option value="avg_time_to_hire">Average Time to Hire</option>
-                                    <option value="training_completion_rate">Training Completion Rate</option>
-                                    <option value="employee_satisfaction_index">Employee Satisfaction Index</option>
-                                    <option value="overtime_cost_ratio">Overtime Cost Ratio</option>
-                                    <option value="average_tenure_per_department">Average Tenure per Department</option>
-                                    <option value="attendance_rate">Attendance Rate</option>
-                                    <option value="benefits_utilization_rate">Benefits Utilization Rate</option>
-                                    <option value="productivity_index">Productivity Index</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label for="metric-period-filter" class="block text-sm font-medium text-gray-700 mb-1">Time Period:</label>
-                                <select id="metric-period-filter" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#4E3B2A] focus:border-[#4E3B2A]">
-                                    <option value="current" ${defaultPeriod === 'current' ? 'selected' : ''}>Current Snapshot</option>
-                                    <option value="monthly" ${defaultPeriod === 'monthly' ? 'selected' : ''}>Monthly Trend</option>
-                                    <option value="quarterly" ${defaultPeriod === 'quarterly' ? 'selected' : ''}>Quarterly Trend</option>
-                                    <option value="annual" ${defaultPeriod === 'annual' ? 'selected' : ''}>Annual Trend</option>
-                                </select>
-                            </div>
-                            <div>
-                                <button id="view-metric-btn" class="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-                                    <i class="fas fa-chart-bar mr-2"></i>View Metric
-                                </button>
-                            </div>
-                            <div>
-                                <button id="auto-refresh-btn" class="w-full px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700" title="Auto-refresh with current data">
-                                    <i class="fas fa-sync-alt"></i> Auto Refresh
-                                </button>
-                            </div>
-                        </div>
-                        <div id="metric-display-area" class="min-h-[300px] bg-gray-50 p-4 rounded-lg border">
-                            <p class="text-center py-4 text-gray-500">Select a metric and period to view data.</p>
-                        </div>
-                    </div>
-
-                    <!-- Predictive Analytics Tab -->
-                    <div id="predictive-analytics" class="metrics-tab-panel hidden">
-                        <h3 class="text-lg font-semibold text-[#4E3B2A] mb-4">Predictive Analytics & Forecasting</h3>
-                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            <div class="space-y-4">
-                                <div class="bg-white p-4 rounded-lg border">
-                                    <h4 class="font-semibold mb-3">Attrition Prediction</h4>
-                                    <div class="space-y-2">
-                                        <div class="flex justify-between">
-                                            <span class="text-sm">High Risk Employees:</span>
-                                            <span class="text-sm font-semibold text-red-600">12</span>
-                                        </div>
-                                        <div class="flex justify-between">
-                                            <span class="text-sm">Medium Risk:</span>
-                                            <span class="text-sm font-semibold text-yellow-600">28</span>
-                                        </div>
-                                        <div class="flex justify-between">
-                                            <span class="text-sm">Low Risk:</span>
-                                            <span class="text-sm font-semibold text-green-600">156</span>
-                                        </div>
-                                    </div>
-                                    <div class="mt-3">
-                                        <button class="w-full px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700">
-                                            View Risk Analysis
-                                        </button>
-                                    </div>
-                                </div>
-                                
-                                <div class="bg-white p-4 rounded-lg border">
-                                    <h4 class="font-semibold mb-3">Salary Growth Forecast</h4>
-                                    <div class="h-48">
-                                        <canvas id="salaryForecastChart"></canvas>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="space-y-4">
-                                <div class="bg-white p-4 rounded-lg border">
-                                    <h4 class="font-semibold mb-3">Workforce Planning</h4>
-                                    <div class="space-y-3">
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-1">Planning Horizon</label>
-                                            <select class="w-full p-2 border border-gray-300 rounded-md">
-                                                <option value="6months">6 Months</option>
-                                                <option value="1year" selected>1 Year</option>
-                                                <option value="2years">2 Years</option>
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-1">Department Focus</label>
-                                            <select class="w-full p-2 border border-gray-300 rounded-md">
-                                                <option value="">All Departments</option>
-                                                <option value="hr">Human Resources</option>
-                                                <option value="finance">Finance</option>
-                                                <option value="operations">Operations</option>
-                                            </select>
-                                        </div>
-                                        <button class="w-full px-3 py-2 bg-purple-600 text-white text-sm rounded hover:bg-purple-700">
-                                            Generate Forecast
-                                        </button>
-                                    </div>
-                                </div>
-                                
-                                <div class="bg-white p-4 rounded-lg border">
-                                    <h4 class="font-semibold mb-3">Training Needs Prediction</h4>
-                                    <div class="space-y-2">
-                                        <div class="flex justify-between">
-                                            <span class="text-sm">Skills Gap Identified:</span>
-                                            <span class="text-sm font-semibold">8</span>
-                                        </div>
-                                        <div class="flex justify-between">
-                                            <span class="text-sm">Training Programs Needed:</span>
-                                            <span class="text-sm font-semibold">5</span>
-                                        </div>
-                                        <div class="flex justify-between">
-                                            <span class="text-sm">Estimated Cost:</span>
-                                            <span class="text-sm font-semibold">₱125,000</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Comparative Analysis Tab -->
-                    <div id="comparative-analysis" class="metrics-tab-panel hidden">
-                        <h3 class="text-lg font-semibold text-[#4E3B2A] mb-4">Comparative Analysis</h3>
-                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            <div class="space-y-4">
-                                <div class="bg-white p-4 rounded-lg border">
-                                    <h4 class="font-semibold mb-3">Budget vs Actual HR Costs</h4>
-                                    <div class="h-64">
-                                        <canvas id="budgetVsActualChart"></canvas>
-                                    </div>
-                                </div>
-                                
-                                <div class="bg-white p-4 rounded-lg border">
-                                    <h4 class="font-semibold mb-3">Department Performance Comparison</h4>
-                                    <div class="space-y-2">
-                                        <div class="flex justify-between items-center p-2 bg-gray-50 rounded">
-                                            <span class="text-sm">HR Department</span>
-                                            <div class="flex items-center">
-                                                <div class="w-24 bg-gray-200 rounded-full h-2 mr-2">
-                                                    <div class="bg-green-600 h-2 rounded-full" style="width: 85%"></div>
-                                                </div>
-                                                <span class="text-sm font-semibold">85%</span>
-                                            </div>
-                                        </div>
-                                        <div class="flex justify-between items-center p-2 bg-gray-50 rounded">
-                                            <span class="text-sm">Finance Department</span>
-                                            <div class="flex items-center">
-                                                <div class="w-24 bg-gray-200 rounded-full h-2 mr-2">
-                                                    <div class="bg-blue-600 h-2 rounded-full" style="width: 72%"></div>
-                                                </div>
-                                                <span class="text-sm font-semibold">72%</span>
-                                            </div>
-                                        </div>
-                                        <div class="flex justify-between items-center p-2 bg-gray-50 rounded">
-                                            <span class="text-sm">Operations Department</span>
-                                            <div class="flex items-center">
-                                                <div class="w-24 bg-gray-200 rounded-full h-2 mr-2">
-                                                    <div class="bg-yellow-600 h-2 rounded-full" style="width: 68%"></div>
-                                                </div>
-                                                <span class="text-sm font-semibold">68%</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="space-y-4">
-                                <div class="bg-white p-4 rounded-lg border">
-                                    <h4 class="font-semibold mb-3">Industry Benchmarking</h4>
-                                    <div class="space-y-3">
-                                        <div class="flex justify-between">
-                                            <span class="text-sm">Your Turnover Rate:</span>
-                                            <span class="text-sm font-semibold">12.5%</span>
-                                        </div>
-                                        <div class="flex justify-between">
-                                            <span class="text-sm">Industry Average:</span>
-                                            <span class="text-sm">15.2%</span>
-                                        </div>
-                                        <div class="flex justify-between">
-                                            <span class="text-sm">Your Position:</span>
-                                            <span class="text-sm font-semibold text-green-600">Above Average</span>
-                                        </div>
-                                    </div>
-                                    <div class="mt-3">
-                                        <button class="w-full px-3 py-2 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700">
-                                            View Full Benchmarking Report
-                                        </button>
-                                    </div>
-                                </div>
-                                
-                                <div class="bg-white p-4 rounded-lg border">
-                                    <h4 class="font-semibold mb-3">Year-over-Year Comparison</h4>
-                                    <div class="h-48">
-                                        <canvas id="yoyComparisonChart"></canvas>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Anomaly Detection Tab -->
-                    <div id="anomaly-detection" class="metrics-tab-panel hidden">
-                        <h3 class="text-lg font-semibold text-[#4E3B2A] mb-4">Anomaly Detection & Alerts</h3>
-                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            <div class="space-y-4">
-                                <div class="bg-white p-4 rounded-lg border border-red-200">
-                                    <div class="flex items-center mb-3">
-                                        <i class="fas fa-exclamation-triangle text-red-600 mr-2"></i>
-                                        <h4 class="font-semibold text-red-800">High Priority Alerts</h4>
-                                    </div>
-                                    <div class="space-y-2">
-                                        <div class="p-2 bg-red-50 rounded border-l-4 border-red-400">
-                                            <p class="text-sm font-medium text-red-800">Unusual Turnover Spike</p>
-                                            <p class="text-xs text-red-600">Finance Department: 25% increase this month</p>
-                                        </div>
-                                        <div class="p-2 bg-red-50 rounded border-l-4 border-red-400">
-                                            <p class="text-sm font-medium text-red-800">Overtime Cost Anomaly</p>
-                                            <p class="text-xs text-red-600">Operations: 40% above normal range</p>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <div class="bg-white p-4 rounded-lg border border-yellow-200">
-                                    <div class="flex items-center mb-3">
-                                        <i class="fas fa-exclamation-circle text-yellow-600 mr-2"></i>
-                                        <h4 class="font-semibold text-yellow-800">Medium Priority Alerts</h4>
-                                    </div>
-                                    <div class="space-y-2">
-                                        <div class="p-2 bg-yellow-50 rounded border-l-4 border-yellow-400">
-                                            <p class="text-sm font-medium text-yellow-800">Attendance Pattern Change</p>
-                                            <p class="text-xs text-yellow-600">HR Department: 15% decrease in attendance</p>
-                                        </div>
-                                        <div class="p-2 bg-yellow-50 rounded border-l-4 border-yellow-400">
-                                            <p class="text-sm font-medium text-yellow-800">Training Completion Drop</p>
-                                            <p class="text-xs text-yellow-600">Overall completion rate below target</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="space-y-4">
-                                <div class="bg-white p-4 rounded-lg border">
-                                    <h4 class="font-semibold mb-3">Anomaly Detection Settings</h4>
-                                    <div class="space-y-3">
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-1">Sensitivity Level</label>
-                                            <select class="w-full p-2 border border-gray-300 rounded-md">
-                                                <option value="low">Low (Conservative)</option>
-                                                <option value="medium" selected>Medium (Balanced)</option>
-                                                <option value="high">High (Sensitive)</option>
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-1">Alert Frequency</label>
-                                            <select class="w-full p-2 border border-gray-300 rounded-md">
-                                                <option value="realtime">Real-time</option>
-                                                <option value="daily" selected>Daily Summary</option>
-                                                <option value="weekly">Weekly Summary</option>
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-1">Notification Method</label>
-                                            <div class="space-y-1">
-                                                <label class="flex items-center">
-                                                    <input type="checkbox" class="mr-2" checked>
-                                                    <span class="text-sm">Email Alerts</span>
-                                                </label>
-                                                <label class="flex items-center">
-                                                    <input type="checkbox" class="mr-2">
-                                                    <span class="text-sm">SMS Notifications</span>
-                                                </label>
-                                                <label class="flex items-center">
-                                                    <input type="checkbox" class="mr-2" checked>
-                                                    <span class="text-sm">Dashboard Notifications</span>
-                                                </label>
-                                            </div>
-                                        </div>
-                                        <button class="w-full px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700">
-                                            Save Settings
-                                        </button>
-                                    </div>
-                                </div>
-                                
-                                <div class="bg-white p-4 rounded-lg border">
-                                    <h4 class="font-semibold mb-3">Anomaly History</h4>
-                                    <div class="space-y-2 max-h-48 overflow-y-auto">
-                                        <div class="p-2 bg-gray-50 rounded text-sm">
-                                            <p class="font-medium">Turnover Spike Detected</p>
-                                            <p class="text-xs text-gray-600">2024-01-15 14:30</p>
-                                        </div>
-                                        <div class="p-2 bg-gray-50 rounded text-sm">
-                                            <p class="font-medium">Overtime Anomaly</p>
-                                            <p class="text-xs text-gray-600">2024-01-12 09:15</p>
-                                        </div>
-                                        <div class="p-2 bg-gray-50 rounded text-sm">
-                                            <p class="font-medium">Attendance Pattern Change</p>
-                                            <p class="text-xs text-gray-600">2024-01-10 16:45</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    <!-- Content will be loaded dynamically -->
                 </div>
             </div>
-        </div>`;
+        </div>
+    `;
     
-    // Initialize metrics functionality
-    initializeMetricsFunctionality();
+    // Setup tab navigation
+    setupMetricsTabNavigation();
     
-    // Initialize event listeners
-    initializeMetricsEventListeners();
-
-    // Auto-load first metric if available
-    setTimeout(() => {
-        const metricSelect = document.getElementById('metric-name-filter');
-        if (metricSelect && metricSelect.value === '') {
-            metricSelect.value = 'headcount_by_department';
-            metricSelect.dispatchEvent(new Event('change'));
-        }
-    }, 500);
+    // Load default tab (Overview)
+    loadMetricsOverview();
+    
+    // Setup event listeners
+    setupMetricsEventListeners();
 }
 
 /**
- * Initialize metrics functionality
+ * Setup metrics tab navigation
  */
-function initializeMetricsFunctionality() {
-    // Tab switching
-    document.querySelectorAll('.metrics-tab').forEach(tab => {
-        tab.addEventListener('click', function() {
-            const tabName = this.dataset.tab;
-            switchMetricsTab(tabName);
+function setupMetricsTabNavigation() {
+    const tabs = document.querySelectorAll('.metrics-tab');
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            // Update active state
+            tabs.forEach(t => {
+                t.classList.remove('active', 'border-blue-500', 'text-blue-600');
+                t.classList.add('border-transparent', 'text-gray-500');
+            });
+            tab.classList.add('active', 'border-blue-500', 'text-blue-600');
+            tab.classList.remove('border-transparent', 'text-gray-500');
+            
+            // Load tab content
+            const category = tab.dataset.category;
+            loadMetricsCategory(category);
         });
     });
 }
 
 /**
- * Switch metrics tabs
+ * Setup metrics event listeners
  */
-function switchMetricsTab(tabName) {
-    // Update tab buttons
-    document.querySelectorAll('.metrics-tab').forEach(tab => {
-        tab.classList.remove('active', 'border-[#594423]', 'text-[#594423]');
-        tab.classList.add('border-transparent', 'text-gray-500');
+function setupMetricsEventListeners() {
+    // Apply Filter button
+    document.getElementById('apply-metrics-filter-btn')?.addEventListener('click', () => {
+        const activeTab = document.querySelector('.metrics-tab.active');
+        const category = activeTab?.dataset.category || 'overview';
+        loadMetricsCategory(category);
     });
-
-    const activeTab = document.querySelector(`[data-tab="${tabName}"]`);
-    if (activeTab) {
-        activeTab.classList.add('active', 'border-[#594423]', 'text-[#594423]');
-        activeTab.classList.remove('border-transparent', 'text-gray-500');
-    }
-
-    // Update tab panels
-    document.querySelectorAll('.metrics-tab-panel').forEach(panel => {
-        panel.classList.add('hidden');
-    });
-
-    const activePanel = document.getElementById(`${tabName}-dashboard`);
-    if (activePanel) {
-        activePanel.classList.remove('hidden');
-    }
-}
-
-/**
- * Initialize metrics event listeners
- */
-function initializeMetricsEventListeners() {
-    const btn = document.getElementById('view-metric-btn');
-    if (btn && !btn.hasAttribute('data-listener-attached')) {
-        btn.addEventListener('click', handleViewMetric);
-        btn.setAttribute('data-listener-attached', 'true');
-    }
-
-    // Add auto-refresh functionality
-    const autoRefreshBtn = document.getElementById('auto-refresh-btn');
-    if (autoRefreshBtn && !autoRefreshBtn.hasAttribute('data-listener-attached')) {
-        autoRefreshBtn.addEventListener('click', handleAutoRefreshMetrics);
-        autoRefreshBtn.setAttribute('data-listener-attached', 'true');
-    }
-}
-
-async function handleViewMetric() {
-    const name = document.getElementById('metric-name-filter')?.value;
-    const period = document.getElementById('metric-period-filter')?.value;
-    const displayArea = document.getElementById('metric-display-area');
-
-    if (!displayArea || !name) {
-        if(displayArea) displayArea.innerHTML = '<p class="text-red-500">Please select a metric.</p>';
-        return;
-    }
-    const displayName = name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-    displayArea.innerHTML = `<p class="text-blue-600">Loading data for <strong>${displayName}</strong> (${period})...</p>`;
     
-    try {
-        const response = await fetch(`${API_BASE_URL}get_key_metrics.php?metric_name=${encodeURIComponent(name)}&metric_period=${encodeURIComponent(period)}`, { credentials: 'include' });
-        if (!response.ok) throw new Error(`HTTP error ${response.status}`);
-        const data = await response.json();
-        if (data.error) throw new Error(data.error);
-        
-        if (metricChartInstance) metricChartInstance.destroy();
-        
-        if (data.dataPoints?.length > 0 && data.labels?.length > 0) {
-            displayArea.innerHTML = `<canvas id="metricDetailChart" class="max-h-[400px]"></canvas>`;
-            renderMetricDetailChart(data.labels, data.dataPoints, data.metricNameDisplay || displayName, data.unit);
-        } else if (data.value !== null) {
-            displayArea.innerHTML = `<div class="p-4 text-center"><h4 class="text-xl font-semibold">${data.metricNameDisplay || displayName}</h4><p class="text-4xl text-blue-600 font-bold my-3">${data.value} ${data.unit || ''}</p><p class="text-sm text-gray-500">Period: ${data.metricPeriod.charAt(0).toUpperCase() + data.metricPeriod.slice(1)}</p>${data.notes ? `<p class="text-xs text-gray-400 mt-2"><em>Note: ${data.notes}</em></p>` : ''}</div>`;
-        } else {
-            displayArea.innerHTML = `<p class="text-gray-500">No data for ${displayName} for this period.</p>`;
-        }
-    } catch (e) {
-        console.error("Error viewing metric:", e);
-        displayArea.innerHTML = `<p class="text-red-500">Could not load metric: ${e.message}</p>`;
-    }
-}
-
-function renderMetricDetailChart(labels, dataPoints, metricTitle, unit) {
-    const ctx = document.getElementById('metricDetailChart')?.getContext('2d');
-    if (!ctx) return;
-    const bgColors = labels.map((_, i) => `hsl(${(i * 360 / (labels.length || 1) + 120) % 360}, 65%, 55%)`);
-    const borderColors = bgColors.map(c => c.replace('55%)', '45%)'));
-    metricChartInstance = new Chart(ctx, {
-        type: 'bar',
-        data: { labels, datasets: [{ label: `${metricTitle}${unit ? ` (${unit})` : ''}`, data: dataPoints, backgroundColor: bgColors, borderColor: borderColors, borderWidth: 1 }] },
-        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { stepSize: (Math.max(...dataPoints, 1) < 10) ? 1 : undefined } } }, plugins: { legend: { display: dataPoints.length > 1 }, title: { display: true, text: metricTitle } } }
+    // Refresh button
+    document.getElementById('refresh-metrics-btn')?.addEventListener('click', () => {
+        const activeTab = document.querySelector('.metrics-tab.active');
+        const category = activeTab?.dataset.category || 'overview';
+        loadMetricsCategory(category);
+    });
+    
+    // Export button
+    document.getElementById('export-metrics-btn')?.addEventListener('click', () => {
+        alert('Exporting metrics data...');
     });
 }
 
-async function handleAutoRefreshMetrics() {
-    const displayArea = document.getElementById('metric-display-area');
-    const metricSelect = document.getElementById('metric-name-filter');
-    const periodSelect = document.getElementById('metric-period-filter');
-
-    if (!displayArea) return;
-
-    // Get current selections or use defaults
-    const name = metricSelect?.value || 'headcount_by_department';
-    const period = periodSelect?.value || 'current';
-
-    if (!name) {
-        displayArea.innerHTML = '<p class="text-red-500">Please select a metric to refresh.</p>';
-        return;
-    }
-
-    const displayName = name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-    displayArea.innerHTML = `<p class="text-blue-600">Auto-refreshing <strong>${displayName}</strong> with latest data...</p>`;
-
-    try {
-        const response = await fetch(`${API_BASE_URL}get_key_metrics.php?metric_name=${encodeURIComponent(name)}&metric_period=${encodeURIComponent(period)}&auto_refresh=true`, { credentials: 'include' });
-        if (!response.ok) throw new Error(`HTTP error ${response.status}`);
-        const data = await response.json();
-        if (data.error) throw new Error(data.error);
-
-        if (metricChartInstance) metricChartInstance.destroy();
-
-        if (data.dataPoints?.length > 0 && data.labels?.length > 0) {
-            displayArea.innerHTML = `<canvas id="metricDetailChart" class="max-h-[400px]"></canvas><p class="text-xs text-gray-500 mt-2">✓ Refreshed at ${new Date().toLocaleTimeString()}</p>`;
-            renderMetricDetailChart(data.labels, data.dataPoints, data.metricNameDisplay || displayName, data.unit);
-        } else if (data.value !== null) {
-            displayArea.innerHTML = `<div class="p-4 text-center"><h4 class="text-xl font-semibold">${data.metricNameDisplay || displayName}</h4><p class="text-4xl text-blue-600 font-bold my-3">${data.value} ${data.unit || ''}</p><p class="text-sm text-gray-500">Period: ${data.metricPeriod.charAt(0).toUpperCase() + data.metricPeriod.slice(1)}</p>${data.notes ? `<p class="text-xs text-gray-400 mt-2"><em>Note: ${data.notes}</em></p>` : ''}<p class="text-xs text-green-600 mt-2">✓ Refreshed at ${new Date().toLocaleTimeString()}</p></div>`;
-        } else {
-            displayArea.innerHTML = `<p class="text-gray-500">No data for ${displayName} for this period.</p><p class="text-xs text-gray-400 mt-2">Last refresh: ${new Date().toLocaleTimeString()}</p>`;
-        }
-    } catch (e) {
-        console.error("Error auto-refreshing metric:", e);
-        displayArea.innerHTML = `<p class="text-red-500">Could not refresh metric: ${e.message}</p>`;
+/**
+ * Load metrics category
+ */
+function loadMetricsCategory(category) {
+    cleanupCharts();
+    
+    switch(category) {
+        case 'overview':
+            loadMetricsOverview();
+            break;
+        case 'demographics':
+            loadDemographicsMetrics();
+            break;
+        case 'recruitment':
+            loadRecruitmentMetrics();
+            break;
+        case 'payroll':
+            loadPayrollMetrics();
+            break;
+        case 'attendance':
+            loadAttendanceMetrics();
+            break;
+        case 'benefits':
+            loadBenefitsMetrics();
+            break;
+        case 'training':
+            loadTrainingMetrics();
+            break;
+        case 'relations':
+            loadRelationsMetrics();
+            break;
+        case 'turnover':
+            loadTurnoverMetrics();
+            break;
+        case 'compliance':
+            loadComplianceMetrics();
+            break;
     }
 }
 
 /**
- * Enhanced Analytics Module - Complete Implementation Summary
- * 
- * This module now provides comprehensive HR analytics functionality including:
- * 
- * 1. ENHANCED DASHBOARD:
- *    - 8 comprehensive KPI cards with real-time metrics
- *    - Advanced filtering by department, period, and branch
- *    - Multiple chart types (trend lines, bar charts, pie charts)
- *    - Export functionality (PDF, Excel, CSV)
- * 
- * 2. STANDARDIZED REPORTS:
- *    - 12+ pre-built report types
- *    - Automated date range generation
- *    - Export capabilities for all reports
- *    - Compliance and audit reporting
- * 
- * 3. CUSTOM REPORT BUILDER:
- *    - Drag-and-drop widget interface
- *    - 6 widget types (KPI cards, charts, tables, heatmaps)
- *    - Save, preview, and export custom reports
- *    - Flexible layout options
- * 
- * 4. SCHEDULED REPORTS:
- *    - Automated report generation
- *    - Multiple frequency options (daily, weekly, monthly, quarterly)
- *    - Email distribution to multiple recipients
- *    - Multiple export formats
- * 
- * 5. PREDICTIVE ANALYTICS:
- *    - Attrition prediction with risk assessment
- *    - Salary growth forecasting
- *    - Workforce planning tools
- *    - Training needs prediction
- * 
- * 6. COMPARATIVE ANALYSIS:
- *    - Budget vs actual cost comparisons
- *    - Department performance benchmarking
- *    - Industry benchmarking
- *    - Year-over-year trend analysis
- * 
- * 7. ANOMALY DETECTION:
- *    - Real-time anomaly detection
- *    - Configurable alert thresholds
- *    - Priority-based alert system
- *    - Historical anomaly tracking
- * 
- * 8. COMPLIANCE & AUDIT:
- *    - DOLE compliance reporting
- *    - Civil Service Commission reports
- *    - Data privacy compliance
- *    - Audit trail generation
- * 
- * Benefits:
- * ✅ Centralized and automated HR reporting
- * ✅ Real-time visibility of workforce performance and cost
- * ✅ Supports evidence-based HR planning and decision-making
- * ✅ Reduces manual report preparation and errors
- * ✅ Promotes accountability, compliance, and strategic alignment
- * ✅ Predictive insights for proactive HR management
- * ✅ Industry benchmarking for competitive advantage
- * ✅ Automated anomaly detection for risk management
+ * OVERVIEW TAB - All Key Metrics Summary
  */
+async function loadMetricsOverview() {
+    const tabContent = document.getElementById('metrics-tab-content');
+    if (!tabContent) return;
+    
+    tabContent.innerHTML = `
+        <div class="space-y-6">
+            <h3 class="text-lg font-semibold text-gray-800">Key Performance Indicators - Overview</h3>
+            
+            <!-- KPI Cards Grid -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <!-- Total Headcount -->
+                <div class="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="text-sm text-blue-700 font-semibold">Total Headcount</div>
+                        <i class="fas fa-users text-2xl text-blue-500"></i>
+                    </div>
+                    <div class="text-3xl font-bold text-blue-900" id="metric-total-headcount">
+                        <i class="fas fa-spinner fa-spin text-xl"></i>
+                    </div>
+                    <div class="text-xs text-blue-600 mt-1" id="metric-headcount-trend">Loading...</div>
+                </div>
+                
+                <!-- Turnover Rate -->
+                <div class="bg-gradient-to-br from-red-50 to-red-100 border border-red-200 rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="text-sm text-red-700 font-semibold">Turnover Rate (YTD)</div>
+                        <i class="fas fa-exchange-alt text-2xl text-red-500"></i>
+                    </div>
+                    <div class="text-3xl font-bold text-red-900" id="metric-turnover-rate">
+                        <i class="fas fa-spinner fa-spin text-xl"></i>
+                    </div>
+                    <div class="text-xs text-red-600 mt-1">Annual: <span id="metric-turnover-annual">--</span></div>
+                </div>
+                
+                <!-- Total Payroll Cost -->
+                <div class="bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="text-sm text-green-700 font-semibold">Total Payroll Cost</div>
+                        <i class="fas fa-money-bill-wave text-2xl text-green-500"></i>
+                    </div>
+                    <div class="text-3xl font-bold text-green-900" id="metric-payroll-cost">
+                        <i class="fas fa-spinner fa-spin text-xl"></i>
+                    </div>
+                    <div class="text-xs text-green-600 mt-1">vs Budget: <span id="metric-payroll-budget">--</span></div>
+                </div>
+                
+                <!-- Engagement Score -->
+                <div class="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="text-sm text-purple-700 font-semibold">Engagement Score</div>
+                        <i class="fas fa-heart text-2xl text-purple-500"></i>
+                    </div>
+                    <div class="text-3xl font-bold text-purple-900" id="metric-engagement-score">
+                        <i class="fas fa-spinner fa-spin text-xl"></i>
+                    </div>
+                    <div class="text-xs text-purple-600 mt-1">Survey responses: <span id="metric-engagement-responses">--</span></div>
+                </div>
+                
+                <!-- Attendance Rate -->
+                <div class="bg-gradient-to-br from-teal-50 to-teal-100 border border-teal-200 rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="text-sm text-teal-700 font-semibold">Attendance Rate</div>
+                        <i class="fas fa-calendar-check text-2xl text-teal-500"></i>
+                    </div>
+                    <div class="text-3xl font-bold text-teal-900" id="metric-attendance-rate">
+                        <i class="fas fa-spinner fa-spin text-xl"></i>
+                    </div>
+                    <div class="text-xs text-teal-600 mt-1">Absenteeism: <span id="metric-absenteeism">--</span></div>
+                </div>
+                
+                <!-- Benefits Utilization -->
+                <div class="bg-gradient-to-br from-indigo-50 to-indigo-100 border border-indigo-200 rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="text-sm text-indigo-700 font-semibold">Benefits Utilization</div>
+                        <i class="fas fa-hand-holding-medical text-2xl text-indigo-500"></i>
+                    </div>
+                    <div class="text-3xl font-bold text-indigo-900" id="metric-benefits-util">
+                        <i class="fas fa-spinner fa-spin text-xl"></i>
+                    </div>
+                    <div class="text-xs text-indigo-600 mt-1">Claims: <span id="metric-benefits-claims">--</span></div>
+                </div>
+                
+                <!-- Training Participation -->
+                <div class="bg-gradient-to-br from-amber-50 to-amber-100 border border-amber-200 rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="text-sm text-amber-700 font-semibold">Training Participation</div>
+                        <i class="fas fa-graduation-cap text-2xl text-amber-500"></i>
+                    </div>
+                    <div class="text-3xl font-bold text-amber-900" id="metric-training-participation">
+                        <i class="fas fa-spinner fa-spin text-xl"></i>
+                    </div>
+                    <div class="text-xs text-amber-600 mt-1">Avg hours: <span id="metric-training-hours">--</span></div>
+                </div>
+                
+                <!-- Compliance Index -->
+                <div class="bg-gradient-to-br from-rose-50 to-rose-100 border border-rose-200 rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="text-sm text-rose-700 font-semibold">Compliance Index</div>
+                        <i class="fas fa-clipboard-check text-2xl text-rose-500"></i>
+                    </div>
+                    <div class="text-3xl font-bold text-rose-900" id="metric-compliance-index">
+                        <i class="fas fa-spinner fa-spin text-xl"></i>
+                    </div>
+                    <div class="text-xs text-rose-600 mt-1">Expiring docs: <span id="metric-compliance-expiring">--</span></div>
+                </div>
+            </div>
+            
+            <!-- Metrics Comparison Table -->
+            <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                <div class="bg-gray-50 px-6 py-3 border-b border-gray-200">
+                    <h4 class="font-semibold text-gray-800">All Metrics Summary</h4>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Metric Name</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current Value</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Previous Period</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Change</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trend</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200" id="metrics-summary-tbody">
+                            <tr>
+                                <td colspan="7" class="px-6 py-4 text-center text-gray-500">
+                                    <i class="fas fa-spinner fa-spin mr-2"></i>Loading metrics...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Key Trend Charts -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white rounded-lg border border-gray-200 p-6">
+                    <h4 class="font-semibold text-gray-800 mb-4">Headcount Trend</h4>
+                    <canvas id="overview-headcount-chart"></canvas>
+                </div>
+                <div class="bg-white rounded-lg border border-gray-200 p-6">
+                    <h4 class="font-semibold text-gray-800 mb-4">Turnover Trend (YTD)</h4>
+                    <canvas id="overview-turnover-chart"></canvas>
+                </div>
+                <div class="bg-white rounded-lg border border-gray-200 p-6">
+                    <h4 class="font-semibold text-gray-800 mb-4">Total Payroll vs Budget</h4>
+                    <canvas id="overview-payroll-chart"></canvas>
+                </div>
+                <div class="bg-white rounded-lg border border-gray-200 p-6">
+                    <h4 class="font-semibold text-gray-800 mb-4">Benefit Utilization Trend</h4>
+                    <canvas id="overview-benefits-chart"></canvas>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Load all overview metrics
+    await loadOverviewMetricsData();
+}
 
+/**
+ * Load Overview Metrics Data
+ */
+async function loadOverviewMetricsData() {
+    try {
+        const response = await fetch(`${API_BASE_URL}hr-analytics/metrics-overview`);
+        const result = await response.json();
+        
+        if (result.success && result.data) {
+            const data = result.data;
+            
+            // Update KPI cards
+            document.getElementById('metric-total-headcount').textContent = (data.total_headcount || 0).toLocaleString();
+            document.getElementById('metric-headcount-trend').innerHTML = `<i class="fas fa-arrow-up"></i> +${data.headcount_change || 0} this month`;
+            
+            document.getElementById('metric-turnover-rate').textContent = `${(data.turnover_rate || 0).toFixed(1)}%`;
+            document.getElementById('metric-turnover-annual').textContent = `${(data.annual_turnover || 0).toFixed(1)}%`;
+            
+            document.getElementById('metric-payroll-cost').textContent = `₱${(data.payroll_cost || 0).toLocaleString('en-PH')}`;
+            document.getElementById('metric-payroll-budget').textContent = `${(data.budget_variance || 0).toFixed(1)}%`;
+            
+            document.getElementById('metric-engagement-score').textContent = `${(data.engagement_score || 0).toFixed(1)}`;
+            document.getElementById('metric-engagement-responses').textContent = (data.survey_responses || 0).toLocaleString();
+            
+            document.getElementById('metric-attendance-rate').textContent = `${(data.attendance_rate || 0).toFixed(1)}%`;
+            document.getElementById('metric-absenteeism').textContent = `${(data.absenteeism_rate || 0).toFixed(1)}%`;
+            
+            document.getElementById('metric-benefits-util').textContent = `${(data.benefits_utilization || 0).toFixed(1)}%`;
+            document.getElementById('metric-benefits-claims').textContent = (data.total_claims || 0).toLocaleString();
+            
+            document.getElementById('metric-training-participation').textContent = `${(data.training_participation || 0).toFixed(1)}%`;
+            document.getElementById('metric-training-hours').textContent = `${(data.avg_training_hours || 0).toFixed(1)} hrs`;
+            
+            document.getElementById('metric-compliance-index').textContent = `${(data.compliance_index || 0).toFixed(1)}%`;
+            document.getElementById('metric-compliance-expiring').textContent = (data.expiring_docs || 0).toLocaleString();
+            
+            // Populate metrics table
+            populateMetricsSummaryTable(data.all_metrics || []);
+        }
+    } catch (error) {
+        console.error('Error loading overview metrics:', error);
+    }
+}
+
+/**
+ * Populate Metrics Summary Table
+ */
+function populateMetricsSummaryTable(metrics) {
+    const tbody = document.getElementById('metrics-summary-tbody');
+    if (!tbody) return;
+    
+    if (metrics.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="px-6 py-4 text-center text-gray-500">No metrics data available</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = metrics.map(metric => {
+        const change = ((metric.current - metric.previous) / metric.previous * 100) || 0;
+        const trendIcon = change > 0 ? '<i class="fas fa-arrow-up text-green-500"></i>' : change < 0 ? '<i class="fas fa-arrow-down text-red-500"></i>' : '<i class="fas fa-minus text-gray-400"></i>';
+        const statusColor = metric.status === 'good' ? 'text-green-600' : metric.status === 'warning' ? 'text-yellow-600' : 'text-red-600';
+        const statusIcon = metric.status === 'good' ? 'fa-check-circle' : metric.status === 'warning' ? 'fa-exclamation-triangle' : 'fa-times-circle';
+        
+        return `
+            <tr class="hover:bg-gray-50">
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${metric.name}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold">${metric.current_display || metric.current}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${metric.previous_display || metric.previous}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm ${change >= 0 ? 'text-green-600' : 'text-red-600'}">${change.toFixed(1)}%</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm">${trendIcon}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm ${statusColor}">
+                    <i class="fas ${statusIcon} mr-1"></i>${metric.status}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${metric.category}</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+/**
+ * Load Demographics Metrics
+ */
+async function loadDemographicsMetrics() {
+    const tabContent = document.getElementById('metrics-tab-content');
+    if (!tabContent) return;
+    
+    tabContent.innerHTML = `
+        <div class="space-y-6">
+            <h3 class="text-lg font-semibold text-gray-800">1️⃣ Employee Demographics Metrics</h3>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Headcount by Department -->
+                <div class="bg-white rounded-lg border border-gray-200 p-6">
+                    <h4 class="font-semibold text-gray-800 mb-4">Headcount by Department</h4>
+                    <canvas id="demo-dept-chart"></canvas>
+                </div>
+                
+                <!-- Gender Ratio -->
+                <div class="bg-white rounded-lg border border-gray-200 p-6">
+                    <h4 class="font-semibold text-gray-800 mb-4">Gender Ratio</h4>
+                    <canvas id="demo-gender-chart"></canvas>
+                </div>
+                
+                <!-- Average Age -->
+                <div class="bg-white rounded-lg border border-gray-200 p-6">
+                    <h4 class="font-semibold text-gray-800 mb-4">Average Age Distribution</h4>
+                    <canvas id="demo-age-chart"></canvas>
+                </div>
+                
+                <!-- Employment Type Ratio -->
+                <div class="bg-white rounded-lg border border-gray-200 p-6">
+                    <h4 class="font-semibold text-gray-800 mb-4">Employment Type Distribution</h4>
+                    <canvas id="demo-emptype-chart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Metrics Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div class="text-sm text-blue-700 font-semibold">Total Headcount</div>
+                    <div class="text-2xl font-bold text-blue-900">0</div>
+                    <div class="text-xs text-blue-600">Active employees</div>
+                </div>
+                <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <div class="text-sm text-green-700 font-semibold">Average Age</div>
+                    <div class="text-2xl font-bold text-green-900">0 yrs</div>
+                    <div class="text-xs text-green-600">Workforce age</div>
+                </div>
+                <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                    <div class="text-sm text-purple-700 font-semibold">Average Tenure</div>
+                    <div class="text-2xl font-bold text-purple-900">0 yrs</div>
+                    <div class="text-xs text-purple-600">Employee loyalty</div>
+                </div>
+                <div class="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                    <div class="text-sm text-orange-700 font-semibold">Gender Diversity</div>
+                    <div class="text-2xl font-bold text-orange-900">50/50</div>
+                    <div class="text-xs text-orange-600">Male/Female ratio</div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Load other metric categories (simplified for now)
+ */
+async function loadRecruitmentMetrics() {
+    const tabContent = document.getElementById('metrics-tab-content');
+    if (!tabContent) return;
+    tabContent.innerHTML = `<div class="text-center py-12"><i class="fas fa-user-plus text-6xl text-gray-300 mb-4"></i><h3 class="text-2xl font-semibold text-gray-700 mb-2">2️⃣ Recruitment Metrics</h3><p class="text-gray-500">Detailed recruitment metrics loading...</p></div>`;
+}
+
+async function loadPayrollMetrics() {
+    const tabContent = document.getElementById('metrics-tab-content');
+    if (!tabContent) return;
+    tabContent.innerHTML = `<div class="text-center py-12"><i class="fas fa-money-bill-wave text-6xl text-gray-300 mb-4"></i><h3 class="text-2xl font-semibold text-gray-700 mb-2">3️⃣ Payroll & Compensation Metrics</h3><p class="text-gray-500">Detailed payroll metrics loading...</p></div>`;
+}
+
+async function loadAttendanceMetrics() {
+    const tabContent = document.getElementById('metrics-tab-content');
+    if (!tabContent) return;
+    tabContent.innerHTML = `<div class="text-center py-12"><i class="fas fa-calendar-check text-6xl text-gray-300 mb-4"></i><h3 class="text-2xl font-semibold text-gray-700 mb-2">4️⃣ Attendance & Leave Metrics</h3><p class="text-gray-500">Detailed attendance metrics loading...</p></div>`;
+}
+
+async function loadBenefitsMetrics() {
+    const tabContent = document.getElementById('metrics-tab-content');
+    if (!tabContent) return;
+    tabContent.innerHTML = `<div class="text-center py-12"><i class="fas fa-hand-holding-medical text-6xl text-gray-300 mb-4"></i><h3 class="text-2xl font-semibold text-gray-700 mb-2">5️⃣ Benefits & HMO Metrics</h3><p class="text-gray-500">Detailed benefits metrics loading...</p></div>`;
+}
+
+async function loadTrainingMetrics() {
+    const tabContent = document.getElementById('metrics-tab-content');
+    if (!tabContent) return;
+    tabContent.innerHTML = `<div class="text-center py-12"><i class="fas fa-graduation-cap text-6xl text-gray-300 mb-4"></i><h3 class="text-2xl font-semibold text-gray-700 mb-2">6️⃣ Training & Development Metrics</h3><p class="text-gray-500">Detailed training metrics loading...</p></div>`;
+}
+
+async function loadRelationsMetrics() {
+    const tabContent = document.getElementById('metrics-tab-content');
+    if (!tabContent) return;
+    tabContent.innerHTML = `<div class="text-center py-12"><i class="fas fa-heart text-6xl text-gray-300 mb-4"></i><h3 class="text-2xl font-semibold text-gray-700 mb-2">7️⃣ Employee Relations & Engagement Metrics</h3><p class="text-gray-500">Detailed relations metrics loading...</p></div>`;
+}
+
+async function loadTurnoverMetrics() {
+    const tabContent = document.getElementById('metrics-tab-content');
+    if (!tabContent) return;
+    tabContent.innerHTML = `<div class="text-center py-12"><i class="fas fa-door-open text-6xl text-gray-300 mb-4"></i><h3 class="text-2xl font-semibold text-gray-700 mb-2">8️⃣ Turnover & Retention Metrics</h3><p class="text-gray-500">Detailed turnover metrics loading...</p></div>`;
+}
+
+async function loadComplianceMetrics() {
+    const tabContent = document.getElementById('metrics-tab-content');
+    if (!tabContent) return;
+    tabContent.innerHTML = `<div class="text-center py-12"><i class="fas fa-clipboard-check text-6xl text-gray-300 mb-4"></i><h3 class="text-2xl font-semibold text-gray-700 mb-2">9️⃣ Compliance & Audit Metrics</h3><p class="text-gray-500">Detailed compliance metrics loading...</p></div>`;
+}

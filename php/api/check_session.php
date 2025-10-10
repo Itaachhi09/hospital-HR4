@@ -4,20 +4,8 @@
  * Validates current session and returns user information
  */
 
-// Start session
-// Ensure consistent session cookie flags across pages and API
-if (session_status() === PHP_SESSION_NONE) {
-    $secureFlag = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
-    session_set_cookie_params([
-        'lifetime' => 0,
-        'path' => '/',
-        'domain' => $_SERVER['HTTP_HOST'] ?? '',
-        'secure' => $secureFlag,
-        'httponly' => true,
-        'samesite' => 'Lax'
-    ]);
-    session_start();
-}
+// Use simplified session configuration
+require_once __DIR__ . '/../session_config_simple.php';
 
 // Set JSON response headers
 header('Content-Type: application/json');

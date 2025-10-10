@@ -1,21 +1,20 @@
 
 <?php
-if (session_status() === PHP_SESSION_NONE) {
-    $secureFlag = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
-    session_set_cookie_params([
-        'lifetime' => 0,
-        'path' => '/',
-        'domain' => $_SERVER['HTTP_HOST'] ?? '',
-        'secure' => $secureFlag,
-        'httponly' => true,
-        'samesite' => 'Lax'
-    ]);
-    session_start();
+// Use simplified session configuration
+require_once __DIR__ . '/php/session_config_simple.php';
+
+// Require authentication - redirect to login if not authenticated
+require_auth('index.php');
+
+// Check if user has admin role
+$currentUser = get_current_user_data();
+if ($currentUser && $currentUser['role_name'] !== 'System Admin') {
+    // Not an admin, redirect to appropriate landing page
+    if ($currentUser['role_name'] === 'Employee') {
+        header('Location: employee_landing.php');
+        exit();
+    }
 }
-if (!isset($_SESSION['user_id'])) {
-    header('Location: index.php');
-    exit();
-}   
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -1370,13 +1369,7 @@ if (!isset($_SESSION['user_id'])) {
        }
      };
 
-     // Logout function
-     function handleLogout(event) {
-       event.preventDefault();
-       if (confirm('Are you sure you want to logout?')) {
-         window.location.href = 'php/api/logout.php';
-       }
-     }
+     // Logout function will be provided by main.js
 
      // Initialize dashboard on page load
      document.addEventListener('DOMContentLoaded', function() {
@@ -1428,11 +1421,10 @@ if (!isset($_SESSION['user_id'])) {
        }, 100);
      });
 
-     // Make logout function globally available
-     window.handleLogout = handleLogout;
+     // Logout function will be provided by main.js
   </script>
   
   <!-- Load main.js module -->
-  <script type="module" src="js/main.js"></script>
+  <script type="module" src="js/main.js?v=<?php echo time(); ?>"></script>
 </body>
 </html>

@@ -3,115 +3,37 @@ import { API_BASE_URL } from '../../utils.js';
 export async function renderHMOProviders(containerId='main-content-area'){
     const container = document.getElementById(containerId);
     if (!container) return;
-    
-    // Show loading state
-    container.innerHTML = `
-        <div class="flex items-center justify-center py-12">
-            <div class="text-center">
-                <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600"></div>
-                <p class="text-gray-500 mt-4">Loading HMO providers...</p>
-            </div>
-        </div>
-    `;
-    
     try{
-        const res = await fetch(`${API_BASE_URL}hmo_unified.php/hmo_providers`, { credentials:'include' });
-        if (!res.ok) {
-            const text = await res.text();
-            console.error('API Error Response:', text);
-            throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-        }
+        const res = await fetch(`${API_BASE_URL}hmo_providers.php`, { credentials:'include' });
         const data = await res.json();
-        const providers = data.data?.providers || data.providers || [];
+        const providers = data.providers || [];
         // store cache for filtering
         window._hmoProvidersCache = providers;
         container.innerHTML = `
-            <div class="bg-white rounded-lg shadow-sm border border-gray-200">
-                <!-- Header Section -->
-                <div class="px-6 py-4 border-b border-gray-200 bg-cyan-50">
-                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div class="p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-semibold">HMO Providers</h2>
                     <div>
-                            <h3 class="text-xl font-semibold text-cyan-900">HMO Providers</h3>
-                            <p class="text-sm text-cyan-700 mt-1">Manage health maintenance organization providers and their information</p>
-                        </div>
-                        <div class="flex items-center space-x-3">
-                            <button id="refresh-providers" class="inline-flex items-center px-4 py-2 border border-cyan-300 rounded-md text-sm font-medium text-cyan-700 bg-white hover:bg-cyan-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500">
-                                <i class="fas fa-sync mr-2"></i>Refresh
-                            </button>
-                            <button id="export-providers" class="inline-flex items-center px-4 py-2 bg-teal-600 text-white rounded-md text-sm hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500">
-                                <i class="fas fa-file-excel mr-2"></i>Export
-                            </button>
-                            <button id="add-provider-btn" class="inline-flex items-center px-4 py-2 bg-cyan-600 text-white rounded-md text-sm hover:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500">
-                                <i class="fas fa-plus mr-2"></i>Add Provider
-                            </button>
-                        </div>
+                        <button id="refresh-providers" class="hmo-btn hmo-btn-primary">Refresh</button>
+                        <button id="add-provider-btn" class="hmo-btn hmo-btn-success">Add Provider</button>
                     </div>
                 </div>
-
-                <!-- Filters Section -->
-                <div class="px-6 py-4 bg-gray-50 border-b border-gray-200">
-                    <div class="flex flex-col lg:flex-row gap-4">
-                        <div class="flex-1">
-                            <div class="relative">
-                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <i class="fas fa-search text-gray-400"></i>
-                                </div>
-                                <input id="hmo-provider-search" type="text" placeholder="Search providers by name, contact person, email..." 
-                                       class="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500 sm:text-sm">
-                            </div>
-                        </div>
-                        
-                        <div class="flex flex-col sm:flex-row gap-3">
-                            <select id="hmo-provider-status-filter" class="px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500">
-                                <option value="">All Statuses</option>
-                                <option value="1">Active</option>
-                                <option value="0">Inactive</option>
-                            </select>
-                            
-                            <button onclick="clearProviderFilters()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md text-sm hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-500">
-                                <i class="fas fa-times mr-1"></i>Clear
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <!-- Summary Stats -->
-                    <div class="mt-4 flex items-center space-x-6 text-sm">
-                        <div class="flex items-center space-x-2">
-                            <i class="fas fa-hospital text-cyan-600"></i>
-                            <span class="text-gray-600">Total Providers:</span>
-                            <span class="font-semibold text-gray-900" id="total-providers-count">${providers.length}</span>
-                        </div>
-                        <div class="flex items-center space-x-2">
-                            <i class="fas fa-check-circle text-green-600"></i>
-                            <span class="text-gray-600">Active:</span>
-                            <span class="font-semibold text-gray-900" id="active-providers-count">${providers.filter(p => p.IsActive == 1).length}</span>
-                        </div>
-                    </div>
+                <div class="flex items-center gap-4 mb-3">
+                    <input id="hmo-provider-search" placeholder="Search providers..." class="form-control" style="max-width:320px;" />
+                    <select id="hmo-provider-status-filter" class="form-control" style="max-width:180px;"><option value="">All statuses</option><option value="Active">Active</option><option value="Inactive">Inactive</option></select>
                 </div>
-
-                <!-- Providers Table -->
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200" id="hmo-providers-table">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Provider
-                                </th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Contact Information
-                                </th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Email
-                                </th>
-                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Status
-                                </th>
-                                <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Actions
-                                </th>
+                <div class="bg-white rounded-lg shadow">
+                    <table class="w-full text-left" id="hmo-providers-table">
+                        <thead>
+                            <tr class="bg-gray-100">
+                                <th class="p-3">Name</th>
+                                <th class="p-3">Contact</th>
+                                <th class="p-3">Email</th>
+                                <th class="p-3">Status</th>
+                                <th class="p-3">Actions</th>
                             </tr>
                         </thead>
-                        <tbody id="hmo-providers-tbody" class="bg-white divide-y divide-gray-200">
+                        <tbody id="hmo-providers-tbody">
                         </tbody>
                     </table>
                 </div>
@@ -124,31 +46,10 @@ export async function renderHMOProviders(containerId='main-content-area'){
         // wire controls
         document.getElementById('refresh-providers')?.addEventListener('click', ()=>renderHMOProviders(containerId));
         document.getElementById('add-provider-btn')?.addEventListener('click', ()=>showAddProviderModal(containerId));
-        document.getElementById('export-providers')?.addEventListener('click', ()=>exportProvidersData());
         document.getElementById('empty-add-provider')?.addEventListener('click', ()=>showAddProviderModal(containerId));
         document.getElementById('hmo-provider-search')?.addEventListener('input', ()=>applyProviderFilters(containerId));
         document.getElementById('hmo-provider-status-filter')?.addEventListener('change', ()=>applyProviderFilters(containerId));
-        
-        // Make clear filters function global
-        window.clearProviderFilters = () => {
-            document.getElementById('hmo-provider-search').value = '';
-            document.getElementById('hmo-provider-status-filter').value = '';
-            applyProviderFilters(containerId);
-        };
-    }catch(e){
-        console.error(e); 
-        container.innerHTML = `
-            <div class="bg-white rounded-lg shadow-sm border border-red-200 p-6">
-                <div class="flex items-center space-x-3 text-red-600">
-                    <i class="fas fa-exclamation-circle text-2xl"></i>
-                    <div>
-                        <h3 class="text-lg font-semibold">Error Loading Providers</h3>
-                        <p class="text-sm text-red-500 mt-1">${e.message}</p>
-                    </div>
-                </div>
-            </div>
-        `;
-    }
+    }catch(e){console.error(e); container.innerHTML='<div class="p-6">Error loading providers</div>'}
 }
 
 function applyProviderFilters(containerId='main-content-area'){
@@ -156,86 +57,29 @@ function applyProviderFilters(containerId='main-content-area'){
     const status = (document.getElementById('hmo-provider-status-filter')?.value || '');
     const all = window._hmoProvidersCache || [];
     const filtered = all.filter(p=>{
-        // Handle IsActive (0/1) instead of Status ('Active'/'Inactive')
-        if (status !== '' && String(p.IsActive) !== status) return false;
+        if (status && ((p.Status||'') !== status)) return false;
         if (!q) return true;
-        return (p.ProviderName||'').toLowerCase().includes(q) || 
-               (p.ContactPerson||'').toLowerCase().includes(q) || 
-               (p.Email||'').toLowerCase().includes(q) ||
-               (p.Description||'').toLowerCase().includes(q);
+        return (p.ProviderName||'').toLowerCase().includes(q) || (p.ContactPerson||'').toLowerCase().includes(q) || (p.Email||'').toLowerCase().includes(q);
     });
     populateProvidersTbody(filtered, containerId);
-    
-    // Update counts
-    document.getElementById('total-providers-count').textContent = filtered.length;
-    document.getElementById('active-providers-count').textContent = filtered.filter(p => p.IsActive == 1).length;
 }
 
 function populateProvidersTbody(providers, containerId='main-content-area'){
     const container = document.getElementById(containerId); if (!container) return;
     const tbody = document.getElementById('hmo-providers-tbody'); if (!tbody) return;
     if (!providers || providers.length === 0){
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="5" class="px-6 py-12 text-center">
-                    <div class="flex flex-col items-center space-y-4">
-                        <div class="rounded-full bg-gray-100 p-4">
-                            <i class="fas fa-hospital text-4xl text-gray-400"></i>
-                        </div>
-                        <div>
-                            <h3 class="text-lg font-medium text-gray-900">No providers found</h3>
-                            <p class="text-sm text-gray-500 mt-1">Get started by adding your first HMO provider</p>
-                        </div>
-                        <button id="empty-add-provider" class="inline-flex items-center px-4 py-2 bg-cyan-600 text-white rounded-md text-sm hover:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500">
-                            <i class="fas fa-plus mr-2"></i>Add Provider
-                        </button>
-                        <div class="text-xs text-gray-400 mt-4">
-                            <p>Tip: Import sample data from <code class="bg-gray-100 px-2 py-1 rounded">database/hmo_top7_seed.sql</code></p>
-                        </div>
-                    </div>
-                </td>
-            </tr>
-        `;
+    tbody.innerHTML = `<tr><td class="p-6 text-center text-sm text-gray-500" colspan="5">No HMO providers found. You can add one using the "Add Provider" button.<div class="mt-2"><button id="empty-add-provider" class="hmo-btn hmo-btn-success">Add Provider</button></div><div class="mt-2 text-xs text-gray-400">Tip: you can seed sample data. On Windows/XAMPP run:<div class="mt-2 font-mono text-xs bg-black text-white inline-block p-2">"C:/xampp/mysql/bin/mysql.exe" -u root -p hr_integrated_db &lt; database/hmo_top7_seed.sql</div> or import <code>database/hmo_top7_seed.sql</code> via phpMyAdmin.</div></td></tr>`;
     } else {
-        tbody.innerHTML = providers.map(p => {
-            const statusBadge = p.IsActive == 1 
-                ? '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800"><i class="fas fa-check-circle mr-1"></i>Active</span>'
-                : '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800"><i class="fas fa-times-circle mr-1"></i>Inactive</span>';
-            
-            return `
-                <tr class="hover:bg-gray-50 transition-colors">
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <div class="flex items-center">
-                            <div class="flex-shrink-0 h-10 w-10 bg-cyan-100 rounded-full flex items-center justify-center">
-                                <i class="fas fa-hospital text-cyan-600"></i>
-                            </div>
-                            <div class="ml-4">
-                                <div class="text-sm font-medium text-gray-900">${p.ProviderName || 'N/A'}</div>
-                                ${p.Description ? `<div class="text-sm text-gray-500">${p.Description.substring(0, 50)}${p.Description.length > 50 ? '...' : ''}</div>` : ''}
-                            </div>
-                        </div>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <div class="text-sm text-gray-900">${p.ContactPerson || '-'}</div>
-                        ${p.ContactEmail || p.ContactPhone ? `<div class="text-sm text-gray-500">${p.ContactPhone || p.ContactEmail || ''}</div>` : ''}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <div class="text-sm text-gray-900">${p.Email || '-'}</div>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        ${statusBadge}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button class="text-cyan-600 hover:text-cyan-900 mr-3 edit-provider" data-id="${p.ProviderID}" title="Edit">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="text-red-600 hover:text-red-900 delete-provider" data-id="${p.ProviderID}" title="Delete">
-                            <i class="fas fa-trash"></i>
-                        </button>
+        tbody.innerHTML = providers.map(p=>`<tr>
+            <td class="p-3">${p.ProviderName}</td>
+            <td class="p-3">${p.ContactPerson || ''} ${p.ContactNumber?('<br/>'+p.ContactNumber):''}</td>
+            <td class="p-3">${p.Email||''}</td>
+            <td class="p-3">${p.Status||''}</td>
+            <td class="p-3">
+                <button class="hmo-btn hmo-btn-secondary edit-provider" data-id="${p.ProviderID}">Edit</button>
+                <button class="hmo-btn hmo-btn-danger delete-provider" data-id="${p.ProviderID}">Delete</button>
             </td>
-                </tr>
-            `;
-        }).join('');
+        </tr>`).join('');
     }
     // wire row buttons
     tbody.querySelectorAll('.edit-provider').forEach(b=>b.addEventListener('click', ev=>{ const id = ev.target.dataset.id; if (!id) return; showEditProviderModal(id, containerId); }));
@@ -253,7 +97,7 @@ function populateProvidersTbody(providers, containerId='main-content-area'){
                 return;
             }
             try {
-                const r = await fetch(`${API_BASE_URL}hmo_unified.php/hmo_providers?id=${id}`, { 
+                const r = await fetch(`${API_BASE_URL}hmo_providers.php?id=${id}`, { 
                     method: 'DELETE', 
                     credentials: 'include' 
                 });
@@ -261,7 +105,7 @@ function populateProvidersTbody(providers, containerId='main-content-area'){
                 if (j.success) {
                     // Force a complete refresh
                     try {
-                        const res = await fetch(`${API_BASE_URL}hmo_unified.php/hmo_providers`, { 
+                        const res = await fetch(`${API_BASE_URL}hmo_providers.php`, { 
                             credentials: 'include',
                             cache: 'no-cache' // Prevent browser caching
                         });
@@ -321,7 +165,7 @@ export function showAddProviderModal(containerId='main-content-area'){
     document.getElementById('addProviderForm')?.addEventListener('submit', async e=>{
         e.preventDefault(); const fd = new FormData(e.target); const payload = {}; fd.forEach((v,k)=>payload[k]=v);
         try{
-            const res = await fetch(`${API_BASE_URL}hmo_unified.php/hmo_providers`, { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+            const res = await fetch(`${API_BASE_URL}hmo_providers.php`, { method:'POST', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
             const j = await res.json(); if (j.success) { document.getElementById('add-provider-overlay')?.remove(); renderHMOProviders(containerId); } else alert(j.error||'Failed');
         }catch(err){console.error(err); alert('Failed to add provider');}
     });
@@ -330,7 +174,7 @@ export function showAddProviderModal(containerId='main-content-area'){
 export async function showEditProviderModal(id, containerId='main-content-area'){
     const container = document.getElementById('modalContainer'); if (!container) return;
     try{
-        const r = await fetch(`${API_BASE_URL}hmo_unified.php/hmo_providers?id=${id}`, { credentials:'include' });
+        const r = await fetch(`${API_BASE_URL}hmo_providers.php?id=${id}`, { credentials:'include' });
         const data = await r.json(); const p = data.provider || {};
         // Tailwind-style overlay modal for editing
         container.innerHTML = `
@@ -365,52 +209,9 @@ export async function showEditProviderModal(id, containerId='main-content-area')
         document.getElementById('editProviderForm')?.addEventListener('submit', async e=>{
             e.preventDefault(); const fd = new FormData(e.target); const payload = {}; fd.forEach((v,k)=>payload[k]=v);
             try{
-                const res = await fetch(`${API_BASE_URL}hmo_unified.php/hmo_providers?id=${id}`, { method:'PUT', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+                const res = await fetch(`${API_BASE_URL}hmo_providers.php?id=${id}`, { method:'PUT', credentials:'include', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
                 const j = await res.json(); if (j.success) { document.getElementById('edit-provider-overlay')?.remove(); renderHMOProviders(containerId); } else alert(j.error||'Failed');
             }catch(err){console.error(err); alert('Error updating provider');}
         });
     }catch(e){console.error(e); alert('Failed to load provider');}
-}
-
-/**
- * Export providers data to CSV
- */
-function exportProvidersData() {
-    const providers = window._hmoProvidersCache || [];
-    if (providers.length === 0) {
-        alert('No provider data to export');
-        return;
-    }
-    
-    // CSV headers
-    const headers = ['Provider Name', 'Description', 'Contact Person', 'Contact Email', 'Contact Phone', 'Email', 'Status', 'Created At'];
-    
-    // CSV rows
-    const rows = providers.map(p => [
-        p.ProviderName || '',
-        (p.Description || '').replace(/"/g, '""'), // Escape quotes
-        p.ContactPerson || '',
-        p.ContactEmail || '',
-        p.ContactPhone || '',
-        p.Email || '',
-        p.IsActive == 1 ? 'Active' : 'Inactive',
-        p.CreatedAt || ''
-    ]);
-    
-    // Create CSV content
-    let csvContent = headers.join(',') + '\n';
-    rows.forEach(row => {
-        csvContent += row.map(cell => `"${cell}"`).join(',') + '\n';
-    });
-    
-    // Download CSV
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `hmo_providers_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
 }

@@ -410,7 +410,11 @@ function renderTabContent(tabName, data) {
     if (!contentContainer) return;
 
     // Clean up existing charts
-    Object.values(chartInstances).forEach(chart => chart.destroy());
+    Object.values(chartInstances).forEach(chart => {
+        if (chart && typeof chart.destroy === 'function') {
+            chart.destroy();
+        }
+    });
     chartInstances = {};
 
     switch (tabName) {
@@ -1005,6 +1009,19 @@ async function exportData(format) {
             document.body.removeChild(a);
             
             showSuccess(`${format} report downloaded successfully`);
+        } else if (format === 'PDF' && result.success && result.data.html_content) {
+            // Download HTML content that can be printed to PDF
+            const blob = new Blob([result.data.html_content], { type: 'text/html' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = result.data.filename || `hr_analytics_${activeTab}_${new Date().toISOString().split('T')[0]}.html`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            
+            showSuccess(`${format} report downloaded successfully (HTML format - use browser print to PDF)`);
         } else {
             showSuccess(`${format} export prepared successfully`);
         }

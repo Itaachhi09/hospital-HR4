@@ -321,17 +321,29 @@ class HRReportsIntegration {
                 ['stage' => 'Applications', 'count' => array_sum(array_column($sourceData, 'applications_by_source'))],
                 ['stage' => 'Screened', 'count' => array_sum(array_column($sourceData, 'applications_by_source')) * 0.7], // Estimated
                 ['stage' => 'Interviewed', 'count' => array_sum(array_column($sourceData, 'applications_by_source')) * 0.3], // Estimated
-                ['stage' => 'Hired', 'count' => ar                    DATE_FORMAT(pr.PayPeriodStart, '%Y-%m') as month,
-                    SUM(ps.GrossPay) as total_gross_pay,
-                    SUM(ps.NetPay) as total_net_pay,
-                    SUM(ps.BaseSalary) as total_base_salary,
+                ['stage' => 'Hired', 'count' => array_sum(array_column($sourceData, 'hired_count'))]
+            ]
+        ];
+    }
+
+    /**
+     * 3. Payroll & Compensation Report
+     * Track payroll costs, salary distribution, and compensation trends
+     */
+    public function getPayrollCompensationReport($filters = []) {
+        // Get payroll trend data
+        $sql = "SELECT 
+                    DATE_FORMAT(pr.PayPeriodStart, '%Y-%m') as month,
+                    SUM(ps.GrossIncome) as total_gross_pay,
+                    SUM(ps.NetIncome) as total_net_pay,
+                    SUM(ps.BasicSalary) as total_base_salary,
                     SUM(ps.OvertimePay) as total_overtime_pay,
-                    SUM(ps.BonusAmount) as total_bonus_amount,
-                    SUM(ps.DeductionAmount) as total_deduction_amount,
-                    AVG(ps.GrossPay) as avg_gross_pay,
+                    SUM(ps.BonusesTotal) as total_bonus_amount,
+                    SUM(ps.TotalDeductions) as total_deduction_amount,
+                    AVG(ps.GrossIncome) as avg_gross_pay,
                     COUNT(DISTINCT ps.EmployeeID) as employees_paid
-                FROM payrollruns pr
-                LEFT JOIN payslips ps ON pr.PayrollRunID = ps.PayrollRunID
+                FROM payroll_runs pr
+                LEFT JOIN payslips ps ON pr.PayrollRunID = ps.PayrollID
                 WHERE pr.PayPeriodStart >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)";
         
         $params = [];
@@ -935,7 +947,7 @@ class HRReportsIntegration {
                 'total_resignations' => array_sum(array_column($turnoverTrend, 'resignations')),
                 'total_terminations' => array_sum(array_column($turnoverTrend, 'terminations')),
                 'total_retirements' => array_sum(array_column($turnoverTrend, 'retirements')),
-                'avg_tenure_at_separation' => array_sum(array_column($turnoverTrend, 'avg_tenure_at_separation')) / count($turnoverTrend)
+                'avg_tenure_at_separation' => count($turnoverTrend) > 0 ? array_sum(array_column($turnoverTrend, 'avg_tenure_at_separation')) / count($turnoverTrend) : 0
             ]
         ];
     }
@@ -1069,37 +1081,22 @@ class HRReportsIntegration {
                     COUNT(DISTINCT CASE WHEN e.TerminationDate >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH) THEN e.EmployeeID END) as separations_this_month,
                     
                     -- Payroll metrics
-                    SUM(CASE WHEN pr.PayPeriodStart >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH) THEN ps.GrossPay ELSE 0 END) as monthly_payroll_cost,
-                    AVG(CASE WHEN pr.PayPeriodStart >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH) THEN ps.GrossPay ELSE NULL END) as avg_monthly_salary,
+                    COALESCE(SUM(CASE WHEN pr.PayPeriodStart >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH) THEN ps.GrossIncome ELSE 0 END), 0) as monthly_payroll_cost,
+                    COALESCE(AVG(CASE WHEN pr.PayPeriodStart >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH) THEN ps.GrossIncome ELSE NULL END), 0) as avg_monthly_salary,
                     
                     -- Attendance metrics
-                    AVG(CASE WHEN a.AttendanceDate >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH) AND a.Status = 'Present' THEN 1 ELSE 0 END) * 100 as monthly_attendance_rate,
+                    COALESCE(AVG(CASE WHEN a.AttendanceDate >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH) AND a.Status = 'Present' THEN 1 ELSE 0 END) * 100, 0) as monthly_attendance_rate,
                     
-                    -- Training metrics
-                    COUNT(DISTINCT CASE WHEN t.TrainingDate >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH) THEN t.TrainingID END) as trainings_this_month,
-                    
-                    -- Benefits metrics
-                    SUM(CASE WHEN he.IsActive = 1 THEN hmo.MonthlyPremium ELSE 0 END) as monthly_benefits_cost
-                FROM employees e
-                LEFT JOIN payrollruns pr ON pr.PayPeriodStart >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH)
-                LEFT JOIN payslips ps ON pr.PayrollRunID = ps.PayrollRunID AND ps.EmployeeID = e.EmployeeID
-RVAL 1 MONTH) THEN ps.GrossIncome ELSE 0 END) as monthly_payroll_cost,
-                    AVG(CASE WHEN pr.PayPeriodStartDate >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH) THEN ps.GrossIncome ELSE NULL END) as avg_monthly_salary,
-                    
-                    -- Attendance metrics
-                    AVG(CASE WHEN a.AttendanceDate >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH) AND a.Status = 'Present' THEN 1 ELSE 0 END) * 100 as monthly_attendance_rate,
-                    
-                    -- Training metrics
-                    COUNT(DISTINCT CASE WHEN t.TrainingDate >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH) THEN t.TrainingID END) as trainings_this_month,
+                    -- Training metrics (placeholder - adjust based on your schema)
+                    0 as trainings_this_month,
                     
                     -- Benefits metrics
-                    SUM(CASE WHEN he.IsActive = 1 THEN hmo.MonthlyPremium ELSE 0 END) as monthly_benefits_cost
+                    COALESCE(SUM(CASE WHEN he.IsActive = 1 THEN hmo.MonthlyPremium ELSE 0 END), 0) as monthly_benefits_cost
                 FROM employees e
-                LEFT JOIN payrollruns pr ON pr.PayPeriodStartDate >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH)
-                LEFT JOIN payslips ps ON pr.PayrollID = ps.PayrollID AND ps.EmployeeID = e.EmployeeID
-                LEFT JOIN attendance a ON a.EmployeeID = e.EmployeeID AND a.AttendanceDate >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH)
-                LEFT JOIN trainings t ON t.TrainingDate >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH)
-                LEFT JOIN hmoenrollments he ON he.EmployeeID = e.EmployeeID AND he.IsActive = 1
+                LEFT JOIN payroll_runs pr ON pr.PayPeriodStart >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH)
+                LEFT JOIN payslips ps ON pr.PayrollRunID = ps.PayrollID AND ps.EmployeeID = e.EmployeeID
+                LEFT JOIN attendancerecords a ON a.EmployeeID = e.EmployeeID AND a.AttendanceDate >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH)
+                LEFT JOIN employeehmoenrollments he ON he.EmployeeID = e.EmployeeID AND he.IsActive = 1
                 LEFT JOIN hmoplans hmo ON he.PlanID = hmo.PlanID";
         
         $params = [];

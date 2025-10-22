@@ -7,6 +7,21 @@
 // Import base configuration
 import { API_BASE_URL, BASE_URL } from './config.js';
 
+// Ensure all fetches include credentials by default to keep PHP session cookies
+const _origFetch = window.fetch.bind(window);
+window.fetch = (input, init = {}) => {
+    try {
+        // Only add credentials for same-origin or our API_BASE_URL calls
+        const url = typeof input === 'string' ? input : (input && input.url ? input.url : '');
+        const shouldInclude = url.startsWith(API_BASE_URL) || url.startsWith(BASE_URL) || url.startsWith('./') || url.startsWith('../') || (!/^https?:\/\//i.test(url));
+        if (shouldInclude) {
+            init = Object.assign({ credentials: 'include' }, init);
+            if (!init.credentials) init.credentials = 'include';
+        }
+    } catch (_) {}
+    return _origFetch(input, init);
+};
+
 // Import the module loader from utils
 import { loadModule } from './utils.js';
 

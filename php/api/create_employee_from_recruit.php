@@ -12,19 +12,8 @@ ini_set('log_errors', 1);
 // Ensure this path is correct and writable by the web server
 // ini_set('error_log', __DIR__ . '/../../php-error.log');
 
-session_start(); // Needed for potential authorization if this endpoint is protected
-
-header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *'); // Adjust for production (e.g., HR 1-2 system's domain)
-header('Access-Control-Allow-Methods: POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization'); // Add Authorization if you use it
-header('Access-Control-Allow-Credentials: true');
-
-// Handle preflight OPTIONS request
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit;
-}
+// Centralized API bootstrap: JSON headers, CORS, stable session
+require_once __DIR__ . '/_api_bootstrap.php';
 
 // --- Database Connection ---
 $pdo = null;

@@ -102,6 +102,20 @@ class Request {
     }
 
     /**
+     * Sanitize a single string value (alias for sanitize)
+     */
+    public static function sanitizeString($value) {
+        return self::sanitize($value);
+    }
+
+    /**
+     * Validate email format
+     */
+    public static function validateEmail($email) {
+        return filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
+    }
+
+    /**
      * Get pagination parameters from query string
      * Returns array with page, limit, offset
      */

@@ -45,7 +45,7 @@ class SalariesController {
                 $this->handleDelete($id, $subResource);
                 break;
             case 'OPTIONS':
-                Response::success('OK', ['methods' => ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']]);
+                Response::success(['methods' => ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']], 'OK');
                 break;
             default:
                 Response::methodNotAllowed();
@@ -65,7 +65,7 @@ class SalariesController {
             ];
             
             $result = $this->salariesModel->getAllSalaries($filters);
-            Response::success('Salaries retrieved successfully', $result);
+            Response::success($result, 'Salaries retrieved successfully');
             
         } elseif ($subResource === 'summary') {
             // Get salary summary for specific employee
@@ -74,7 +74,7 @@ class SalariesController {
                 Response::notFound('Employee salary information not found');
                 return;
             }
-            Response::success('Employee salary summary retrieved successfully', $result);
+            Response::success($result, 'Employee salary summary retrieved successfully');
             
         } elseif ($subResource === 'comparison') {
             // Get salary comparison data
@@ -84,7 +84,7 @@ class SalariesController {
                 'position_id' => $_GET['position_id'] ?? null
             ];
             $result = $this->salariesModel->getSalaryComparison($filters);
-            Response::success('Salary comparison data retrieved successfully', $result);
+            Response::success($result, 'Salary comparison data retrieved successfully');
             
         } elseif ($subResource === 'deductions') {
             // Get deductions overview for employee
@@ -93,7 +93,7 @@ class SalariesController {
                 Response::notFound('Employee deductions not found');
                 return;
             }
-            Response::success('Employee deductions retrieved successfully', $result);
+            Response::success($result, 'Employee deductions retrieved successfully');
             
         } else {
             // Get specific employee salary details
@@ -102,7 +102,7 @@ class SalariesController {
                 Response::notFound('Employee salary not found');
                 return;
             }
-            Response::success('Employee salary retrieved successfully', $result);
+            Response::success($result, 'Employee salary retrieved successfully');
         }
     }
 

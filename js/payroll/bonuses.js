@@ -103,7 +103,7 @@ export async function displayBonusesSection() {
 
         <!-- Add Bonus Modal -->
         <div id="add-bonus-modal" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-            <div class="flex items-end justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+            <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
                 <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
                 <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
                 <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
@@ -175,7 +175,7 @@ export async function displayBonusesSection() {
 
         <!-- Compute Bonuses Modal -->
         <div id="compute-bonuses-modal" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-            <div class="flex items-end justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+            <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
                 <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
                 <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
                 <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
@@ -228,9 +228,84 @@ export async function displayBonusesSection() {
             </div>
         </div>
 
+        <!-- Edit Bonus Modal -->
+        <div id="edit-bonus-modal" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+            <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+                <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
+                <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+                <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                    <form id="edit-bonus-form">
+                        <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-lg font-medium text-gray-900">Edit Bonus</h3>
+                                <button type="button" onclick="closeEditBonusModal()" class="text-gray-400 hover:text-gray-600">
+                                    <i class="fas fa-times text-xl"></i>
+                                </button>
+                            </div>
+                            
+                            <input type="hidden" id="edit-bonus-id" name="bonus_id">
+                            
+                            <div class="space-y-4">
+                                <div>
+                                    <label for="edit-employee" class="block text-sm font-medium text-gray-700 mb-1">Employee:</label>
+                                    <input type="text" id="edit-employee" name="employee_name" readonly class="w-full p-2 border border-gray-300 rounded-md bg-gray-50">
+                                </div>
+                                
+                                <div>
+                                    <label for="edit-bonus-type" class="block text-sm font-medium text-gray-700 mb-1">Bonus Type:</label>
+                                    <select id="edit-bonus-type" name="bonus_type" required class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500">
+                                        <option value="">Select Bonus Type</option>
+                                        <option value="Mid-Year Bonus">Mid-Year Bonus</option>
+                                        <option value="Year-End Bonus">Year-End Bonus</option>
+                                        <option value="Hazard Pay">Hazard Pay</option>
+                                        <option value="Night Differential">Night Differential</option>
+                                        <option value="Overtime Allowance">Overtime Allowance</option>
+                                        <option value="Performance Incentive">Performance Incentive</option>
+                                        <option value="13th Month Pay">13th Month Pay</option>
+                                        <option value="Holiday Bonus">Holiday Bonus</option>
+                                        <option value="Project Completion">Project Completion</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                </div>
+                                
+                                <div>
+                                    <label for="edit-bonus-name" class="block text-sm font-medium text-gray-700 mb-1">Bonus Name:</label>
+                                    <input type="text" id="edit-bonus-name" name="bonus_name" required class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500">
+                                </div>
+                                
+                                <div>
+                                    <label for="edit-amount" class="block text-sm font-medium text-gray-700 mb-1">Amount:</label>
+                                    <input type="number" id="edit-amount" name="amount" required step="0.01" min="0" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500">
+                                </div>
+                                
+                                <div>
+                                    <label for="edit-effective-date" class="block text-sm font-medium text-gray-700 mb-1">Effective Date:</label>
+                                    <input type="date" id="edit-effective-date" name="effective_date" required class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500">
+                                </div>
+                                
+                                <div>
+                                    <label for="edit-notes" class="block text-sm font-medium text-gray-700 mb-1">Notes (Optional):</label>
+                                    <textarea id="edit-notes" name="notes" rows="3" class="w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                            <button type="submit" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-purple-600 text-base font-medium text-white hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 sm:ml-3 sm:w-auto sm:text-sm">
+                                Update Bonus
+                            </button>
+                            <button type="button" onclick="closeEditBonusModal()" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
         <!-- Enhanced Bonus Details Modal -->
         <div id="bonus-details-modal" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-            <div class="flex items-end justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+            <div class="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
                 <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
                 <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
                 <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-7xl sm:w-full">
@@ -312,6 +387,12 @@ function setupBonusEventListeners() {
         const addBonusForm = document.getElementById('add-bonus-form');
         if (addBonusForm) {
                 addBonusForm.addEventListener('submit', handleAddBonus);
+    }
+    
+    // Edit bonus form
+    const editBonusForm = document.getElementById('edit-bonus-form');
+    if (editBonusForm) {
+        editBonusForm.addEventListener('submit', handleEditBonus);
     }
 }
 
@@ -574,6 +655,7 @@ async function viewBonusDetails(bonusId) {
         
         if (result.success) {
             const bonus = result.data;
+            currentBonusData = bonus; // Store for editing
             const content = document.getElementById('bonus-details-content');
             
             content.innerHTML = `
@@ -760,12 +842,74 @@ function updateBonusSummary(bonus) {
     statusBadge.className = `inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusBadgeClass(status)}`;
 }
 
+let currentBonusData = null;
+
 function editBonus() {
-    showInlineAlert('Opening bonus editor...', 'info');
-    // Implementation for editing bonus
-    setTimeout(() => {
-        showInlineAlert('Bonus editor opened!', 'success');
-    }, 1000);
+    if (!currentBonusData) {
+        showInlineAlert('No bonus selected for editing', 'error');
+        return;
+    }
+    
+    // Populate the edit form
+    document.getElementById('edit-bonus-id').value = currentBonusData.BonusID;
+    document.getElementById('edit-employee').value = currentBonusData.employee_name;
+    document.getElementById('edit-bonus-type').value = currentBonusData.BonusType;
+    document.getElementById('edit-bonus-name').value = currentBonusData.BonusName || currentBonusData.BonusType;
+    document.getElementById('edit-amount').value = parseFloat(currentBonusData.Amount || currentBonusData.BonusAmount);
+    document.getElementById('edit-effective-date').value = currentBonusData.EffectiveDate || currentBonusData.AwardDate;
+    document.getElementById('edit-notes').value = currentBonusData.Notes || '';
+    
+    // Open the modal
+    document.getElementById('edit-bonus-modal').classList.remove('hidden');
+}
+
+window.closeEditBonusModal = function() {
+    document.getElementById('edit-bonus-modal').classList.add('hidden');
+    document.getElementById('edit-bonus-form').reset();
+}
+
+window.closeBonusDetailsModal = function() {
+    document.getElementById('bonus-details-modal').classList.add('hidden');
+    currentBonusData = null;
+}
+
+// Handle edit bonus form submission
+async function handleEditBonus(event) {
+    event.preventDefault();
+    
+    const formData = new FormData(event.target);
+    const data = Object.fromEntries(formData.entries());
+    const bonusId = data.bonus_id;
+    
+    try {
+        const response = await fetch(`${REST_API_URL}bonuses/${bonusId}`, {
+            method: 'PUT',
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify(data)
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+
+        if (result.success) {
+            showInlineAlert('Bonus updated successfully!', 'success');
+            closeEditBonusModal();
+            closeBonusDetailsModal();
+            loadBonuses();
+        } else {
+            throw new Error(result.message || 'Failed to update bonus');
+        }
+    } catch (error) {
+        console.error('[Update] Error updating bonus:', error);
+        showInlineAlert(`Error updating bonus: ${error.message}`, 'error');
+    }
 }
 
 function duplicateBonus() {

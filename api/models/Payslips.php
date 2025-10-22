@@ -18,7 +18,7 @@ class Payslips {
                     p.PayrollID as PayrollRunID,
                     p.EmployeeID,
                     CONCAT(e.FirstName, ' ', e.LastName) as employee_name,
-                    e.EmployeeNumber,
+                    e.EmployeeID as EmployeeNumber,
                     'N/A' as DepartmentName,
                     'N/A' as PositionName,
                     'N/A' as BranchName,
@@ -89,9 +89,13 @@ class Payslips {
         }
         
         if (!empty($filters['search'])) {
-            $sql .= " AND (CONCAT(e.FirstName, ' ', e.LastName) LIKE :search 
-                     OR e.EmployeeNumber LIKE :search)";
-            $params[':search'] = '%' . $filters['search'] . '%';
+            $searchTerm = '%' . $filters['search'] . '%';
+            $sql .= " AND (CONCAT(e.FirstName, ' ', e.LastName) LIKE :search1 
+                     OR e.Email LIKE :search2 
+                     OR e.JobTitle LIKE :search3)";
+            $params[':search1'] = $searchTerm;
+            $params[':search2'] = $searchTerm;
+            $params[':search3'] = $searchTerm;
         }
 
         $sql .= " ORDER BY p.PayPeriodStartDate DESC, e.LastName, e.FirstName";
@@ -148,11 +152,13 @@ class Payslips {
             $countParams[':status'] = $filters['status'];
         }
         if (!empty($filters['search'])) {
-            $countSql .= " AND (CONCAT(e.FirstName, ' ', e.LastName) LIKE :search 
-                         OR e.EmployeeNumber LIKE :search 
-                         OR dept.DepartmentName LIKE :search 
-                         OR pos.PositionName LIKE :search)";
-            $countParams[':search'] = '%' . $filters['search'] . '%';
+            $searchTerm = '%' . $filters['search'] . '%';
+            $countSql .= " AND (CONCAT(e.FirstName, ' ', e.LastName) LIKE :search1 
+                         OR e.Email LIKE :search2 
+                         OR e.JobTitle LIKE :search3)";
+            $countParams[':search1'] = $searchTerm;
+            $countParams[':search2'] = $searchTerm;
+            $countParams[':search3'] = $searchTerm;
         }
 
         $countStmt = $this->pdo->prepare($countSql);
@@ -182,7 +188,7 @@ class Payslips {
                     CONCAT(e.FirstName, ' ', e.LastName) as employee_name,
                     e.FirstName,
                     e.LastName,
-                    e.EmployeeNumber,
+                    e.EmployeeID as EmployeeNumber,
                     e.Email,
                     e.PhoneNumber,
                     e.Address,

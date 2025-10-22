@@ -45,7 +45,7 @@ class PayslipsController {
                 $this->handleDelete($id, $subResource);
                 break;
             case 'OPTIONS':
-                Response::success('OK', ['methods' => ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']]);
+                Response::success(['methods' => ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']], 'OK');
                 break;
             default:
                 Response::methodNotAllowed();
@@ -179,7 +179,7 @@ class PayslipsController {
             Response::notFound('Payslip not found');
             return;
         }
-        Response::success('Payslip deleted successfully');
+        Response::success(null, 'Payslip deleted successfully');
     }
 
     private function generatePayslipPDF($payslipId) {

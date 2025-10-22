@@ -8,10 +8,8 @@ error_reporting(E_ALL);
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 
-header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
-
-require_once __DIR__ . '/../db_connect.php';
+// Centralized API bootstrap: JSON headers, CORS, stable session, DB
+require_once __DIR__ . '/_api_bootstrap.php';
 
 if (!isset($pdo)) {
     http_response_code(500);

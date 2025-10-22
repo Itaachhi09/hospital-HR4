@@ -17,7 +17,7 @@ class Bonuses {
                     b.BonusID,
                     b.EmployeeID,
                     CONCAT(e.FirstName, ' ', e.LastName) as employee_name,
-                    e.EmployeeNumber,
+                    e.EmployeeID as EmployeeNumber,
                     'N/A' as DepartmentName,
                     'N/A' as PositionName,
                     'N/A' as BranchName,
@@ -68,10 +68,15 @@ class Bonuses {
         }
         
         if (!empty($filters['search'])) {
-            $sql .= " AND (CONCAT(e.FirstName, ' ', e.LastName) LIKE :search 
-                     OR e.EmployeeNumber LIKE :search 
-                     OR b.BonusType LIKE :search)";
-            $params[':search'] = '%' . $filters['search'] . '%';
+            $searchTerm = '%' . $filters['search'] . '%';
+            $sql .= " AND (CONCAT(e.FirstName, ' ', e.LastName) LIKE :search1 
+                     OR e.Email LIKE :search2 
+                     OR e.JobTitle LIKE :search3 
+                     OR b.BonusType LIKE :search4)";
+            $params[':search1'] = $searchTerm;
+            $params[':search2'] = $searchTerm;
+            $params[':search3'] = $searchTerm;
+            $params[':search4'] = $searchTerm;
         }
 
         $sql .= " ORDER BY b.BonusID DESC, e.LastName, e.FirstName";
@@ -120,11 +125,15 @@ class Bonuses {
             $countParams[':payroll_run_id'] = $filters['payroll_run_id'];
         }
         if (!empty($filters['search'])) {
-            $countSql .= " AND (CONCAT(e.FirstName, ' ', e.LastName) LIKE :search 
-                         OR e.EmployeeNumber LIKE :search 
-                         OR b.BonusName LIKE :search 
-                         OR b.BonusType LIKE :search)";
-            $countParams[':search'] = '%' . $filters['search'] . '%';
+            $searchTerm = '%' . $filters['search'] . '%';
+            $countSql .= " AND (CONCAT(e.FirstName, ' ', e.LastName) LIKE :search1 
+                         OR e.Email LIKE :search2 
+                         OR e.JobTitle LIKE :search3 
+                         OR b.BonusType LIKE :search4)";
+            $countParams[':search1'] = $searchTerm;
+            $countParams[':search2'] = $searchTerm;
+            $countParams[':search3'] = $searchTerm;
+            $countParams[':search4'] = $searchTerm;
         }
 
         $countStmt = $this->pdo->prepare($countSql);
@@ -152,7 +161,7 @@ class Bonuses {
         $sql = "SELECT 
                     e.EmployeeID,
                     CONCAT(e.FirstName, ' ', e.LastName) as employee_name,
-                    e.EmployeeNumber,
+                    e.EmployeeID as EmployeeNumber,
                     'N/A' as DepartmentName,
                     'N/A' as PositionName,
                     'N/A' as BranchName,
@@ -195,7 +204,7 @@ class Bonuses {
         $sql = "SELECT 
                     b.*,
                     CONCAT(e.FirstName, ' ', e.LastName) as employee_name,
-                    e.EmployeeNumber,
+                    e.EmployeeID as EmployeeNumber,
                     es.BaseSalary,
                     es.PayFrequency,
                     -- Computation details
@@ -250,7 +259,7 @@ class Bonuses {
         $sql = "SELECT 
                     e.EmployeeID,
                     CONCAT(e.FirstName, ' ', e.LastName) as employee_name,
-                    e.EmployeeNumber,
+                    e.EmployeeID as EmployeeNumber,
                     d.DepartmentName,
                     p.PositionName,
                     es.BaseSalary,
@@ -406,10 +415,10 @@ class Bonuses {
         $sql = "SELECT 
                     b.*,
                     CONCAT(e.FirstName, ' ', e.LastName) as employee_name,
-                    e.EmployeeNumber,
-                    d.DepartmentName,
-                    p.PositionName,
-                    hb.BranchName
+                    e.EmployeeID as EmployeeNumber,
+                    e.JobTitle as PositionName,
+                    'N/A' as DepartmentName,
+                    'N/A' as BranchName
                 FROM bonuses b
                 LEFT JOIN employees e ON b.EmployeeID = e.EmployeeID
                 WHERE b.BonusID = :bonus_id";
@@ -429,7 +438,7 @@ class Bonuses {
                     e.EmployeeID,
                     e.FirstName,
                     e.LastName,
-                    e.EmployeeNumber,
+                    e.EmployeeID as EmployeeNumber,
                     es.BaseSalary,
                     es.PayFrequency,
                     d.DepartmentName,

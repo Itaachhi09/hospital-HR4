@@ -45,7 +45,7 @@ class BonusesController {
                 $this->handleDelete($id, $subResource);
                 break;
             case 'OPTIONS':
-                Response::success('OK', ['methods' => ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']]);
+                Response::success(['methods' => ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']], 'OK');
                 break;
             default:
                 Response::methodNotAllowed();
@@ -67,7 +67,7 @@ class BonusesController {
             ];
             
             $result = $this->bonusesModel->getAllBonuses($filters);
-            Response::success('Bonuses retrieved successfully', $result);
+            Response::success($result, 'Bonuses retrieved successfully');
             
         } elseif ($subResource === 'summary') {
             // Get bonus summary for specific employee
@@ -76,7 +76,7 @@ class BonusesController {
                 Response::notFound('Employee bonus information not found');
                 return;
             }
-            Response::success('Employee bonus summary retrieved successfully', $result);
+            Response::success($result, 'Employee bonus summary retrieved successfully');
             
         } elseif ($subResource === 'computation') {
             // Get bonus computation details
@@ -85,17 +85,17 @@ class BonusesController {
                 Response::notFound('Bonus computation not found');
                 return;
             }
-            Response::success('Bonus computation retrieved successfully', $result);
+            Response::success($result, 'Bonus computation retrieved successfully');
             
         } elseif ($subResource === 'types') {
             // Get available bonus types
             $result = $this->bonusesModel->getBonusTypes();
-            Response::success('Bonus types retrieved successfully', $result);
+            Response::success($result, 'Bonus types retrieved successfully');
             
         } elseif ($subResource === 'eligibility') {
             // Check employee eligibility for bonuses
             $result = $this->bonusesModel->checkEmployeeEligibility($id);
-            Response::success('Employee eligibility checked successfully', $result);
+            Response::success($result, 'Employee eligibility checked successfully');
             
         } else {
             // Get specific bonus details
@@ -104,7 +104,7 @@ class BonusesController {
                 Response::notFound('Bonus not found');
                 return;
             }
-            Response::success('Bonus retrieved successfully', $result);
+            Response::success($result, 'Bonus retrieved successfully');
         }
     }
 
@@ -121,19 +121,19 @@ class BonusesController {
             }
             
             $result = $this->bonusesModel->computeBonusesForPayrollRun($payrollRunId, $branchId);
-            Response::success('Bonuses computed successfully', $result);
+            Response::success($result, 'Bonuses computed successfully');
             
         } elseif ($subResource === 'manual') {
             // Add manual bonus entry
             $input = json_decode(file_get_contents('php://input'), true);
             $result = $this->bonusesModel->addManualBonus($input);
-            Response::success('Manual bonus added successfully', $result);
+            Response::success($result, 'Manual bonus added successfully');
             
         } else {
             // Create new bonus
             $input = json_decode(file_get_contents('php://input'), true);
             $result = $this->bonusesModel->createBonus($input);
-            Response::success('Bonus created successfully', $result);
+            Response::success($result, 'Bonus created successfully');
         }
     }
 
@@ -145,7 +145,7 @@ class BonusesController {
             Response::notFound('Bonus not found');
             return;
         }
-        Response::success('Bonus updated successfully', $result);
+        Response::success($result, 'Bonus updated successfully');
     }
 
     private function handleDelete($id, $subResource) {
@@ -155,6 +155,6 @@ class BonusesController {
             Response::notFound('Bonus not found');
             return;
         }
-        Response::success('Bonus deleted successfully');
+        Response::success(null, 'Bonus deleted successfully');
     }
 }

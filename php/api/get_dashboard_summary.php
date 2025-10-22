@@ -5,12 +5,8 @@ ini_set('log_errors', 1);
 // Ensure this path is writable by the web server:
 // ini_set('error_log', __DIR__ . '/../../php-error.log'); 
 
-// Use stable session configuration (BEFORE any output)
-require_once __DIR__ . '/../session_config_stable.php';
-
-header('Content-Type: application/json');
-
-require_once '../db_connect.php'; // Adjust path as needed
+// Centralized API bootstrap: JSON headers, CORS, stable session, DB
+require_once __DIR__ . '/_api_bootstrap.php';
 
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role_name'])) {
     http_response_code(401); // Unauthorized

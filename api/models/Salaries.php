@@ -16,9 +16,9 @@ class Salaries {
         $sql = "SELECT 
                     e.EmployeeID,
                     CONCAT(e.FirstName, ' ', e.LastName) as employee_name,
-                    e.EmployeeNumber,
+                    e.EmployeeID as EmployeeNumber,
+                    e.JobTitle as PositionName,
                     'N/A' as DepartmentName,
-                    'N/A' as PositionName,
                     es.BaseSalary,
                     es.PayFrequency,
                     es.PayRate,
@@ -37,25 +37,13 @@ class Salaries {
                         WHEN es.PayFrequency = 'Daily' THEN es.BaseSalary
                         ELSE ROUND(es.PayRate * 8, 2)
                     END as daily_rate,
-                    -- Get recent adjustments from HR3
-                    COALESCE(adj.total_adjustments, 0) as total_adjustments,
-                    COALESCE(adj.leave_deductions, 0) as leave_deductions,
-                    COALESCE(adj.undertime_deductions, 0) as undertime_deductions,
-                    COALESCE(adj.overtime_additions, 0) as overtime_additions
+                    0 as total_adjustments,
+                    0 as leave_deductions,
+                    0 as undertime_deductions,
+                    0 as overtime_additions
                 FROM employees e
                 LEFT JOIN employeesalaries es ON e.EmployeeID = es.EmployeeID AND es.IsCurrent = 1
-                LEFT JOIN (
-                    SELECT 
-                        EmployeeID,
-                        SUM(CASE WHEN AdjustmentType = 'Leave' THEN Amount ELSE 0 END) as leave_deductions,
-                        SUM(CASE WHEN AdjustmentType = 'Undertime' THEN Amount ELSE 0 END) as undertime_deductions,
-                        SUM(CASE WHEN AdjustmentType = 'Overtime' THEN Amount ELSE 0 END) as overtime_additions,
-                        SUM(Amount) as total_adjustments
-                    FROM salary_adjustments 
-                    WHERE AdjustmentDate >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH)
-                    GROUP BY EmployeeID
-                ) adj ON e.EmployeeID = adj.EmployeeID
-                WHERE 1=1";
+                WHERE e.IsActive = 1 AND es.BaseSalary IS NOT NULL";
 
         $params = [];
         
@@ -66,11 +54,11 @@ class Salaries {
         //     $params[':branch_id'] = $filters['branch_id'];
         // }
         
-        // Department filter disabled - column doesn't exist in employees table
-        // if (!empty($filters['department_id'])) {
-        //     $sql .= " AND e.DepartmentID = :department_id";
-        //     $params[':department_id'] = $filters['department_id'];
-        // }
+        // Department filter
+        if (!empty($filters['department_id'])) {
+            $sql .= " AND e.DepartmentID = :department_id";
+            $params[':department_id'] = $filters['department_id'];
+        }
         
         // Position filter disabled - column doesn't exist in employees table
         // if (!empty($filters['position_id'])) {
@@ -79,10 +67,13 @@ class Salaries {
         // }
         
         if (!empty($filters['search'])) {
-            $sql .= " AND (CONCAT(e.FirstName, ' ', e.LastName) LIKE :search 
-                     OR e.EmployeeNumber LIKE :search 
-)";
-            $params[':search'] = '%' . $filters['search'] . '%';
+            $searchTerm = '%' . $filters['search'] . '%';
+            $sql .= " AND (CONCAT(e.FirstName, ' ', e.LastName) LIKE :search1 
+                     OR e.JobTitle LIKE :search2 
+                     OR e.Email LIKE :search3)";
+            $params[':search1'] = $searchTerm;
+            $params[':search2'] = $searchTerm;
+            $params[':search3'] = $searchTerm;
         }
 
         $sql .= " ORDER BY e.LastName, e.FirstName";
@@ -106,26 +97,22 @@ class Salaries {
         // Get total count for pagination
         $countSql = "SELECT COUNT(*) as total FROM employees e
                     LEFT JOIN employeesalaries es ON e.EmployeeID = es.EmployeeID AND es.IsCurrent = 1
-                    WHERE 1=1";
+                    WHERE e.IsActive = 1 AND es.BaseSalary IS NOT NULL";
         
         $countParams = [];
-        // Branch, department and position filters disabled - columns don't exist in employees table
-        // if (!empty($filters['branch_id'])) {
-        //     $countSql .= " AND e.BranchID = :branch_id";
-        //     $countParams[':branch_id'] = $filters['branch_id'];
-        // }
-        // if (!empty($filters['department_id'])) {
-        //     $countSql .= " AND e.DepartmentID = :department_id";
-        //     $countParams[':department_id'] = $filters['department_id'];
-        // }
-        // if (!empty($filters['position_id'])) {
-        //     $countSql .= " AND e.PositionID = :position_id";
-        //     $countParams[':position_id'] = $filters['position_id'];
-        // }
+        // Department filter
+        if (!empty($filters['department_id'])) {
+            $countSql .= " AND e.DepartmentID = :department_id";
+            $countParams[':department_id'] = $filters['department_id'];
+        }
         if (!empty($filters['search'])) {
-            $countSql .= " AND (CONCAT(e.FirstName, ' ', e.LastName) LIKE :search 
-                         OR e.EmployeeNumber LIKE :search)";
-            $countParams[':search'] = '%' . $filters['search'] . '%';
+            $searchTerm = '%' . $filters['search'] . '%';
+            $countSql .= " AND (CONCAT(e.FirstName, ' ', e.LastName) LIKE :search1 
+                         OR e.JobTitle LIKE :search2 
+                         OR e.Email LIKE :search3)";
+            $countParams[':search1'] = $searchTerm;
+            $countParams[':search2'] = $searchTerm;
+            $countParams[':search3'] = $searchTerm;
         }
 
         $countStmt = $this->pdo->prepare($countSql);
@@ -153,9 +140,9 @@ class Salaries {
         $sql = "SELECT 
                     e.EmployeeID,
                     CONCAT(e.FirstName, ' ', e.LastName) as employee_name,
-                    e.EmployeeNumber,
+                    e.EmployeeID as EmployeeNumber,
+                    e.JobTitle as PositionName,
                     'N/A' as DepartmentName,
-                    'N/A' as PositionName,
                     'N/A' as BranchName,
                     es.BaseSalary,
                     es.PayFrequency,
@@ -256,51 +243,50 @@ class Salaries {
      * Get employee deductions overview
      */
     public function getEmployeeDeductions($employeeId) {
-        $sql = "SELECT 
-                    'SSS' as deduction_type,
-                    '4.5%' as rate,
-                    ROUND(es.BaseSalary * 0.045, 2) as amount,
-                    'Statutory' as category
-                FROM employeesalaries es 
-                WHERE es.EmployeeID = :employee_id AND es.IsCurrent = 1
-                
-                UNION ALL
-                
-                SELECT 
-                    'PhilHealth' as deduction_type,
-                    '2.0%' as rate,
-                    ROUND(es.BaseSalary * 0.02, 2) as amount,
-                    'Statutory' as category
-                FROM employeesalaries es 
-                WHERE es.EmployeeID = :employee_id AND es.IsCurrent = 1
-                
-                UNION ALL
-                
-                SELECT 
-                    'Pag-IBIG' as deduction_type,
-                    '1.0%' as rate,
-                    ROUND(es.BaseSalary * 0.01, 2) as amount,
-                    'Statutory' as category
-                FROM employeesalaries es 
-                WHERE es.EmployeeID = :employee_id AND es.IsCurrent = 1
-                
-                UNION ALL
-                
-                SELECT 
-                    'Withholding Tax' as deduction_type,
-                    'Progressive' as rate,
-                    ROUND(es.BaseSalary * 0.15, 2) as amount,
-                    'Tax' as category
-                FROM employeesalaries es 
-                WHERE es.EmployeeID = :employee_id AND es.IsCurrent = 1
-                
-                ORDER BY category, deduction_type";
-
-        $stmt = $this->pdo->prepare($sql);
-        $stmt->bindValue(':employee_id', $employeeId, PDO::PARAM_INT);
-        $stmt->execute();
-
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        try {
+            // First check if employee has salary data
+            $checkSql = "SELECT BaseSalary FROM employeesalaries WHERE EmployeeID = ? AND IsCurrent = 1";
+            $checkStmt = $this->pdo->prepare($checkSql);
+            $checkStmt->execute([$employeeId]);
+            $salaryData = $checkStmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$salaryData || !$salaryData['BaseSalary']) {
+                return []; // Return empty array if no salary data
+            }
+            
+            $baseSalary = $salaryData['BaseSalary'];
+            
+            // Calculate deductions based on base salary
+            return [
+                [
+                    'deduction_type' => 'SSS',
+                    'rate' => '4.5%',
+                    'amount' => round($baseSalary * 0.045, 2),
+                    'category' => 'Statutory'
+                ],
+                [
+                    'deduction_type' => 'PhilHealth',
+                    'rate' => '2.0%',
+                    'amount' => round($baseSalary * 0.02, 2),
+                    'category' => 'Statutory'
+                ],
+                [
+                    'deduction_type' => 'Pag-IBIG',
+                    'rate' => '1.0%',
+                    'amount' => round($baseSalary * 0.01, 2),
+                    'category' => 'Statutory'
+                ],
+                [
+                    'deduction_type' => 'Withholding Tax',
+                    'rate' => 'Progressive',
+                    'amount' => round($baseSalary * 0.15, 2),
+                    'category' => 'Tax'
+                ]
+            ];
+        } catch (PDOException $e) {
+            error_log("Error in getEmployeeDeductions: " . $e->getMessage());
+            return [];
+        }
     }
 
     /**
@@ -314,22 +300,28 @@ class Salaries {
      * Get employee salary adjustments from HR3
      */
     private function getEmployeeAdjustments($employeeId) {
-        $sql = "SELECT 
-                    AdjustmentType,
-                    Amount,
-                    AdjustmentDate,
-                    Reason,
-                    Status
-                FROM salary_adjustments 
-                WHERE EmployeeID = :employee_id 
-                AND AdjustmentDate >= DATE_SUB(CURDATE(), INTERVAL 3 MONTH)
-                ORDER BY AdjustmentDate DESC";
+        // Check if table exists first
+        try {
+            $sql = "SELECT 
+                        AdjustmentType,
+                        Amount,
+                        AdjustmentDate,
+                        Reason,
+                        Status
+                    FROM salary_adjustments 
+                    WHERE EmployeeID = :employee_id 
+                    AND AdjustmentDate >= DATE_SUB(CURDATE(), INTERVAL 3 MONTH)
+                    ORDER BY AdjustmentDate DESC";
 
-        $stmt = $this->pdo->prepare($sql);
-        $stmt->bindValue(':employee_id', $employeeId, PDO::PARAM_INT);
-        $stmt->execute();
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->bindValue(':employee_id', $employeeId, PDO::PARAM_INT);
+            $stmt->execute();
 
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            // Table doesn't exist, return empty array
+            return [];
+        }
     }
 
     /**

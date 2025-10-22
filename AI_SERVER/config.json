@@ -1,0 +1,10 @@
+{
+  "mysql": {
+    "host": "127.0.0.1",
+    "user": "root",
+    "password": "",
+    "database": "hospital_hr_db"
+  },
+  "port": 8000
+}
+

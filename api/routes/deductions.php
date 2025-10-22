@@ -45,7 +45,7 @@ class DeductionsController {
                 $this->handleDelete($id, $subResource);
                 break;
             case 'OPTIONS':
-                Response::success('OK', ['methods' => ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']]);
+                Response::success(['methods' => ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']], 'OK');
                 break;
             default:
                 Response::methodNotAllowed();
@@ -160,6 +160,6 @@ class DeductionsController {
             Response::notFound('Deduction not found');
             return;
         }
-        Response::success('Deduction deleted successfully');
+        Response::success(null, 'Deduction deleted successfully');
     }
 }

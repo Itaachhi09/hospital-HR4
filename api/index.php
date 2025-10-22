@@ -9,7 +9,7 @@
 
 // Error reporting and headers
 error_reporting(E_ALL);
-ini_set('display_errors', 0);
+ini_set('display_errors', 0); // Disabled for production
 ini_set('log_errors', 1);
 
 // Include configuration and establish database connection
@@ -18,12 +18,22 @@ require_once __DIR__ . '/config.php';
 // Use the same session configuration as the legacy system
 require_once __DIR__ . '/../php/session_config_stable.php';
 
-// Set headers for CORS and JSON responses
+// Set headers for CORS and JSON responses (credentials-compatible)
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
+// Reflect allowed origin instead of wildcard when using credentials
+$allowedOriginsEnv = getenv('ALLOWED_ORIGINS') ?: 'http://localhost';
+$allowedOrigins = array_map('trim', explode(',', $allowedOriginsEnv));
+$requestOrigin = $_SERVER['HTTP_ORIGIN'] ?? '';
+if ($requestOrigin && in_array($requestOrigin, $allowedOrigins, true)) {
+    header('Access-Control-Allow-Origin: ' . $requestOrigin);
+    header('Access-Control-Allow-Credentials: true');
+} else {
+    $defaultOrigin = 'http://localhost';
+    header('Access-Control-Allow-Origin: ' . $defaultOrigin);
+    header('Access-Control-Allow-Credentials: true');
+}
 header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
-header('Access-Control-Allow-Credentials: true');
+header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, X-CSRF-Token');
 
 // Handle preflight OPTIONS requests
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -39,7 +49,7 @@ require_once __DIR__ . '/middlewares/AuthMiddleware.php';
 require_once __DIR__ . '/middlewares/ErrorHandler.php';
 
 // Initialize error handler
-$errorHandler = new ErrorHandler();
+$errorHandler = new ErrorHandler(false); // Set to false for production
 
 // Initialize request handler
 $request = new Request();
@@ -120,10 +130,9 @@ try {
     }
     // Protected routes (require authentication)
     else {
-        // Temporarily bypass authentication for testing
-        // TODO: Re-enable authentication once session sharing is fixed
+        // Check authentication (TEMPORARILY DISABLED FOR DEVELOPMENT)
+        // TODO: Re-enable authentication once session sharing is properly configured
         /*
-        // Check authentication
         $authMiddleware = new AuthMiddleware();
         if (!$authMiddleware->authenticate()) {
             Response::unauthorized('Authentication required');

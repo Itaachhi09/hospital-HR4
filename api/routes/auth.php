@@ -35,12 +35,12 @@ class AuthController {
         $data = $request->getData();
 
         // Validate required fields
-        $errors = $request->validateRequired(['username', 'password']);
+        $errors = Request::validateRequired($data, ['username', 'password']);
         if (!empty($errors)) {
             Response::validationError($errors);
         }
 
-        $username = $request->sanitizeString($data['username']);
+        $username = Request::sanitizeString($data['username']);
         $password = $data['password'];
 
         try {
@@ -163,7 +163,7 @@ class AuthController {
         $request = new Request();
         $data = $request->getData();
 
-        $errors = $request->validateRequired(['user_id', 'code']);
+        $errors = Request::validateRequired($data, ['user_id', 'code']);
         if (!empty($errors)) {
             Response::validationError($errors);
         }
@@ -211,10 +211,18 @@ class AuthController {
      * User logout
      */
     public function logout() {
-        // In a stateless JWT system, logout is handled client-side
-        // by removing the token. We can optionally maintain a blacklist
-        // of tokens, but for simplicity, we'll just return success.
-        Response::success(null, 'Logout successful');
+        // Destroy legacy PHP session to ensure full logout in hybrid mode
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            @session_start();
+        }
+        $_SESSION = [];
+        if (ini_get('session.use_cookies')) {
+            $params = session_get_cookie_params();
+            setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'], $params['secure'], $params['httponly']);
+        }
+        @session_destroy();
+
+        Response::success(['redirect_url' => 'index.php'], 'Logout successful.');
     }
 
     /**
@@ -224,13 +232,13 @@ class AuthController {
         $request = new Request();
         $data = $request->getData();
 
-        $errors = $request->validateRequired(['email']);
+        $errors = Request::validateRequired($data, ['email']);
         if (!empty($errors)) {
             Response::validationError($errors);
         }
 
         $email = $data['email'];
-        if (!$request->validateEmail($email)) {
+        if (!Request::validateEmail($email)) {
             Response::validationError(['email' => 'Invalid email format']);
         }
 

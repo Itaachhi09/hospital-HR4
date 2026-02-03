@@ -1,0 +1,18 @@
+# API URL Rewriting
+# Routes all API requests to index.php
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    
+    # Don't rewrite if the file exists
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    
+    # Route everything to index.php
+    # The router will parse the path from REQUEST_URI
+    RewriteRule ^(.*)$ index.php [QSA,L]
+</IfModule>
+
+# Fallback: If mod_rewrite is not available, allow direct access to index.php
+# Access as: /public/api/index.php/dashboard
+

@@ -6,3 +6,6 @@ AddType application/json .json
     Header set Access-Control-Allow-Methods "GET, OPTIONS"
     Header set Access-Control-Allow-Headers "Content-Type"
 </FilesMatch>
+
+# Note: API URL rewriting is handled by public/api/.htaccess
+# This file only handles MIME types and CORS headers
